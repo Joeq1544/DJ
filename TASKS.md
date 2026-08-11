@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-11
 Current milestone: M3 — Discovery and recommendation slice
-Current state: M2 is complete and pushed; the bounded M3 plan is frozen, implementation is starting, and visual QA remains deferred until all features are implemented
+Current state: M3 deterministic core, schema-v2 projection, and strict desktop boundary are green at `5a5d59d`; accessible renderer integration is in progress, and visual QA remains deferred until all features are implemented
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -42,9 +42,9 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 
 | ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
 | --- | --- | --- | --- | --- | --- | --- |
-| M3-001 | ranking specialist | Deterministic schema-v2 search predicates, key/tempo normalization, similarity, all eight transition intents, confidence, reasons, penalties, missing evidence, and stable ties pass fixture tests | in-progress | Plan: `docs/superpowers/plans/2026-08-11-m3-discovery-recommendations.md`; focused evidence pending | pending | Heuristic weights require real-use tuning after functionality is complete |
-| M3-002 | primary + desktop boundary implementer | One bounded repository projection and three fixed core operations cross strict Python/Zod/IPC/preload contracts without paths, audio, schema migration, or N+1 summaries | not-started | Focused core and desktop boundary tests pending | pending | Personal-library scan cap and sparse evidence must be disclosed honestly |
-| M3-003 | macOS UI specialist | Library search/filter, seed exploration, similar tracks, recommendation intents, and component explanations work accessibly on the existing Library screen | not-started | Renderer behavior and production build pending | pending | Visual QA remains deferred under D-045 |
+| M3-001 | ranking specialist | Deterministic schema-v2 search predicates, key/tempo normalization, similarity, all eight transition intents, confidence, reasons, penalties, missing evidence, and stable ties pass fixture tests | done | 17/17 focused ranking tests; hand-calculated integer endpoints, mixed provenance, all intents, missing evidence, and stable ties | `5a5d59d` | Heuristic weights require real-use tuning after functionality is complete |
+| M3-002 | primary + desktop boundary implementer | One bounded repository projection and three fixed core operations cross strict Python/Zod/IPC/preload contracts without paths, audio, schema migration, or N+1 summaries | done | 6/6 repository/service discovery tests; complete core 79/79; strict boundary 58/58; `pnpm typecheck` | `5a5d59d` | Personal-library scan cap and sparse evidence must be disclosed honestly |
+| M3-003 | macOS UI specialist | Library search/filter, seed exploration, similar tracks, recommendation intents, and component explanations work accessibly on the existing Library screen | in-progress | Renderer behavior and production build pending | pending | Visual QA remains deferred under D-045 |
 | M3-004 | primary | Generated-fixture desktop discovery flow, aggregate gate, one bounded review, current evidence/docs, and green pushed checkpoint close M3 | not-started | Electron flow, `pnpm verify:m3`, review, and evidence pending | pending | Personal-library subjective relevance is deferred to Joe's final test period |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)

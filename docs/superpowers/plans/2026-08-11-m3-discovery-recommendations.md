@@ -173,7 +173,7 @@ Main reasons are the two available components with greatest absolute signed cont
 
 **Boundary supplied by primary:** Implement immutable pure Python input/output records inside `discovery.py`; do not import the database or service. Accept a tuple of `TrackEvidence` records containing a `StoredTrack`, optional successful `AnalysisFeatures`, and optional playlist IDs.
 
-- [ ] **Step 1: Write red tests first**
+- [x] **Step 1: Write red tests first**
 
 Use a generated/non-copyrighted eight-track fixture: seed, smooth match, compatible-key tie, higher-energy build, lower-energy reset, half/double-tempo match, Unicode/different-genre bridge, and sparse/unavailable evidence. Cover casefolded token search, combined filters, exact/compatible key, local-over-imported evidence, half/double tempo, every intent and target endpoint, mixed provenance confidence, exact rounding ties, an all-missing candidate, seed exclusion, unavailable exclusion, missing versus penalty, bounded reasons, stable ties, unknown seed, and result caps.
 
@@ -185,7 +185,7 @@ python3 -B -m unittest core.tests.test_discovery -v
 
 Expected red: the production discovery module does not exist.
 
-- [ ] **Step 2: Implement only the frozen v1 rules and rerun green**
+- [x] **Step 2: Implement only the frozen v1 rules and rerun green**
 
 Keep formulas integer-only on the wire, side-effect-free, and deterministic. Do not add plugin interfaces, learned weights, embeddings, or speculative abstraction. Validate IDs, bounds, contradictory ranges, and fixed enums at the domain entry points as a second line of defense.
 
@@ -203,7 +203,7 @@ Keep formulas integer-only on the wire, side-effect-free, and deterministic. Do 
 - Create or modify: `core/tests/test_service.py`
 - Create: `core/tests/test_discovery_service.py`
 
-- [ ] **Step 1: Add red repository and service tests**
+- [x] **Step 1: Add red repository and service tests**
 
 Prove one bounded query/projection supplies track, analysis JSON, analysis status, and playlist membership without calling `analysis_summary` per candidate. Test collection and playlist cursor order after filtering, scan truncation, Unicode text, every exposed numeric range, exhaustive availability and analysis-state mapping, unknown playlist/seed, invalid/extra payload fields, response caps, path omission, and stable service error codes.
 
@@ -213,11 +213,11 @@ Run:
 python3 -B -m unittest core.tests.test_database core.tests.test_service core.tests.test_discovery_service -v
 ```
 
-- [ ] **Step 2: Implement the projection and commands**
+- [x] **Step 2: Implement the projection and commands**
 
 Add a repository method that returns at most 25,001 joined rows ordered once, decodes each feature JSON through the existing validator, and maps successful feature evidence without exposing `source_path`. Extend `list_tracks` with filters and use pure discovery predicates before paging. Add `find_similar_tracks` and `recommend_next_tracks` dispatch. Keep ordinary request work bounded to the existing desktop timeout; do not change schema or migration behavior.
 
-- [ ] **Step 3: Run the complete core suite**
+- [x] **Step 3: Run the complete core suite**
 
 ```bash
 python3 -B -m unittest discover -s core/tests -v
@@ -240,15 +240,15 @@ Expected: all historical and M3 core tests pass with no database, cache, or pers
 - Modify: `app/desktop/tests/preload-contract.test.ts`
 - Create: `app/desktop/tests/discovery-contracts.test.ts`
 
-- [ ] **Step 1: Add red strict-boundary tests**
+- [x] **Step 1: Add red strict-boundary tests**
 
 Cover every bound and cross-field relation, all eight intents, nullable missing component scores, `contributionSignedPpm`, maximum arrays, required TrackPage truncation, one literal Python-wire response, unknown-field rejection, result path omission, trusted sender checks, core-response validation, and that preload exposes exactly the two fixed discovery methods without a generic invoke surface.
 
-- [ ] **Step 2: Implement the contracts and adapters**
+- [x] **Step 2: Implement the contracts and adapters**
 
 Use Zod strict objects and discriminated enums. Add only `discovery:findSimilar` and `discovery:recommendNext`, both mapped to fixed core commands. Preserve the existing 1 MiB JSON-line cap and current ordinary timeout.
 
-- [ ] **Step 3: Run focused boundary checks**
+- [x] **Step 3: Run focused boundary checks**
 
 ```bash
 pnpm --dir app/desktop test discovery-contracts contracts main-security preload-contract
