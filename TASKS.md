@@ -1,8 +1,8 @@
 # DJ Copilot Tasks
 
 Last updated: 2026-08-11
-Current milestone: M4 — Set workflow slice (planning)
-Current state: M3 is closed and pushed at `1e9d347` with reviewer READY and a green 81-core/104-desktop/four-Electron aggregate; bounded M4 domain, export, and renderer research is in progress, and visual QA remains deferred until all features are implemented
+Current milestone: M4 — Set workflow and Rekordbox export
+Current state: M3 is closed and pushed at `a395c8e`; bounded M4 domain, official-XML export, and renderer research is complete, the implementation contract is frozen, and visual QA remains deferred until all features are implemented
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -46,6 +46,17 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | M3-002 | primary + desktop boundary implementer | One bounded repository projection and three fixed core operations cross strict Python/Zod/IPC/preload contracts without paths, audio, schema migration, or N+1 summaries | done | Post-review 8/8 repository/service discovery tests and complete core 81/81, including repeated playlist positions; strict boundary 58/58; `pnpm typecheck` | `5a5d59d`, `1e9d347`, pushed | Personal-library scan cap and sparse evidence must be disclosed honestly |
 | M3-003 | macOS UI specialist | Library search/filter, seed exploration, similar tracks, recommendation intents, and component explanations work accessibly on the existing Library screen | done | Discovery renderer 8/8; combined discovery/library/analysis renderer 32/32; strict typecheck and production build | `bb85aaa`, pushed | Visual QA remains deferred under D-045 |
 | M3-004 | primary | Generated-fixture desktop discovery flow, aggregate gate, one bounded review, current evidence/docs, and green pushed checkpoint close M3 | done | Post-review `pnpm verify:m3`: shell/tracked-residue checks + 81 core + 104 desktop + typecheck/build + 4 Electron flows + diff check; independent reviewer READY with no unresolved High/Medium defect | `bb85aaa`, `1e9d347`, pushed | Personal-library subjective relevance is deferred to Joe's final test period |
+
+## M4 ledger
+
+| ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
+| --- | --- | --- | --- | --- | --- | --- |
+| M4-001 | ranking specialist | Pure deterministic set creation, mutation, alternatives, bounded optimization, inspection, warnings, and advisory organization reuse M3 evidence and preserve pins/repeats/missing state | in-progress | Three bounded research reports plus one pre-code scope monitor; all four Medium contract ambiguities resolved in `docs/superpowers/plans/2026-08-11-m4-set-workflow-export.md`; red/green implementation evidence pending | pending | Heuristic order and replacement quality require Joe's final subjective test period |
+| M4-002 | Rekordbox specialist | Production parser accepts official numeric playlist references and a deterministic one-playlist writer reparses and finalizes atomically without touching source XML/audio | in-progress | Reproduced prerequisite recorded as KI-063; writer/parser/finalization regressions pending | pending | Real Rekordbox 7.2.14 import remains deferred with visual/manual QA |
+| M4-003 | primary + core implementer | Schema-v3 draft snapshots, optimistic revisions, undo/redo, saved versions, stale-ID handling, and eight strict path-free service commands work transactionally | not-started | Migration/repository/service tests pending Tasks 1–2 contract stabilization | pending | Legacy libraries without a remembered selected XML path must be reimported before export |
+| M4-004 | desktop boundary implementer | Six fixed set methods and native-picker prepare/confirm export cross strict schemas with single-use main-owned confirmation state and no renderer paths | not-started | Contract, IPC, preload, core-client, and confirmation-state tests pending | pending | Native picker appearance is deferred; cancel/new/overwrite semantics remain automated |
+| M4-005 | macOS UI specialist | One inline Set workspace exposes every structured create/edit/history/version/inspection/organization/export behavior accessibly with no renderer scoring/filesystem access | not-started | Renderer behavior tests, typecheck, and production build pending | pending | All screenshot and subjective visual QA is deferred under D-045 |
+| M4-006 | primary | Generated official-XML import-to-export Electron flow, aggregate gate, one bounded review, current memory/docs, and a green pushed checkpoint close M4 | not-started | `pnpm verify:m4`, milestone evidence, review, payload inspection, commit, and push pending | pending | Nonvisual automation must not be mislabeled as real Rekordbox or native-picker visual validation |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 

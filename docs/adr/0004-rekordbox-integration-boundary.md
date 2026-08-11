@@ -29,6 +29,14 @@ A fresh task review found and resolved an incorrect playlist-limit counter and c
 
 Phase 2 proves reconciliation, round-trip, source-hash immutability, independent export reparse, point-of-use IDs, same-volume temporary sibling/atomic finalize, explicit overwrite rules, and validated cross-volume copy-to-destination-temp behavior. Real user-selected XML and optional backed-up profile verification remain manual evidence where unavailable.
 
+## Personal-MVP M4 implementation amendment (2026-08-11)
+
+M4 implements the baseline as one deterministic, self-contained XML document containing the current validated draft tracks and one playlist. It does not merge an imported document, write Rekordbox databases, or add an optional reverse-engineered adapter. The production importer is extended narrowly to accept both official node-level numeric playlist references (`KeyType="0"` for TrackID and `KeyType="1"` for Location) and the existing synthetic child-level textual form; mixed, conflicting, or unknown forms fail closed.
+
+Electron main owns the native destination picker and a short-lived single-use confirmation bound to the exact draft revision and canonical destination. The renderer receives a display name, never a filesystem path. The Python core resolves current stable IDs to private external IDs and paths, blocks unresolved/unavailable/non-numeric entries and source aliases, writes a mode-0600 temporary destination sibling, flushes and syncs it, independently reparses it with the production importer, compares exact collection and playlist order, then atomically replaces the confirmed destination. M4 needs no cross-volume fallback because the temporary file is created beside the destination.
+
+This is the personal-use implementation of the trusted-write boundary. It retains source immutability, schema validation, path hiding, point-of-use checks, explicit overwrite confirmation, and failure integrity without reviving the superseded Phase 0 approval broker or speculative XML/database machinery. Real Rekordbox import behavior and native picker appearance remain deferred under D-045 rather than recorded as passed.
+
 ## Consequences if accepted
 
 XML-only mode is a permanent supported fallback. Export uses temporary write, independent reparse, ID/location validation, and atomic finalize with explicit overwrite confirmation.
