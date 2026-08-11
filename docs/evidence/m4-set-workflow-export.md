@@ -1,12 +1,13 @@
 # M4 Set Workflow and Rekordbox Export Evidence
 
 - Date: 2026-08-11
-- Status: review corrections implemented, post-review aggregate green, and original reviewer READY; closure checkpoint pending
+- Status: complete; post-review aggregate green, original reviewer READY, and closure checkpoint pushed
 - Plan: `docs/superpowers/plans/2026-08-11-m4-set-workflow-export.md`
 - XML checkpoint: `3f87261` (pushed to `origin/main`)
 - Set-domain/core checkpoint: `abad8c3` (pushed)
 - Desktop workspace checkpoint: `82bbf94` (pushed)
 - Integrated flow/corrections checkpoint: `dd741d6` (pushed)
+- Review-correction/closure checkpoint: `10d2511` (pushed)
 
 ## Scope exercised
 

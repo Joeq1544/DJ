@@ -1,6 +1,6 @@
 # Recovery Guide
 
-Status: M0–M3 closed; M4 review corrections, post-review aggregate, and reviewer confirmation green; closure checkpoint pending
+Status: M0–M4 closed and pushed through green review-correction checkpoint `10d2511`; M5 in progress
 Last updated: 2026-08-11
 
 ## M0 green checkpoint
@@ -21,7 +21,7 @@ Checkpoints `b700d7d`, `d1dad4b`, and `da730ba` add the versioned FFmpeg/NumPy p
 
 ## M3 and M4 implementation checkpoints
 
-M3 checkpoints `5a5d59d`, `bb85aaa`, and `1e9d347` add and close deterministic discovery. M4 checkpoints `3f87261`, `abad8c3`, `82bbf94`, and `dd741d6` add official XML compatibility/export, schema-v3 drafts, the desktop workspace, and the complete import-to-export flow. After review corrections, `pnpm verify:m4` passed 119 core tests, 116 desktop tests, strict TypeScript, production builds, and all five Electron flows; the correction checkpoint is recorded here after it is pushed.
+M3 checkpoints `5a5d59d`, `bb85aaa`, and `1e9d347` add and close deterministic discovery. M4 checkpoints `3f87261`, `abad8c3`, `82bbf94`, and `dd741d6` add official XML compatibility/export, schema-v3 drafts, the desktop workspace, and the complete import-to-export flow. After review corrections, `pnpm verify:m4` passed 119 core tests, 116 desktop tests, strict TypeScript, production builds, and all five Electron flows; reviewer READY and correction checkpoint `10d2511` close M4.
 
 ## Safe Git recovery
 

@@ -12,6 +12,7 @@ All notable project changes are recorded here. The project has not yet produced 
 - Added six strict set and two confirmed-export desktop operations plus the inline accessible set workspace; Electron main owns the native destination and renderer responses remain path-free.
 - Added the generated official-XML Electron flow covering repeats, edits/history/versions, playlist/draft inspection, cancel/new/overwrite export, exact reparse order, reload persistence, immutable source hashes, and cleanup.
 - Corrected invalid launcher intents and saved-head version identity during integration, then fixed review findings around historical read-only state, identical restores, stale-revision ordering, and repeated-playlist analysis IDs. The post-review `pnpm verify:m4` gate passes 119 core, 116 desktop, strict typecheck/build, and all five Electron flows. Visual/native Rekordbox QA remains deferred under D-045.
+- Closed M4 at pushed checkpoint `10d2511` after the original reviewer returned READY with no unresolved High/Medium normal-workflow issue.
 
 ### 2026-08-11 — M3 discovery and recommendations slice
 

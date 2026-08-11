@@ -399,7 +399,7 @@ Tasks 3 and 4 begin only after Task 1/2 domain/wire shapes are stable. Their fil
 - [x] Assert exact track/playlist order including one repeat, current-library IDs only, source XML/media/sentinel hashes, validated overwrite behavior, no temporary sibling, and runtime/user-data cleanup. No screenshots were captured.
 - [x] Post-review `pnpm verify:m4` passed with exact dependencies, 119/119 core tests, 116/116 desktop tests, strict typecheck, production build, all five M1–M4 Electron flows, shell/tracked-residue/diff checks.
 - [x] Perform one concise read-only milestone review of normal-workflow correctness/evidence only. The original reviewer returned READY after focused corrections, 13/13 history/service tests, 12/12 renderer correction tests, and the synchronized post-review aggregate; no repeated review loop was created.
-- [ ] Record actual evidence, inspect the staged payload for personal data/audio/databases/credentials/logs/caches, commit green checkpoints, and push `main` to `origin`.
+- [x] Record actual evidence, inspect the staged payload for personal data/audio/databases/credentials/logs/caches, commit green checkpoint `10d2511`, and push `main` to `origin`.
 
 ## M4 completion gate
 
