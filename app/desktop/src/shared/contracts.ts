@@ -3,6 +3,102 @@ import { z } from "zod";
 const idSchema = z.string().min(1).max(128);
 const messageSchema = z.string().min(1).max(500);
 const displayTextSchema = z.string().max(1_000).nullable();
+const nonnegativeIntegerSchema = z.number().int().nonnegative();
+const ppmSchema = z.number().int().min(0).max(1_000_000);
+const providerSchema = z.literal("ffmpeg-numpy-basic");
+const providerVersionSchema = z.literal("ffmpeg 8.1.2; ffprobe 8.1.2; numpy 2.4.4");
+const pipelineVersionSchema = z.literal("baseline-v1");
+
+export const analysisFeaturesSchema = z.strictObject({
+  fingerprint: z.string().regex(/^[a-f0-9]{64}$/u),
+  fileSize: nonnegativeIntegerSchema,
+  mtimeNs: z.number().nonnegative().refine(Number.isInteger),
+  codec: z.string().min(1).max(128),
+  container: z.string().min(1).max(128),
+  durationMs: z.number().int().positive(),
+  sampleRateHz: z.number().int().positive(),
+  channels: z.number().int().min(1).max(64),
+  bpmMilli: z.number().int().min(60_000).max(200_000).nullable(),
+  tempoConfidencePpm: ppmSchema,
+  tempoCandidatesMilli: z.array(z.number().int().min(60_000).max(200_000)).max(3),
+  onsetCount: nonnegativeIntegerSchema,
+  beatStrengthPpm: ppmSchema,
+  musicalKey: z.string().min(1).max(64).nullable(),
+  mode: z.enum(["major", "minor"]).nullable(),
+  keyConfidencePpm: ppmSchema,
+  rmsMilliDbfs: z.number().int().nullable(),
+  peakMilliDbfs: z.number().int().nullable(),
+  crestFactorMilliDb: z.number().int().nullable(),
+  energyPpm: ppmSchema,
+  dynamicRangeMilliDb: z.number().int().nullable(),
+  onsetRateMilliHz: nonnegativeIntegerSchema,
+  spectralCentroidHz: nonnegativeIntegerSchema.nullable(),
+  brightnessPpm: ppmSchema,
+  energyCurvePpm: z.array(ppmSchema).length(16),
+  provider: providerSchema,
+  providerVersion: providerVersionSchema,
+  pipelineVersion: pipelineVersionSchema,
+  limitations: z.array(z.string().min(1).max(500)).max(16),
+});
+
+export const analysisCapabilitiesSchema = z
+  .strictObject({
+    available: z.boolean(),
+    provider: providerSchema,
+    providerVersion: providerVersionSchema.nullable(),
+    pipelineVersion: pipelineVersionSchema,
+    availableStages: z.tuple([z.literal("metadata"), z.literal("basic_features")]),
+    unavailableStages: z.tuple([z.literal("structure"), z.literal("embeddings")]),
+    unavailableReason: messageSchema.nullable(),
+  })
+  .superRefine((capabilities, context) => {
+    if (capabilities.available && (capabilities.providerVersion === null || capabilities.unavailableReason !== null)) {
+      context.addIssue({ code: "custom", message: "Available analysis capabilities require exact provenance" });
+    }
+    if (!capabilities.available && (capabilities.providerVersion !== null || capabilities.unavailableReason === null)) {
+      context.addIssue({ code: "custom", message: "Unavailable analysis capabilities require a reason" });
+    }
+  });
+
+export const analysisSummarySchema = z.strictObject({
+  status: z.enum(["not_queued", "queued", "running", "paused", "succeeded", "failed"]),
+  progressPpm: ppmSchema,
+  attemptCount: nonnegativeIntegerSchema,
+  errorCode: z.string().min(1).max(64).nullable(),
+  errorMessage: messageSchema.nullable(),
+  features: analysisFeaturesSchema.nullable(),
+});
+
+export const analysisQueueItemSchema = z.strictObject({
+  trackId: idSchema,
+  ...analysisSummarySchema.shape,
+});
+
+export const analysisQueueStatusSchema = z.strictObject({
+  state: z.enum(["idle", "running", "paused"]),
+  queued: nonnegativeIntegerSchema,
+  running: nonnegativeIntegerSchema,
+  paused: nonnegativeIntegerSchema,
+  succeeded: nonnegativeIntegerSchema,
+  failed: nonnegativeIntegerSchema,
+  progressPpm: ppmSchema,
+  capabilities: analysisCapabilitiesSchema,
+  items: z.array(analysisQueueItemSchema).max(200),
+});
+
+export const analysisTrackIdsSchema = z
+  .array(idSchema)
+  .min(1)
+  .max(200)
+  .refine((trackIds) => new Set(trackIds).size === trackIds.length, "Track IDs must be unique");
+
+export const analysisQueueRequestSchema = z.strictObject({
+  trackIds: analysisTrackIdsSchema,
+});
+
+export const analysisStatusQuerySchema = z.strictObject({
+  trackIds: analysisTrackIdsSchema.optional(),
+});
 
 export const appStatusSchema = z.strictObject({
   state: z.enum(["starting", "ready", "retrying", "degraded"]),
@@ -19,6 +115,7 @@ export const trackListItemSchema = z.strictObject({
   musicalKey: z.string().max(64).nullable(),
   durationMs: z.number().int().nonnegative().nullable(),
   availability: z.enum(["available", "missing", "unreadable"]),
+  analysis: analysisSummarySchema.nullable(),
 });
 
 export const trackPageQuerySchema = z.strictObject({
@@ -92,6 +189,26 @@ export const coreRequestSchema = z.discriminatedUnion("command", [
     command: z.literal("list_tracks"),
     payload: trackPageQuerySchema,
   }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("queue_analysis"),
+    payload: analysisQueueRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("get_analysis_status"),
+    payload: analysisStatusQuerySchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("pause_analysis"),
+    payload: z.strictObject({}),
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("resume_analysis"),
+    payload: z.strictObject({}),
+  }),
 ]);
 
 export const coreResponseSchema = z.discriminatedUnion("ok", [
@@ -120,6 +237,11 @@ export type TrackPage = z.infer<typeof trackPageSchema>;
 export type PlaylistTreeNode = z.infer<typeof playlistTreeNodeSchema>;
 export type ImportSummary = z.infer<typeof importSummarySchema>;
 export type ImportResult = z.infer<typeof importResultSchema>;
+export type AnalysisFeatures = z.infer<typeof analysisFeaturesSchema>;
+export type AnalysisCapabilities = z.infer<typeof analysisCapabilitiesSchema>;
+export type AnalysisSummary = z.infer<typeof analysisSummarySchema>;
+export type AnalysisQueueStatus = z.infer<typeof analysisQueueStatusSchema>;
+export type AnalysisTrackIds = z.infer<typeof analysisTrackIdsSchema>;
 export type CoreRequest = z.infer<typeof coreRequestSchema>;
 export type CoreResponse = z.infer<typeof coreResponseSchema>;
 
@@ -131,5 +253,11 @@ export interface DesktopApi {
     importXml(): Promise<ImportResult>;
     getPlaylistTree(): Promise<PlaylistTreeNode[]>;
     listTracks(query?: TrackPageQuery): Promise<TrackPage>;
+  };
+  analysis: {
+    queue(trackIds: string[]): Promise<AnalysisQueueStatus>;
+    getStatus(trackIds?: string[]): Promise<AnalysisQueueStatus>;
+    pause(): Promise<AnalysisQueueStatus>;
+    resume(): Promise<AnalysisQueueStatus>;
   };
 }

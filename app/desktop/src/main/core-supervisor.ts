@@ -1,5 +1,6 @@
 import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
-import { chmod, mkdtemp, rm, unlink } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, chmod, mkdtemp, rm, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AppStatus, CoreRequest } from "../shared/contracts";
@@ -17,6 +18,8 @@ export interface CoreSupervisorOptions {
   userDataPath: string;
   repositoryRoot: string;
   pythonExecutable?: string;
+  environment?: NodeJS.ProcessEnv;
+  isExecutable?: (path: string) => Promise<boolean>;
   now?: () => number;
   spawn?: (command: string, args: string[], options: { env: NodeJS.ProcessEnv }) => ChildProcess;
   createClient?: (socketPath: string) => CoreRequester;
@@ -25,7 +28,9 @@ export interface CoreSupervisorOptions {
 export class CoreSupervisor {
   private readonly spawnProcess: NonNullable<CoreSupervisorOptions["spawn"]>;
   private readonly createClient: NonNullable<CoreSupervisorOptions["createClient"]>;
-  private readonly pythonExecutable: string;
+  private pythonExecutable: string | undefined;
+  private readonly environment: NodeJS.ProcessEnv;
+  private readonly isExecutable: NonNullable<CoreSupervisorOptions["isExecutable"]>;
   private readonly now: () => number;
   private state: AppStatus = { state: "starting", message: null };
   private child: ChildProcess | undefined;
@@ -40,7 +45,16 @@ export class CoreSupervisor {
     this.spawnProcess = options.spawn ?? ((command, args, spawnOptions) =>
       nodeSpawn(command, args, { env: spawnOptions.env, stdio: ["ignore", "ignore", "pipe"] }));
     this.createClient = options.createClient ?? ((socketPath) => new CoreClient(socketPath));
-    this.pythonExecutable = options.pythonExecutable ?? process.env.DJ_COPILOT_PYTHON ?? "python3";
+    this.pythonExecutable = options.pythonExecutable;
+    this.environment = options.environment ?? process.env;
+    this.isExecutable = options.isExecutable ?? (async (path) => {
+      try {
+        await access(path, constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    });
     this.now = options.now ?? Date.now;
   }
 
@@ -50,6 +64,7 @@ export class CoreSupervisor {
       await chmod(this.runtimePath, 0o700);
     }
     this.stopping = false;
+    this.pythonExecutable ??= await this.selectPythonExecutable();
     await this.launch(false);
   }
 
@@ -114,9 +129,9 @@ export class CoreSupervisor {
       ? { state: "retrying", message: "Restarting core service" }
       : { state: "starting", message: null };
     const child = this.spawnProcess(
-      this.pythonExecutable,
+      this.pythonExecutable ?? "python3",
       ["-B", "-m", "dj_copilot.service", "--socket", socketPath, "--database", join(this.options.userDataPath, "dj-copilot.sqlite3")],
-      { env: { ...process.env, PYTHONPATH: join(this.options.repositoryRoot, "core") } },
+      { env: { ...this.environment, PYTHONPATH: join(this.options.repositoryRoot, "core") } },
     );
     this.child = child;
     child.stderr?.on("data", (chunk: Buffer | string) => {
@@ -133,6 +148,13 @@ export class CoreSupervisor {
         this.state = { state: "degraded", message: SAFE_FAILURE_MESSAGE };
       }
     }
+  }
+
+  private async selectPythonExecutable(): Promise<string> {
+    const configured = this.environment.DJ_COPILOT_PYTHON;
+    if (configured) return configured;
+    const repositoryPython = join(this.options.repositoryRoot, ".venv", "bin", "python");
+    return (await this.isExecutable(repositoryPython)) ? repositoryPython : "python3";
   }
 
   private async removeRuntimeDirectory(): Promise<void> {

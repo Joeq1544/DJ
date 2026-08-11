@@ -1,6 +1,9 @@
 import { realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
 import {
+  analysisQueueRequestSchema,
+  analysisQueueStatusSchema,
+  analysisStatusQuerySchema,
   appStatusSchema,
   importResultSchema,
   playlistTreeSchema,
@@ -37,14 +40,24 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
   const trust = (event: { senderFrame: { url: string } | null }) => {
     if (event.senderFrame?.url !== dependencies.rendererUrl) throw new Error(UNTRUSTED_SENDER);
   };
-  dependencies.ipcMain.handle("system:getStatus", async (event) => {
+  const noPayload = (payload: unknown) => {
+    if (payload !== undefined) throw new Error(INVALID_PAYLOAD);
+  };
+  const analysisResult = (result: unknown) => {
+    const parsed = analysisQueueStatusSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  };
+  dependencies.ipcMain.handle("system:getStatus", async (event, payload) => {
     trust(event);
+    noPayload(payload);
     const parsed = appStatusSchema.safeParse(dependencies.status());
     if (!parsed.success) throw new Error("Core status is unavailable");
     return parsed.data;
   });
-  dependencies.ipcMain.handle("library:importXml", async (event) => {
+  dependencies.ipcMain.handle("library:importXml", async (event, payload) => {
     trust(event);
+    noPayload(payload);
     const sourcePath = await chooseXmlPath(dependencies, env);
     if (!sourcePath) {
       return importResultSchema.parse({
@@ -73,8 +86,9 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
       });
     }
   });
-  dependencies.ipcMain.handle("library:getPlaylistTree", async (event) => {
+  dependencies.ipcMain.handle("library:getPlaylistTree", async (event, payload) => {
     trust(event);
+    noPayload(payload);
     const result = await dependencies.client().request("get_playlist_tree", {});
     const parsed = playlistTreeSchema.safeParse(result);
     if (!parsed.success) throw new Error("Core response failed validation");
@@ -88,6 +102,32 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
     const parsed = trackPageSchema.safeParse(result);
     if (!parsed.success) throw new Error("Core response failed validation");
     return parsed.data;
+  });
+  dependencies.ipcMain.handle("analysis:queue", async (event, payload) => {
+    trust(event);
+    const request = analysisQueueRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    return analysisResult(
+      await dependencies.client().request("queue_analysis", request.data),
+    );
+  });
+  dependencies.ipcMain.handle("analysis:getStatus", async (event, payload) => {
+    trust(event);
+    const request = analysisStatusQuerySchema.safeParse(payload === undefined ? {} : payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    return analysisResult(
+      await dependencies.client().request("get_analysis_status", request.data),
+    );
+  });
+  dependencies.ipcMain.handle("analysis:pause", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    return analysisResult(await dependencies.client().request("pause_analysis", {}));
+  });
+  dependencies.ipcMain.handle("analysis:resume", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    return analysisResult(await dependencies.client().request("resume_analysis", {}));
   });
 }
 

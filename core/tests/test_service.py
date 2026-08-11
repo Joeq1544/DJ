@@ -67,8 +67,20 @@ class CoreServiceTests(unittest.TestCase):
         self.assertEqual(set(tracks["result"].keys()), {"items", "nextCursor"})
         self.assertEqual(
             set(tracks["result"]["items"][0].keys()),
-            {"id", "title", "artist", "album", "genre", "bpmMilli", "musicalKey", "durationMs", "availability"},
+            {
+                "id",
+                "title",
+                "artist",
+                "album",
+                "genre",
+                "bpmMilli",
+                "musicalKey",
+                "durationMs",
+                "availability",
+                "analysis",
+            },
         )
+        self.assertIsNone(tracks["result"]["items"][0]["analysis"])
 
     def test_malformed_and_unknown_requests_have_bounded_error_envelopes(self):
         malformed = self.raw_request(b"{not json}\n")

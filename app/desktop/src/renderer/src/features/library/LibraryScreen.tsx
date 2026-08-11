@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AppStatus, DesktopApi, PlaylistTreeNode, TrackListItem } from "../../../../shared/contracts";
+import type {
+  AnalysisQueueStatus,
+  AnalysisSummary,
+  AppStatus,
+  DesktopApi,
+  PlaylistTreeNode,
+  TrackListItem,
+} from "../../../../shared/contracts";
+import { AnalysisControls } from "../analysis/AnalysisControls";
 import { ImportPanel } from "./ImportPanel";
 import { PlaylistTree } from "./PlaylistTree";
 import { StatusPanel } from "./StatusPanel";
@@ -7,6 +15,61 @@ import { TrackTable } from "./TrackTable";
 
 interface DjCopilotWindow extends Window {
   djCopilot: DesktopApi;
+}
+
+const MAX_ANALYSIS_TRACKS = 200;
+
+type AnalysisAction = "queue" | "pause" | "resume" | null;
+
+function readableError(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+function summaryFromQueueItem(item: AnalysisQueueStatus["items"][number]): AnalysisSummary {
+  return {
+    status: item.status,
+    progressPpm: item.progressPpm,
+    attemptCount: item.attemptCount,
+    errorCode: item.errorCode,
+    errorMessage: item.errorMessage,
+    features: item.features,
+  };
+}
+
+function mergeQueueStatus(
+  current: AnalysisQueueStatus | null,
+  update: AnalysisQueueStatus,
+): AnalysisQueueStatus {
+  if (current === null || current.items.length === 0) return update;
+  const updates = new Map(update.items.map((item) => [item.trackId, item]));
+  const merged = current.items.map((item) => updates.get(item.trackId) ?? item);
+  const knownIds = new Set(current.items.map((item) => item.trackId));
+  for (const item of update.items) {
+    if (!knownIds.has(item.trackId)) merged.push(item);
+  }
+  return { ...update, items: merged.slice(0, MAX_ANALYSIS_TRACKS) };
+}
+
+function stableSelectedIds(tracks: TrackListItem[] | null, selectedTrackIds: ReadonlySet<string>): string[] {
+  const renderedIds = new Set((tracks ?? []).map((track) => track.id));
+  const visibleSelected = (tracks ?? [])
+    .filter((track) => selectedTrackIds.has(track.id))
+    .map((track) => track.id);
+  const selectedOutsideView = Array.from(selectedTrackIds)
+    .filter((trackId) => !renderedIds.has(trackId))
+    .sort((left, right) => left.localeCompare(right));
+  return [...visibleSelected, ...selectedOutsideView].slice(0, MAX_ANALYSIS_TRACKS);
+}
+
+function stablePollIds(tracks: TrackListItem[] | null, selectedTrackIds: ReadonlySet<string>): string[] {
+  const visible = tracks ?? [];
+  const visibleIds = new Set(visible.map((track) => track.id));
+  const selected = visible.filter((track) => selectedTrackIds.has(track.id)).map((track) => track.id);
+  const selectedOutsideView = Array.from(selectedTrackIds)
+    .filter((trackId) => !visibleIds.has(trackId))
+    .sort((left, right) => left.localeCompare(right));
+  const remaining = visible.filter((track) => !selectedTrackIds.has(track.id)).map((track) => track.id);
+  return [...selected, ...selectedOutsideView, ...remaining].slice(0, MAX_ANALYSIS_TRACKS);
 }
 
 function desktopApi(): DesktopApi | null {
@@ -26,7 +89,29 @@ export function LibraryScreen() {
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [selectedTrackIds, setSelectedTrackIds] = useState<Set<string>>(() => new Set());
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisQueueStatus | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(true);
+  const [analysisAction, setAnalysisAction] = useState<AnalysisAction>(null);
+  const [analysisStatusError, setAnalysisStatusError] = useState<string | null>(null);
+  const [analysisActionError, setAnalysisActionError] = useState<string | null>(null);
   const statusRefreshInProgress = useRef(false);
+  const analysisPollInProgress = useRef(false);
+  const tracksRef = useRef<TrackListItem[] | null>(tracks);
+  const selectedTrackIdsRef = useRef<ReadonlySet<string>>(selectedTrackIds);
+
+  tracksRef.current = tracks;
+  selectedTrackIdsRef.current = selectedTrackIds;
+
+  const mergeAnalysisStatus = useCallback((update: AnalysisQueueStatus) => {
+    setAnalysisStatus((current) => mergeQueueStatus(current, update));
+    if (update.items.length === 0) return;
+    const summaries = new Map(update.items.map((item) => [item.trackId, summaryFromQueueItem(item)]));
+    setTracks((current) => current?.map((track) => {
+      const analysis = summaries.get(track.id);
+      return analysis === undefined ? track : { ...track, analysis };
+    }) ?? current);
+  }, []);
 
   const loadTracks = useCallback(async (playlistId: string | null) => {
     setTracksLoading(true);
@@ -117,13 +202,44 @@ export function LibraryScreen() {
     }
   }, []);
 
+  const refreshAnalysis = useCallback(async () => {
+    if (analysisPollInProgress.current) return;
+    const api = desktopApi();
+    if (api === null || api === undefined) {
+      setAnalysisStatusError("The secure desktop connection is unavailable.");
+      setAnalysisLoading(false);
+      return;
+    }
+    analysisPollInProgress.current = true;
+    try {
+      const trackIds = stablePollIds(tracksRef.current, selectedTrackIdsRef.current);
+      const nextStatus = trackIds.length === 0
+        ? await api.analysis.getStatus()
+        : await api.analysis.getStatus(trackIds);
+      mergeAnalysisStatus(nextStatus);
+      setAnalysisStatusError(null);
+    } catch (error) {
+      setAnalysisStatusError(readableError(error, "Analysis status could not be refreshed."));
+    } finally {
+      analysisPollInProgress.current = false;
+      setAnalysisLoading(false);
+    }
+  }, [mergeAnalysisStatus]);
+
   useEffect(() => {
     void refreshLibrary();
+    void refreshAnalysis();
     const statusPoll = window.setInterval(() => {
       void refreshStatus();
     }, 2_000);
-    return () => window.clearInterval(statusPoll);
-  }, [refreshLibrary, refreshStatus]);
+    const analysisPoll = window.setInterval(() => {
+      void refreshAnalysis();
+    }, 1_000);
+    return () => {
+      window.clearInterval(statusPoll);
+      window.clearInterval(analysisPoll);
+    };
+  }, [refreshAnalysis, refreshLibrary, refreshStatus]);
 
   const selectPlaylist = async (playlistId: string | null) => {
     setSelectedId(playlistId);
@@ -169,6 +285,7 @@ export function LibraryScreen() {
       if (result.success) {
         setImportMessage(`${result.summary.importedTracks} tracks imported and ${result.summary.importedPlaylists} playlists.`);
         setSelectedId(null);
+        setSelectedTrackIds(new Set());
         await refreshLibrary();
       } else if (result.error.code === "cancelled") {
         return;
@@ -183,12 +300,109 @@ export function LibraryScreen() {
     }
   };
 
+  const toggleTrack = useCallback((trackId: string, selected: boolean) => {
+    setSelectedTrackIds((current) => {
+      if (selected && current.size >= MAX_ANALYSIS_TRACKS) return current;
+      const next = new Set(current);
+      if (selected) next.add(trackId);
+      else next.delete(trackId);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback((trackIds: string[], selected: boolean) => {
+    setSelectedTrackIds((current) => {
+      const next = new Set(current);
+      if (selected) {
+        for (const trackId of trackIds) {
+          if (next.size >= MAX_ANALYSIS_TRACKS) break;
+          next.add(trackId);
+        }
+      } else {
+        for (const trackId of trackIds) next.delete(trackId);
+      }
+      return next;
+    });
+  }, []);
+
+  const queueSelected = async () => {
+    const trackIds = stableSelectedIds(tracksRef.current, selectedTrackIdsRef.current);
+    if (trackIds.length === 0) return;
+    const api = desktopApi();
+    if (api === null || api === undefined) {
+      setAnalysisActionError("The secure desktop connection is unavailable.");
+      return;
+    }
+    setAnalysisAction("queue");
+    setAnalysisActionError(null);
+    try {
+      mergeAnalysisStatus(await api.analysis.queue(trackIds));
+    } catch (error) {
+      setAnalysisActionError(readableError(error, "Selected tracks could not be queued for analysis."));
+    } finally {
+      setAnalysisAction(null);
+    }
+  };
+
+  const pauseAnalysis = async () => {
+    const api = desktopApi();
+    if (api === null || api === undefined) {
+      setAnalysisActionError("The secure desktop connection is unavailable.");
+      return;
+    }
+    setAnalysisAction("pause");
+    setAnalysisActionError(null);
+    try {
+      mergeAnalysisStatus(await api.analysis.pause());
+    } catch (error) {
+      setAnalysisActionError(readableError(error, "Analysis could not be paused."));
+    } finally {
+      setAnalysisAction(null);
+    }
+  };
+
+  const resumeAnalysis = async () => {
+    const api = desktopApi();
+    if (api === null || api === undefined) {
+      setAnalysisActionError("The secure desktop connection is unavailable.");
+      return;
+    }
+    setAnalysisAction("resume");
+    setAnalysisActionError(null);
+    try {
+      mergeAnalysisStatus(await api.analysis.resume());
+    } catch (error) {
+      setAnalysisActionError(readableError(error, "Analysis could not be resumed."));
+    } finally {
+      setAnalysisAction(null);
+    }
+  };
+
   return (
     <main className="library-workstation">
       <div className="library-content">
         <ImportPanel importing={importing} onImport={() => { void importXml(); }} />
         <StatusPanel status={status} loading={loading} partialError={partialError} importMessage={importMessage} importError={importError} />
-        <TrackTable tracks={tracks} loading={tracksLoading} nextCursor={nextCursor} loadingMore={loadingMore} onLoadMore={() => { void loadMoreTracks(); }} />
+        <AnalysisControls
+          status={analysisStatus}
+          loading={analysisLoading}
+          selectedCount={selectedTrackIds.size}
+          action={analysisAction}
+          error={analysisActionError ?? analysisStatusError}
+          onAnalyze={() => { void queueSelected(); }}
+          onPause={() => { void pauseAnalysis(); }}
+          onResume={() => { void resumeAnalysis(); }}
+        />
+        <TrackTable
+          tracks={tracks}
+          loading={tracksLoading}
+          nextCursor={nextCursor}
+          loadingMore={loadingMore}
+          selectedTrackIds={selectedTrackIds}
+          onToggleTrack={toggleTrack}
+          onToggleAll={toggleAll}
+          onLoadMore={() => { void loadMoreTracks(); }}
+        />
       </div>
       <aside className="library-sidebar">
         <div className="library-sidebar__brand">DJ COPILOT</div>

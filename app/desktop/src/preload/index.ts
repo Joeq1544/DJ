@@ -15,6 +15,12 @@ export function createDesktopApi(renderer: IpcRendererLike): DesktopApi {
       getPlaylistTree: () => renderer.invoke("library:getPlaylistTree") as ReturnType<DesktopApi["library"]["getPlaylistTree"]>,
       listTracks: (query?: TrackPageQuery) => renderer.invoke("library:listTracks", query) as ReturnType<DesktopApi["library"]["listTracks"]>,
     }),
+    analysis: Object.freeze({
+      queue: (trackIds: string[]) => renderer.invoke("analysis:queue", { trackIds }) as ReturnType<DesktopApi["analysis"]["queue"]>,
+      getStatus: (trackIds?: string[]) => renderer.invoke("analysis:getStatus", trackIds === undefined ? undefined : { trackIds }) as ReturnType<DesktopApi["analysis"]["getStatus"]>,
+      pause: () => renderer.invoke("analysis:pause") as ReturnType<DesktopApi["analysis"]["pause"]>,
+      resume: () => renderer.invoke("analysis:resume") as ReturnType<DesktopApi["analysis"]["resume"]>,
+    }),
   });
 }
 

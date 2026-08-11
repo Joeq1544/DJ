@@ -2,6 +2,7 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
+  AnalysisQueueStatus,
   AppStatus,
   DesktopApi,
   ImportResult,
@@ -22,6 +23,7 @@ const tracks: TrackListItem[] = [
     musicalKey: "8A",
     durationMs: 431_000,
     availability: "available",
+    analysis: null,
   },
   {
     id: "track-2",
@@ -33,6 +35,7 @@ const tracks: TrackListItem[] = [
     musicalKey: "9A",
     durationMs: 448_000,
     availability: "missing",
+    analysis: null,
   },
   {
     id: "track-3",
@@ -44,6 +47,7 @@ const tracks: TrackListItem[] = [
     musicalKey: "11B",
     durationMs: 151_000,
     availability: "unreadable",
+    analysis: null,
   },
   {
     id: "track-4",
@@ -55,6 +59,7 @@ const tracks: TrackListItem[] = [
     musicalKey: null,
     durationMs: null,
     availability: "available",
+    analysis: null,
   },
 ];
 
@@ -75,6 +80,26 @@ const successfulImport: ImportResult = {
   },
 };
 
+const analysisStatus: AnalysisQueueStatus = {
+  state: "idle",
+  queued: 0,
+  running: 0,
+  paused: 0,
+  succeeded: 0,
+  failed: 0,
+  progressPpm: 0,
+  capabilities: {
+    available: true,
+    provider: "ffmpeg-numpy-basic",
+    providerVersion: "ffmpeg 8.1.2; ffprobe 8.1.2; numpy 2.4.4",
+    pipelineVersion: "baseline-v1",
+    availableStages: ["metadata", "basic_features"],
+    unavailableStages: ["structure", "embeddings"],
+    unavailableReason: null,
+  },
+  items: [],
+};
+
 function createApi(options: {
   status?: AppStatus;
   tree?: PlaylistTreeNode[];
@@ -89,6 +114,12 @@ function createApi(options: {
       importXml: vi.fn().mockResolvedValue(options.importResult ?? successfulImport),
       getPlaylistTree: vi.fn().mockResolvedValue(options.tree ?? tree),
       listTracks: vi.fn().mockResolvedValue({ items: options.tracks ?? tracks, nextCursor: null }),
+    },
+    analysis: {
+      queue: vi.fn().mockResolvedValue(analysisStatus),
+      getStatus: vi.fn().mockResolvedValue(analysisStatus),
+      pause: vi.fn().mockResolvedValue({ ...analysisStatus, state: "paused" }),
+      resume: vi.fn().mockResolvedValue({ ...analysisStatus, state: "running" }),
     },
   };
 }
@@ -109,7 +140,8 @@ describe("LibraryScreen", () => {
     api.system.getStatus = vi.fn(() => new Promise<AppStatus>(() => undefined));
     renderLibrary(api);
 
-    expect(screen.getByRole("status")).toHaveTextContent("Loading library workspace");
+    expect(within(screen.getByRole("region", { name: "Library service state" })).getByRole("status"))
+      .toHaveTextContent("Loading library workspace");
     expect(screen.getByRole("tree", { name: "Playlists" })).toBeInTheDocument();
     expect(screen.getByRole("table", { name: "Tracks" })).toBeInTheDocument();
   });
@@ -314,9 +346,16 @@ describe("LibraryScreen", () => {
     await user.tab();
     expect(screen.getByRole("button", { name: "Import Rekordbox XML" })).toHaveFocus();
     await user.tab();
+    expect(screen.getByRole("checkbox", { name: "Select all analyzable tracks" })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("checkbox", { name: "Select Sæglópur for analysis" })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("checkbox", { name: "Select Untitled track for analysis" })).toHaveFocus();
+    await user.tab();
     expect(screen.getByRole("treeitem", { name: /All Tracks/ })).toHaveFocus();
     expect(screen.getByRole("navigation", { name: "Library navigation" })).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "BPM" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Imported BPM" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Local BPM" })).toBeInTheDocument();
   });
 
   it("gives a degraded core state an actionable next step", async () => {

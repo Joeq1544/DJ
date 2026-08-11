@@ -113,6 +113,35 @@ describe("main shutdown", () => {
 
 describe("guarded IPC", () => {
   const fixture = resolve(process.cwd(), "../../fixtures/rekordbox/phase0-library.xml");
+  const analysisStatus = {
+    state: "running",
+    queued: 1,
+    running: 0,
+    paused: 0,
+    succeeded: 0,
+    failed: 0,
+    progressPpm: 0,
+    capabilities: {
+      available: true,
+      provider: "ffmpeg-numpy-basic",
+      providerVersion: "ffmpeg 8.1.2; ffprobe 8.1.2; numpy 2.4.4",
+      pipelineVersion: "baseline-v1",
+      availableStages: ["metadata", "basic_features"],
+      unavailableStages: ["structure", "embeddings"],
+      unavailableReason: null,
+    },
+    items: [
+      {
+        trackId: "track-1",
+        status: "queued",
+        progressPpm: 0,
+        attemptCount: 0,
+        errorCode: null,
+        errorMessage: null,
+        features: null,
+      },
+    ],
+  };
 
   function harness(overrides: Partial<{ senderUrl: string; testXml: string; cancelled: boolean }> = {}) {
     const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
@@ -137,6 +166,12 @@ describe("guarded IPC", () => {
           }
           if (command === "get_playlist_tree") return [];
           if (command === "list_tracks") return { items: [], nextCursor: null };
+          if (
+            command === "queue_analysis" ||
+            command === "get_analysis_status" ||
+            command === "pause_analysis" ||
+            command === "resume_analysis"
+          ) return analysisStatus;
           return { status: "ok" };
         },
       }),
@@ -178,13 +213,46 @@ describe("guarded IPC", () => {
     await expect(handlers.get("library:listTracks")!(event, { playlistId: "" })).rejects.toThrow("Invalid IPC payload");
   });
 
-  it("looks up the current core client after the supervisor replaces it", async () => {
+  it("guards every fixed analysis channel and returns its validated core result", async () => {
+    const { handlers, event } = harness();
+
+    await expect(handlers.get("analysis:queue")!(event, { trackIds: ["track-1"] })).resolves.toEqual(analysisStatus);
+    await expect(handlers.get("analysis:getStatus")!(event, { trackIds: ["track-1"] })).resolves.toEqual(analysisStatus);
+    await expect(handlers.get("analysis:pause")!(event)).resolves.toEqual(analysisStatus);
+    await expect(handlers.get("analysis:resume")!(event)).resolves.toEqual(analysisStatus);
+    await expect(handlers.get("analysis:queue")!(event, { trackIds: [] })).rejects.toThrow("Invalid IPC payload");
+    await expect(handlers.get("analysis:getStatus")!(event, null)).rejects.toThrow("Invalid IPC payload");
+    await expect(handlers.get("analysis:pause")!(event, {})).rejects.toThrow("Invalid IPC payload");
+  });
+
+  it("rejects an untrusted analysis sender and a path-bearing core result", async () => {
+    const untrusted = harness({ senderUrl: "https://attacker.test" });
+    await expect(
+      untrusted.handlers.get("analysis:getStatus")!(untrusted.event, { trackIds: ["track-1"] }),
+    ).rejects.toThrow("Untrusted IPC sender");
+
+    const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+      dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      client: () => ({
+        request: async () => ({ ...analysisStatus, sourcePath: "/private/music/track.wav" }),
+      }),
+    });
+    const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
+    await expect(handlers.get("analysis:getStatus")!(event)).rejects.toThrow("Core response failed validation");
+  });
+
+  it("looks up the current core client for analysis after the supervisor replaces it", async () => {
     const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
     type TestClient = { request(command: string, payload: unknown): Promise<unknown> };
-    const firstClient: TestClient = { request: async () => [] };
-    const restartedClient: TestClient = {
-      request: async () => [{ id: "playlist-1", parentId: null, name: "Recovered", kind: "playlist", order: 0, trackCount: 0 }],
-    };
+    const firstClient: TestClient = { request: async () => analysisStatus };
+    const recoveredStatus = { ...analysisStatus, state: "paused", queued: 0, paused: 1 };
+    const restartedClient: TestClient = { request: async () => recoveredStatus };
     let activeClient = firstClient;
     registerIpcHandlers({
       ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
@@ -197,10 +265,8 @@ describe("guarded IPC", () => {
     });
     const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
 
-    await expect(handlers.get("library:getPlaylistTree")!(event)).resolves.toEqual([]);
+    await expect(handlers.get("analysis:getStatus")!(event)).resolves.toEqual(analysisStatus);
     activeClient = restartedClient;
-    await expect(handlers.get("library:getPlaylistTree")!(event)).resolves.toEqual([
-      { id: "playlist-1", parentId: null, name: "Recovered", kind: "playlist", order: 0, trackCount: 0 },
-    ]);
+    await expect(handlers.get("analysis:getStatus")!(event)).resolves.toEqual(recoveredStatus);
   });
 });

@@ -9,8 +9,17 @@ import socket
 import stat
 from typing import Any
 
+from .analysis.jobs import AnalysisManager
+from .analysis.provider import AnalysisFeatures, FfmpegNumpyProvider, ProviderCapabilities
 from .database import LibraryDatabase
-from .models import ImportSummary, PlaylistTreeNode, StoredTrack, TrackPage
+from .models import (
+    AnalysisQueueStatus,
+    AnalysisSummary,
+    ImportSummary,
+    PlaylistTreeNode,
+    StoredTrack,
+    TrackPage,
+)
 from .rekordbox_xml import RekordboxImportError
 
 
@@ -33,6 +42,8 @@ def serve(socket_path: Path, database_path: Path) -> None:
     if os.path.lexists(endpoint):
         raise RuntimeError("Refusing to replace an existing socket path.")
     database = LibraryDatabase(database_path)
+    provider = FfmpegNumpyProvider()
+    manager = AnalysisManager(database, provider)
     running = True
 
     def stop(_signal_number: int, _frame: Any) -> None:
@@ -47,6 +58,7 @@ def serve(socket_path: Path, database_path: Path) -> None:
         os.chmod(endpoint, 0o600)
         server.listen()
         server.settimeout(0.1)
+        manager.start()
         while running:
             try:
                 connection, _ = server.accept()
@@ -54,7 +66,7 @@ def serve(socket_path: Path, database_path: Path) -> None:
                 continue
             with connection:
                 connection.settimeout(5)
-                response = _handle_connection(connection, database)
+                response = _handle_connection(connection, database, manager)
                 try:
                     _send_response(connection, response)
                 except (BrokenPipeError, ConnectionResetError):
@@ -62,6 +74,7 @@ def serve(socket_path: Path, database_path: Path) -> None:
     finally:
         signal.signal(signal.SIGTERM, previous_term)
         signal.signal(signal.SIGINT, previous_int)
+        manager.stop()
         server.close()
         database.close()
         try:
@@ -78,7 +91,11 @@ def _prepare_socket_directory(directory: Path) -> None:
     os.chmod(directory, 0o700)
 
 
-def _handle_connection(connection: socket.socket, database: LibraryDatabase) -> dict[str, Any]:
+def _handle_connection(
+    connection: socket.socket,
+    database: LibraryDatabase,
+    manager: AnalysisManager,
+) -> dict[str, Any]:
     try:
         line = _read_line(connection)
     except RequestError as error:
@@ -87,7 +104,7 @@ def _handle_connection(connection: socket.socket, database: LibraryDatabase) -> 
     try:
         raw_request = json.loads(line.decode("utf-8"))
         request_id, command, payload = _validate_request(raw_request)
-        result = _dispatch(command, payload, database)
+        result = _dispatch(command, payload, database, manager)
         return {"version": PROTOCOL_VERSION, "id": request_id, "ok": True, "result": result}
     except UnicodeDecodeError:
         return _error_response(request_id, "invalid_request", "The request must be UTF-8 JSON.")
@@ -134,21 +151,34 @@ def _validate_request(raw_request: Any) -> tuple[str, str, dict[str, Any]]:
     payload = raw_request.get("payload")
     if not isinstance(payload, dict):
         raise RequestError("invalid_request", "The request payload must be an object.")
-    allowed_commands = {"health", "import_library", "get_playlist_tree", "list_tracks"}
+    allowed_commands = {
+        "health",
+        "import_library",
+        "get_playlist_tree",
+        "list_tracks",
+        "queue_analysis",
+        "get_analysis_status",
+        "pause_analysis",
+        "resume_analysis",
+    }
     if command not in allowed_commands:
         raise RequestError("unknown_command", "The requested core command is not supported.")
     expected_top_level = {"version", "id", "command", "payload"}
     if set(raw_request) != expected_top_level:
         raise RequestError("invalid_request", "The request contains unsupported fields.")
-    if command in {"health", "get_playlist_tree"}:
+    if command in {"health", "get_playlist_tree", "pause_analysis", "resume_analysis"}:
         if payload:
             raise RequestError("invalid_request", "This command does not accept a payload.")
     elif command == "import_library":
         source_path = payload.get("sourcePath")
         if set(payload) != {"sourcePath"} or not isinstance(source_path, str) or not 1 <= len(source_path) <= 4_096:
             raise RequestError("invalid_request", "The import sourcePath must contain 1 to 4096 characters.")
-    else:
+    elif command == "list_tracks":
         _validate_list_tracks_payload(payload)
+    elif command == "queue_analysis":
+        _validate_analysis_track_ids_payload(payload, optional=False)
+    else:
+        _validate_analysis_track_ids_payload(payload, optional=True)
     return request_id, command, payload
 
 
@@ -164,7 +194,26 @@ def _validate_list_tracks_payload(payload: dict[str, Any]) -> None:
         raise RequestError("invalid_request", "The list_tracks limit must be an integer from 1 to 200.")
 
 
-def _dispatch(command: str, payload: dict[str, Any], database: LibraryDatabase) -> Any:
+def _validate_analysis_track_ids_payload(payload: dict[str, Any], *, optional: bool) -> None:
+    if optional and not payload:
+        return
+    if set(payload) != {"trackIds"}:
+        raise RequestError("invalid_request", "The analysis payload must contain only trackIds.")
+    track_ids = payload["trackIds"]
+    if not isinstance(track_ids, list) or not 1 <= len(track_ids) <= 200:
+        raise RequestError("invalid_request", "Analysis trackIds must contain 1 to 200 IDs.")
+    if any(type(track_id) is not str or not 1 <= len(track_id) <= 128 for track_id in track_ids):
+        raise RequestError("invalid_request", "Analysis trackIds must be non-empty strings.")
+    if len(set(track_ids)) != len(track_ids):
+        raise RequestError("invalid_request", "Analysis trackIds must be unique.")
+
+
+def _dispatch(
+    command: str,
+    payload: dict[str, Any],
+    database: LibraryDatabase,
+    manager: AnalysisManager,
+) -> Any:
     if command == "health":
         return {"state": "ready"}
     if command == "import_library":
@@ -183,7 +232,19 @@ def _dispatch(command: str, payload: dict[str, Any], database: LibraryDatabase) 
         page = database.list_tracks(
             playlist_id=payload.get("playlistId"), cursor=payload.get("cursor"), limit=payload.get("limit", 100)
         )
-        return _track_page_wire(page)
+        return _track_page_wire(page, database)
+    try:
+        if command == "queue_analysis":
+            return _analysis_queue_wire(manager.queue_tracks(tuple(payload["trackIds"])))
+        if command == "get_analysis_status":
+            track_ids = tuple(payload["trackIds"]) if "trackIds" in payload else None
+            return _analysis_queue_wire(manager.status(track_ids))
+        if command == "pause_analysis":
+            return _analysis_queue_wire(manager.pause())
+        if command == "resume_analysis":
+            return _analysis_queue_wire(manager.resume())
+    except ValueError as error:
+        raise RequestError("invalid_request", "The analysis request is invalid.") from error
     raise AssertionError("validated command was not dispatched")
 
 
@@ -208,11 +269,16 @@ def _playlist_wire(node: PlaylistTreeNode) -> dict[str, Any]:
     }
 
 
-def _track_page_wire(page: TrackPage) -> dict[str, Any]:
-    return {"items": [_track_wire(track) for track in page.items], "nextCursor": page.next_cursor}
+def _track_page_wire(page: TrackPage, database: LibraryDatabase) -> dict[str, Any]:
+    return {
+        "items": [
+            _track_wire(track, database.analysis_summary(track.id)) for track in page.items
+        ],
+        "nextCursor": page.next_cursor,
+    }
 
 
-def _track_wire(track: StoredTrack) -> dict[str, Any]:
+def _track_wire(track: StoredTrack, analysis: AnalysisSummary | None) -> dict[str, Any]:
     return {
         "id": track.id,
         "title": track.title,
@@ -223,6 +289,84 @@ def _track_wire(track: StoredTrack) -> dict[str, Any]:
         "musicalKey": track.musical_key,
         "durationMs": track.duration_ms,
         "availability": track.availability,
+        "analysis": _analysis_summary_wire(analysis) if analysis is not None else None,
+    }
+
+
+def _analysis_queue_wire(status: AnalysisQueueStatus) -> dict[str, Any]:
+    return {
+        "state": status.state,
+        "queued": status.queued,
+        "running": status.running,
+        "paused": status.paused,
+        "succeeded": status.succeeded,
+        "failed": status.failed,
+        "progressPpm": status.progress_ppm,
+        "capabilities": _capabilities_wire(status.capabilities),
+        "items": [
+            {"trackId": track_id, **_analysis_summary_wire(summary)}
+            for track_id, summary in status.items
+        ],
+    }
+
+
+def _analysis_summary_wire(summary: AnalysisSummary) -> dict[str, Any]:
+    return {
+        "status": summary.status,
+        "progressPpm": summary.progress_ppm,
+        "attemptCount": summary.attempt_count,
+        "errorCode": summary.error_code,
+        "errorMessage": summary.error_message,
+        "features": _analysis_features_wire(summary.features) if summary.features is not None else None,
+    }
+
+
+def _capabilities_wire(capabilities: ProviderCapabilities) -> dict[str, Any]:
+    unavailable_reason = None
+    if not capabilities.available:
+        unavailable_reason = "Local audio analysis prerequisites are unavailable."
+    return {
+        "available": capabilities.available,
+        "provider": capabilities.provider,
+        "providerVersion": capabilities.provider_version,
+        "pipelineVersion": capabilities.pipeline_version,
+        "availableStages": list(capabilities.available_stages),
+        "unavailableStages": list(capabilities.unavailable_stages),
+        "unavailableReason": unavailable_reason,
+    }
+
+
+def _analysis_features_wire(features: AnalysisFeatures) -> dict[str, Any]:
+    return {
+        "fingerprint": features.fingerprint,
+        "fileSize": features.file_size,
+        "mtimeNs": features.mtime_ns,
+        "codec": features.codec,
+        "container": features.container,
+        "durationMs": features.duration_ms,
+        "sampleRateHz": features.sample_rate_hz,
+        "channels": features.channels,
+        "bpmMilli": features.bpm_milli,
+        "tempoConfidencePpm": features.tempo_confidence_ppm,
+        "tempoCandidatesMilli": list(features.tempo_candidates_milli),
+        "onsetCount": features.onset_count,
+        "beatStrengthPpm": features.beat_strength_ppm,
+        "musicalKey": features.musical_key,
+        "mode": features.mode,
+        "keyConfidencePpm": features.key_confidence_ppm,
+        "rmsMilliDbfs": features.rms_milli_dbfs,
+        "peakMilliDbfs": features.peak_milli_dbfs,
+        "crestFactorMilliDb": features.crest_factor_milli_db,
+        "energyPpm": features.energy_ppm,
+        "dynamicRangeMilliDb": features.dynamic_range_milli_db,
+        "onsetRateMilliHz": features.onset_rate_milli_hz,
+        "spectralCentroidHz": features.spectral_centroid_hz,
+        "brightnessPpm": features.brightness_ppm,
+        "energyCurvePpm": list(features.energy_curve_ppm),
+        "provider": features.provider,
+        "providerVersion": features.provider_version,
+        "pipelineVersion": features.pipeline_version,
+        "limitations": list(features.limitations),
     }
 
 
