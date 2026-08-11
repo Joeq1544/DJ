@@ -201,6 +201,20 @@ class SetServiceDispatchTests(unittest.TestCase):
             self.database,
             manager,
         )
+        saved_head = _dispatch(
+            "get_set_draft",
+            {"draftId": draft_id, "revision": 2},
+            self.database,
+            manager,
+        )
+        live_head = _dispatch(
+            "get_set_draft",
+            {"draftId": draft_id},
+            self.database,
+            manager,
+        )
+        self.assertEqual(saved_head["viewingVersion"], 1)
+        self.assertIsNone(live_head["viewingVersion"])
         current = _dispatch(
             "mutate_set_draft",
             {"draftId": draft_id, "expectedRevision": 2, "mutation": {"type": "rename", "title": "Current"}},

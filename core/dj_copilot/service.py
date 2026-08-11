@@ -593,7 +593,12 @@ def _dispatch(
         except (DraftError, RekordboxImportError) as error:
             raise RequestError(error.code, error.message) from error
     if command == "get_set_draft":
-        return _set_draft_snapshot_wire(database.get_set_draft(payload["draftId"], revision=payload.get("revision")), database)
+        viewing_revision = payload.get("revision")
+        return _set_draft_snapshot_wire(
+            database.get_set_draft(payload["draftId"], revision=viewing_revision),
+            database,
+            viewing_revision=viewing_revision,
+        )
     if command == "mutate_set_draft":
         record = database.get_set_draft(payload["draftId"])
         mutation = payload["mutation"]
@@ -744,7 +749,12 @@ def _discovery_track_wire(track: DiscoveryTrack) -> dict[str, Any]:
     }
 
 
-def _set_draft_snapshot_wire(record, database: LibraryDatabase) -> dict[str, Any]:
+def _set_draft_snapshot_wire(
+    record,
+    database: LibraryDatabase,
+    *,
+    viewing_revision: int | None = None,
+) -> dict[str, Any]:
     catalog, _ = database.discovery_catalog()
     evidence_by_id = {item.track.id: item for item in catalog}
     entries = []
@@ -766,7 +776,7 @@ def _set_draft_snapshot_wire(record, database: LibraryDatabase) -> dict[str, Any
     can_undo, can_redo = database.set_draft_history_capabilities(record.id)
     versions = database.list_set_draft_versions(record.id)
     viewing_version = None
-    if record.content_revision != record.current_revision:
+    if viewing_revision is not None:
         matching_versions = [
             item.version for item in versions if item.revision == record.content_revision
         ]

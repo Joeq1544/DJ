@@ -47,6 +47,12 @@ describe("Set workspace", () => {
   it("creates all four supported draft sources and loads a saved set", async () => {
     const user = userEvent.setup(); const desktop = api(); const onOpen = vi.fn();
     render(<SetDraftLauncher api={desktop} selectedTrackIds={["track-1"]} playlistId="playlist-1" seedTrackId="track-2" onOpen={onOpen} />);
+    expect(within(screen.getByRole("combobox", { name: "Set intent" })).getAllByRole("option").map((option) => option.getAttribute("value"))).toEqual([
+      "smooth", "build", "peak", "reset", "genre_shift", "adventurous", "singalong_continuation", "closer",
+    ]);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Set intent" }), "genre_shift");
+    await user.type(screen.getByRole("spinbutton", { name: "Target duration (minutes)" }), "90");
+    await user.type(screen.getByRole("spinbutton", { name: "Maximum artist repeats" }), "2");
     await user.click(screen.getByRole("button", { name: "Create empty set" }));
     expect(desktop.sets.create).toHaveBeenCalledWith(expect.objectContaining({ source: { kind: "empty" } }));
     await user.click(screen.getByRole("button", { name: "Create from selected tracks" }));
@@ -54,10 +60,38 @@ describe("Set workspace", () => {
     await user.click(screen.getByRole("button", { name: "Create from playlist" }));
     expect(desktop.sets.create).toHaveBeenLastCalledWith(expect.objectContaining({ source: { kind: "playlist", playlistId: "playlist-1" } }));
     await user.click(screen.getByRole("button", { name: "Generate from seed" }));
-    expect(desktop.sets.create).toHaveBeenLastCalledWith(expect.objectContaining({ source: { kind: "generated", seedTrackId: "track-2", maxTracks: 12 } }));
+    expect(desktop.sets.create).toHaveBeenLastCalledWith({
+      title: "New set",
+      plan: { intent: "genre_shift", targetDurationMs: 5_400_000, maxArtistRepeats: 2, candidateFilters: {} },
+      source: { kind: "generated", seedTrackId: "track-2", maxTracks: 12 },
+    });
+    await user.click(screen.getByRole("button", { name: "Inspect selected playlist" }));
+    expect(desktop.sets.inspect).toHaveBeenCalledWith({ kind: "playlist", playlistId: "playlist-1" });
+    expect(await screen.findByRole("figure", { name: "BPM and energy progression" })).toBeVisible();
     await user.selectOptions(screen.getByRole("combobox", { name: "Saved sets" }), "draft-1");
     await user.click(screen.getByRole("button", { name: "Open saved set" }));
     expect(desktop.sets.get).toHaveBeenCalledWith({ draftId: "draft-1" }); expect(onOpen).toHaveBeenCalled();
+  });
+
+  it("views a saved version read-only, returns to current, and restores against the current head", async () => {
+    const user = userEvent.setup(); const desktop = api();
+    const historical = { ...snapshot, contentRevision: 2, viewingVersion: 1, title: "Before peak" } as SetDraftSnapshot;
+    vi.mocked(desktop.sets.get).mockResolvedValueOnce(historical).mockResolvedValueOnce(snapshot).mockResolvedValueOnce(historical);
+    render(<SetWorkspace api={desktop} snapshot={snapshot} availableTracks={[]} onSnapshot={vi.fn()} onClose={vi.fn()} />);
+    await user.selectOptions(screen.getByRole("combobox", { name: "Saved versions" }), "1");
+    await user.click(screen.getByRole("button", { name: "View selected version" }));
+    expect(desktop.sets.get).toHaveBeenNthCalledWith(1, { draftId: "draft-1", revision: 2 });
+    expect(await screen.findByText("Viewing a saved version. Restore it to edit the current draft.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "View current draft" }));
+    expect(desktop.sets.get).toHaveBeenNthCalledWith(2, { draftId: "draft-1" });
+    await user.click(screen.getByRole("button", { name: "View selected version" }));
+    expect(desktop.sets.get).toHaveBeenNthCalledWith(3, { draftId: "draft-1", revision: 2 });
+    await user.click(screen.getByRole("button", { name: "Restore version" }));
+    expect(desktop.sets.mutate).toHaveBeenCalledWith({
+      draftId: "draft-1",
+      expectedRevision: 3,
+      mutation: { type: "restore_version", version: 1 },
+    });
   });
 
   it("edits a live draft, inspects it, and completes the path-free export confirmation", async () => {
@@ -76,6 +110,7 @@ describe("Set workspace", () => {
     expect(await screen.findByRole("figure", { name: "BPM and energy progression" })).toHaveTextContent("120 BPM");
     expect(screen.getByText("Energy rises cleanly.")).toBeVisible(); expect(screen.getByText("Suggestions only—nothing has changed in Rekordbox.")).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Prepare Rekordbox XML export" }));
+    expect(await screen.findByText("This creates a new file.")).toBeVisible();
     await user.click(await screen.findByRole("button", { name: "Confirm export" }));
     expect(await screen.findByText("Exported Friday set")).toBeVisible();
     expect(desktop.sets.mutate).toHaveBeenCalledWith(expect.objectContaining({ mutation: { type: "optimize" } }));

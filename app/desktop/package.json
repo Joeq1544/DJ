@@ -17,6 +17,7 @@
     "test:e2e": "playwright test",
     "test:e2e:m2": "playwright test e2e/analysis-flow.spec.ts",
     "test:e2e:m3": "playwright test e2e/discovery-flow.spec.ts",
+    "test:e2e:m4": "playwright test e2e/set-flow.spec.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
