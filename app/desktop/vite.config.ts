@@ -7,6 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   root: resolve(here, "src/renderer"),
+  base: "./",
   plugins: [react()],
   server: {
     host: "127.0.0.1",

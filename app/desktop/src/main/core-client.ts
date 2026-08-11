@@ -3,12 +3,14 @@ import { createConnection, type Socket } from "node:net";
 import { coreRequestSchema, coreResponseSchema, type CoreRequest } from "../shared/contracts";
 
 const MAX_LINE_BYTES = 1_048_576;
+const IMPORT_REQUEST_TIMEOUT_MS = 120_000;
 
 type SocketLike = Pick<Socket, "on" | "once" | "write" | "destroy">;
 
 export interface CoreClientOptions {
   connectionTimeoutMs?: number;
   requestTimeoutMs?: number;
+  importRequestTimeoutMs?: number;
   createConnection?: (socketPath: string) => SocketLike;
 }
 
@@ -33,6 +35,7 @@ interface PendingRequest {
 export class CoreClient {
   private readonly connectionTimeoutMs: number;
   private readonly requestTimeoutMs: number;
+  private readonly importRequestTimeoutMs: number;
   private readonly connect: (socketPath: string) => SocketLike;
   private closed = false;
   private readonly activeSockets = new Set<SocketLike>();
@@ -41,6 +44,7 @@ export class CoreClient {
   constructor(private readonly socketPath: string, options: CoreClientOptions = {}) {
     this.connectionTimeoutMs = options.connectionTimeoutMs ?? 5_000;
     this.requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
+    this.importRequestTimeoutMs = options.importRequestTimeoutMs ?? IMPORT_REQUEST_TIMEOUT_MS;
     this.connect = options.createConnection ?? ((path) => createConnection(path));
   }
 
@@ -52,7 +56,7 @@ export class CoreClient {
       const timeout = setTimeout(() => {
         this.rejectPending(request.id, new Error("Core request timed out"));
         socket.destroy();
-      }, this.requestTimeoutMs);
+      }, command === "import_library" ? this.importRequestTimeoutMs : this.requestTimeoutMs);
       this.pending.set(request.id, { socket, resolve, reject, timeout });
       try {
         socket.write(`${JSON.stringify(request)}\n`);

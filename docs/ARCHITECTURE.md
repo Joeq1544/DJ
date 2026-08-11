@@ -33,6 +33,14 @@ DJ Copilot is a local-first companion. Rekordbox remains authoritative, while th
 
 Use Electron's ordinary renderer sandbox and context isolation. The preload exposes fixed named operations rather than general message forwarding. The Python core remains the sole app-database owner; later milestones introduce only the protocol messages they actually use.
 
+## Implemented M1 slice
+
+Electron 43.3.0 starts a sandboxed React 19 renderer and supervises a Python core over a mode-`0600` Unix socket in a mode-`0700` temporary runtime directory. The main process owns the XML picker and exposes exactly four preload operations: service status, selected-XML import, playlist tree, and paged tracks. Requests and responses use strict runtime schemas and one JSON line capped at 1 MiB. Ordinary calls time out after five seconds; the bounded XML import has an explicit 120-second budget.
+
+The development core runs with the selected `DJ_COPILOT_PYTHON` executable or `python3`, owns `dj-copilot.sqlite3` under Electron's user-data directory, and parses the XML completely before beginning its replacement transaction. Reimport preserves app IDs where the Rekordbox IDs/structural playlist keys match. A failed import rolls back and leaves the previous revision browsable. One unexpected core exit in a 30-second window is restarted; a second produces a visible degraded state through the renderer's two-second status refresh. The client is looked up per IPC operation so recovery uses the replacement connection. Graceful quit waits for the worker and removes only the supervisor-created runtime directory.
+
+The production build currently bundles the Electron main, isolated preload, and renderer only. A bundled CPython 3.12 runtime and packaged resource discovery remain M7 work; development success is not packaging evidence.
+
 ## Data ownership and source immutability
 
 - Rekordbox XML and audio are user-selected read-only inputs.

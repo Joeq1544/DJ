@@ -1,5 +1,5 @@
 import { spawn as nodeSpawn, type ChildProcess } from "node:child_process";
-import { chmod, mkdtemp } from "node:fs/promises";
+import { chmod, mkdtemp, rm, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AppStatus, CoreRequest } from "../shared/contracts";
@@ -72,22 +72,44 @@ export class CoreSupervisor {
     this.client?.close();
     const child = this.child;
     this.child = undefined;
-    if (!child || child.exitCode !== null) return;
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        child.kill("SIGKILL");
-        resolve();
-      }, 2_000);
-      child.once("exit", () => {
-        clearTimeout(timer);
-        resolve();
+    if (child && child.exitCode === null) {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => {
+          child.kill("SIGKILL");
+          resolve();
+        }, 2_000);
+        child.once("exit", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        child.kill("SIGTERM");
       });
-      child.kill("SIGTERM");
-    });
+    }
+    await this.removeRuntimeDirectory();
+  }
+
+  async forceCoreExitForTest(): Promise<"retrying"> {
+    if (process.env.DJ_COPILOT_TEST_MODE !== "1") throw new Error("Test core control is disabled");
+    const child = this.child;
+    if (!child || child.exitCode !== null) throw new Error("Core service is unavailable");
+    child.kill("SIGKILL");
+    const deadline = Date.now() + 5_000;
+    while (Date.now() < deadline) {
+      if (this.state.state === "retrying") return "retrying";
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    throw new Error("Core service did not begin retrying");
   }
 
   private async launch(isRetry: boolean): Promise<void> {
     const socketPath = join(this.runtimeDirectory(), "core.sock");
+    if (isRetry) {
+      try {
+        await unlink(socketPath);
+      } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+      }
+    }
     this.state = isRetry
       ? { state: "retrying", message: "Restarting core service" }
       : { state: "starting", message: null };
@@ -111,6 +133,13 @@ export class CoreSupervisor {
         this.state = { state: "degraded", message: SAFE_FAILURE_MESSAGE };
       }
     }
+  }
+
+  private async removeRuntimeDirectory(): Promise<void> {
+    const runtimePath = this.runtimePath;
+    this.runtimePath = undefined;
+    if (!runtimePath) return;
+    await rm(runtimePath, { recursive: true, force: true });
   }
 
   private async waitForHealth(client: CoreRequester): Promise<void> {

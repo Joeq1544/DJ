@@ -22,16 +22,20 @@ interface SecuritySession {
   };
 }
 
-const CONTENT_SECURITY_POLICY = [
+function contentSecurityPolicy(development: boolean): string {
+  return [
   "default-src 'self'",
-  "script-src 'self'",
+  development ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data:",
-  "connect-src 'self' http://127.0.0.1:5173",
+  development
+    ? "connect-src 'self' http://127.0.0.1:5173 ws://127.0.0.1:5173"
+    : "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'none'",
   "frame-ancestors 'none'",
-].join("; ");
+  ].join("; ");
+}
 
 export function createWindowOptions(preloadPath: string): WindowOptions {
   return {
@@ -51,12 +55,12 @@ export function installWindowSecurity(webContents: GuardedWebContents, rendererU
   webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 }
 
-export function installContentSecurityPolicy(session: SecuritySession): void {
+export function installContentSecurityPolicy(session: SecuritySession, development = false): void {
   session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        "Content-Security-Policy": [CONTENT_SECURITY_POLICY],
+        "Content-Security-Policy": [contentSecurityPolicy(development)],
       },
     });
   });

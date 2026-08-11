@@ -75,6 +75,12 @@ dependency lock exists.
 
 Phase 1 proves development launch, renderer isolation/permission denial, typed IPC, child supervision, and crash recovery. Phase 9 proves packaged helper/resource discovery, runtime footprint, entitlements, signing, and clean-machine behavior. Those tests do not block accepting the Phase 0 framework decision.
 
+## M1 implementation evidence
+
+M1 locks Electron 43.3.0, React 19.2.8, TypeScript 7.0.2, Vite 8.2.1, Zod 4.4.3, and pnpm 11.16.0 in the root workspace. The implemented window explicitly enables context isolation and Chromium sandboxing, disables renderer Node integration, denies navigation/new windows, validates sender URLs and DTOs, and exposes four fixed preload calls. Electron main supervises a Python 3.12+-compatible standard-library core, which is currently exercised with host CPython 3.14.3; a bundled CPython 3.12 arm64 runtime remains an M7 gate.
+
+The generated-fixture Electron flow, manual launch result, and measured runtime versions are recorded in `../evidence/m1-app-shell-library.md`. This evidence closes the development composition portion only; it does not claim signing, packaged resource discovery, a reproducible Python bundle, or clean-machine behavior.
+
 ## Consequences
 
 Two runtimes and a generated/tested contract boundary are mandatory; renderer work cannot bypass main/worker APIs. Packaging and recovery must test both processes.

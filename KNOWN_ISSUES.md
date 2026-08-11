@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-10
 
-No application runtime exists yet. This ledger records reproducible development/spike defects plus explicitly accepted personal-use limitations; general research uncertainty remains in `TASKS.md` or the evidence documents.
+An M1 development runtime now exists. No reproducible normal-workflow M1 defect is open at the implementation checkpoint; this ledger retains resolved development/spike defects and explicitly accepted personal-use limitations. General research uncertainty and not-yet-run personal-input checks remain in `TASKS.md` or the milestone evidence.
 
 | ID | Status | Severity | Reproduction | Root/suspected cause | Workaround or fix | Owner | Regression test |
 | --- | --- | --- | --- | --- | --- | --- | --- |

@@ -48,6 +48,8 @@ This file is the concise index of settled project decisions. Detailed architectu
 | D-040 | 2026-08-10 | accepted; supersedes commercial Phase 0 stop rule | Build every user-facing feature as a personal full-feature MVP using milestone-sized vertical slices, focused verification, and fixes driven by Joe's real use | Approved personal MVP design |
 | D-041 | 2026-08-10 | accepted for personal MVP; accepts ADR-0002 | Use the official TypeScript Codex SDK in Electron main under ordinary same-user trust; retain schema validation, ID checks, renderer isolation, and confirmed writes without requiring P0-016 or exhaustive capability-denial proof | Joe already trusts and regularly authorizes Codex on this Mac; historical KI-022/KI-045/KI-049 remain documented limitations |
 | D-042 | 2026-08-10 | accepted workflow | Push substantial self-contained green slices and every completed milestone to `origin`; never push broken code merely for cadence or include personal library/audio/app data | Approved design GitHub checkpoint cadence |
+| D-043 | 2026-08-10 | accepted for M1 implementation | Pin the desktop workspace to Electron 43.3.0, React 19.2.8, TypeScript 7.0.2, Vite 8.2.1, Zod 4.4.3, and pnpm 11.16.0 under one committed lockfile | M1 production build plus contract, boundary, renderer, and Electron-flow evidence; ADR-0001 implementation update |
+| D-044 | 2026-08-10 | accepted development boundary | Run the M1 Python core with `DJ_COPILOT_PYTHON` or host `python3` compatible with Python 3.12+, while keeping the self-contained CPython 3.12 arm64 runtime as an M7 packaging deliverable | M1 is exercised on host CPython 3.14.3; development success does not claim a bundled runtime |
 
 ## Current decision state
 

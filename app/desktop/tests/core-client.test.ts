@@ -80,6 +80,36 @@ describe("CoreClient", () => {
     client.close();
   });
 
+  it("keeps import requests alive beyond the ordinary five-second command budget", async () => {
+    const server = await socketServer((socket, line) => {
+      const request = JSON.parse(line) as { id: string };
+      const timer = setTimeout(() => socket.end(response(request.id, { imported: true })), 30);
+      socket.once("close", () => clearTimeout(timer));
+    });
+    cleanup.push(() => server.close());
+    const client = new CoreClient(server.socketPath, { requestTimeoutMs: 10 });
+
+    await expect(client.request("import_library", { sourcePath: "/fixture.xml" })).resolves.toEqual({ imported: true });
+    await expect(client.request("health", {})).rejects.toThrow("Core request timed out");
+    client.close();
+  });
+
+  it("allows the import timeout to be tightened in tests", async () => {
+    const server = await socketServer((socket, line) => {
+      const request = JSON.parse(line) as { id: string };
+      const timer = setTimeout(() => socket.end(response(request.id, { imported: true })), 30);
+      socket.once("close", () => clearTimeout(timer));
+    });
+    cleanup.push(() => server.close());
+    const client = new CoreClient(server.socketPath, {
+      requestTimeoutMs: 100,
+      importRequestTimeoutMs: 10,
+    });
+
+    await expect(client.request("import_library", { sourcePath: "/fixture.xml" })).rejects.toThrow("Core request timed out");
+    client.close();
+  });
+
   it("rejects a command outside the versioned core schema", async () => {
     const client = new CoreClient("/unused/core.sock");
 

@@ -4,6 +4,7 @@ from pathlib import Path
 import signal
 import socket
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -112,11 +113,35 @@ class CoreServiceTests(unittest.TestCase):
 
         self.assertFalse(self.socket_path.exists())
 
+    def test_client_disconnect_after_import_does_not_stop_the_core(self):
+        self.send_and_disconnect(
+            {
+                "version": 1,
+                "id": "disconnect-import",
+                "command": "import_library",
+                "payload": {"sourcePath": str(FIXTURE)},
+            }
+        )
+        time.sleep(0.1)
+
+        health = self.request({"version": 1, "id": "after-disconnect-health", "command": "health", "payload": {}})
+        tree = self.request({"version": 1, "id": "after-disconnect-tree", "command": "get_playlist_tree", "payload": {}})
+
+        self.assertIsNone(self.process.poll())
+        self.assertEqual(health, {"version": 1, "id": "after-disconnect-health", "ok": True, "result": {"state": "ready"}})
+        self.assertEqual([node["name"] for node in tree["result"]], ["Root", "Warmup", "Opening", "Closer"])
+
     def request(self, payload):
         return self.raw_request(json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n")
 
     def raw_request(self, line):
         return json.loads(self.raw_response(line).decode("utf-8"))
+
+    def send_and_disconnect(self, payload):
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))
+            client.connect(str(self.socket_path))
+            client.sendall(json.dumps(payload, separators=(",", ":")).encode("utf-8") + b"\n")
 
     def raw_response(self, line):
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:

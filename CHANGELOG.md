@@ -4,6 +4,15 @@ All notable project changes are recorded here. The project has not yet produced 
 
 ## Unreleased
 
+### 2026-08-10 — M1 app shell and library slice
+
+- Added the exact pnpm/Electron/React/TypeScript workspace and production main, preload, and renderer builds.
+- Added a bounded UTF-8 Rekordbox XML importer, stable app IDs, ordered playlist projection, atomic SQLite replacement, and a private local core service.
+- Added Electron-owned XML selection, guarded IPC, a sandboxed fixed preload API, one bounded core restart, and replacement-client recovery.
+- Added the accessible cue-sheet library workstation with empty, loading, live ready/degraded, success, retained-error, paged tracks, mouse/keyboard nested-tree, and missing-track states.
+- Added graceful worker/runtime cleanup, a practical long-import timeout, and service survival when a requesting client disconnects.
+- Added focused core/desktop verification and the generated-fixture Electron gate; personal XML validation remains opt-in and local.
+
 ### 2026-08-10 — Personal full-feature MVP scope
 
 - Approved M0–M7 delivery while retaining every user-facing feature: Rekordbox interchange, local analysis, library UI, search/similarity/ranking, recommendations, set building/analysis/export, organization, personalization, Codex assistance, recovery, accessibility, diagnostics, and a personal macOS build.

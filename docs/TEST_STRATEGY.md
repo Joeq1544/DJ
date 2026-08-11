@@ -33,6 +33,16 @@ Broaden beyond the focused checks when:
 
 Exhaustive fuzz/property matrices, cross-language parity for unused representations, repeated independent reviewers, process-containment forensics, and public-release validation are not default personal-MVP gates.
 
+## Current executable gates
+
+- `pnpm test:core` exercises the production XML parser, atomic SQLite projection, cursor behavior, and local service protocol.
+- `pnpm test:desktop` exercises runtime schemas, socket client/supervision, guarded IPC/preload, renderer behavior, accessibility, and keyboard navigation.
+- `pnpm typecheck` checks the strict TypeScript desktop workspace.
+- `pnpm build` emits the Electron main/preload and Vite renderer bundles.
+- `pnpm verify:m1` composes those checks with the Playwright Electron fixture import, playlist browse, and one-core-restart recovery flow.
+
+The socket-bearing suites need permission to create temporary local Unix sockets. That is an execution-environment prerequisite, not a network dependency.
+
 ## Manual checks
 
 Manual evidence records date, target Mac/app build, input provenance without private contents, steps, outcome, and limitation. Personal XML/audio never enters Git. Real Codex checks are explicit, use existing auth, and record redacted outcomes without claiming behavior not observed.

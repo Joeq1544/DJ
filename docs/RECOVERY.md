@@ -1,6 +1,6 @@
 # Recovery Guide
 
-Status: M0 green baseline; M1 not started
+Status: M1 implementation checkpoint green; milestone verification in progress
 Last updated: 2026-08-10
 
 ## M0 green checkpoint
@@ -10,6 +10,10 @@ The first pushed project baseline is `1f1157054a59` on `main` (`chore: establish
 Inspect the checkpoint summary with `git show --stat 1f1157054a59`. Compare a later task-ledger change without touching the worktree with `git diff 1f1157054a59 -- TASKS.md`.
 
 Before recovery, run `git status --short --branch` and identify tracked, project-created, and unrelated user-owned changes. Never infer that an untracked file is disposable.
+
+## M1 implementation checkpoint
+
+Checkpoint `16512c2` on `main` contains the exact workspace lock, production XML/SQLite core, supervised Electron boundary, preload API, and accessible library renderer. It passed 22 core tests, 36 desktop tests, strict TypeScript, and the production build before being pushed to `origin/main`. The final M1 Electron/evidence checkpoint follows separately.
 
 ## Safe Git recovery
 
@@ -21,7 +25,9 @@ Before recovery, run `git status --short --branch` and identify tracked, project
 
 ## App and worker recovery
 
-No app process, worker, app database, migration, or analysis queue exists yet. M1 adds exact launch/health/restart behavior. M2 adds persisted analysis pause/resume/retry recovery.
+The M1 core database is `dj-copilot.sqlite3` under the path Electron reports as `app.getPath("userData")`; the exact packaged application directory is not selected until M7. A failed XML import is transactional and retains the prior revision. One unexpected worker exit in 30 seconds triggers a restart; a second leaves the UI degraded until the app is restarted. Temporary socket state is disposable, but the SQLite file is durable app-owned data and must not be deleted as a generic troubleshooting step.
+
+M2 adds persisted analysis pause/resume/retry recovery. Before changing or removing any app database, close DJ Copilot, identify its exact user-data path, and make a copy outside the repository.
 
 ## Database and export recovery requirements
 

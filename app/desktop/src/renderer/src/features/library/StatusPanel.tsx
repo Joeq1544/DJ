@@ -24,7 +24,7 @@ export function StatusPanel({ status, loading, partialError, importMessage, impo
     <section className="status-panel" aria-label="Library service state">
       <p className="status-panel__state" role="status" aria-live="polite">{copy}</p>
       {status?.message ? <p className="status-panel__detail">{status.message}</p> : null}
-      {isDegraded ? <p className="status-panel__detail">Start the DJ Copilot core service, then import or refresh this library.</p> : null}
+      {isDegraded ? <p className="status-panel__detail">Quit and reopen DJ Copilot, then try again.</p> : null}
       {partialError ? <p className="status-panel__detail">Some library data could not be loaded: {partialError}</p> : null}
       {importMessage ? <p className="status-panel__success" role="status" aria-live="polite">{importMessage}</p> : null}
       {importError ? <p className="status-panel__error" role="alert">{importError}</p> : null}

@@ -55,7 +55,10 @@ def serve(socket_path: Path, database_path: Path) -> None:
             with connection:
                 connection.settimeout(5)
                 response = _handle_connection(connection, database)
-                _send_response(connection, response)
+                try:
+                    _send_response(connection, response)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
     finally:
         signal.signal(signal.SIGTERM, previous_term)
         signal.signal(signal.SIGINT, previous_int)

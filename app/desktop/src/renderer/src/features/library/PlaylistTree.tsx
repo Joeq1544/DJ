@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { PlaylistTreeNode } from "../../../../shared/contracts";
 
 interface PlaylistTreeProps {
@@ -86,6 +86,14 @@ export function PlaylistTree({ nodes, selectedId, onSelect }: PlaylistTreeProps)
     return next;
   });
 
+  const activateNode = (node: VisibleNode) => {
+    if (node.kind === "folder") {
+      if (node.id !== null && node.hasChildren) toggle(node.id);
+      return;
+    }
+    onSelect(node.id);
+  };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>, node: VisibleNode, index: number) => {
     const renderedItems = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLDivElement>('[role="treeitem"]') ?? []);
     switch (event.key) {
@@ -115,7 +123,7 @@ export function PlaylistTree({ nodes, selectedId, onSelect }: PlaylistTreeProps)
       case "Enter":
       case " ":
         event.preventDefault();
-        onSelect(node.id);
+        activateNode(node);
         break;
       default:
         break;
@@ -129,6 +137,7 @@ export function PlaylistTree({ nodes, selectedId, onSelect }: PlaylistTreeProps)
         {visibleNodes.map((node, index) => {
           const key = itemKey(node.id);
           const isSelected = selectedId === node.id;
+          const visualDepth = Math.min(Math.max(node.level - 1, 0), 4);
           return (
             <div
               key={key}
@@ -142,13 +151,14 @@ export function PlaylistTree({ nodes, selectedId, onSelect }: PlaylistTreeProps)
               aria-level={node.level}
               aria-selected={isSelected}
               aria-expanded={node.hasChildren ? node.expanded : undefined}
-              onClick={() => onSelect(node.id)}
+              style={{ "--tree-indent": `${visualDepth}rem` } as CSSProperties}
+              onClick={() => activateNode(node)}
               onKeyDown={(event) => onKeyDown(event, node, index)}
             >
               <span className="cue-node" aria-hidden="true" />
               <span className="tree-item__label">{node.label}</span>
               {node.hasChildren ? <span className="tree-item__disclosure" aria-hidden="true">{node.expanded ? "−" : "+"}</span> : null}
-              {node.trackCount !== null ? <span className="tree-item__count">{node.trackCount}</span> : null}
+              {node.kind === "playlist" && node.trackCount !== null ? <span className="tree-item__count">{node.trackCount}</span> : null}
             </div>
           );
         })}

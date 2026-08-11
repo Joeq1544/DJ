@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -9,6 +9,7 @@ import type {
   TrackListItem,
 } from "../src/shared/contracts";
 import { LibraryScreen } from "../src/renderer/src/features/library/LibraryScreen";
+import { PlaylistTree } from "../src/renderer/src/features/library/PlaylistTree";
 
 const tracks: TrackListItem[] = [
   {
@@ -98,6 +99,7 @@ function renderLibrary(api = createApi()) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   Reflect.deleteProperty(window, "djCopilot");
 });
 
@@ -127,6 +129,25 @@ describe("LibraryScreen", () => {
     expect(screen.getAllByRole("row")).toHaveLength(5);
     expect(screen.getByText("Sæglópur")).toBeVisible();
     expect(screen.getByText("Untitled track")).toBeVisible();
+  });
+
+  it("refreshes the core status after initial load", async () => {
+    vi.useFakeTimers();
+    const api = createApi();
+    renderLibrary(api);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getByText("Library service ready")).toBeVisible();
+    api.system.getStatus = vi.fn().mockResolvedValue({ state: "retrying", message: "Restarting core service" });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    expect(screen.getByText("Reconnecting to library service")).toBeVisible();
+    expect(screen.getByText("Restarting core service")).toBeVisible();
   });
 
   it("labels missing tracks with an icon and readable status text", async () => {
@@ -195,13 +216,65 @@ describe("LibraryScreen", () => {
     expect(api.library.listTracks).toHaveBeenLastCalledWith({ playlistId: "playlist-warmup" });
   });
 
+  it("toggles folders on mouse click without requesting their direct tracks", async () => {
+    const user = userEvent.setup();
+    const { api } = renderLibrary();
+    const nightSets = await screen.findByRole("treeitem", { name: /Night sets/ });
+
+    expect(nightSets).not.toHaveTextContent("0");
+    await user.click(nightSets);
+    expect(screen.queryByRole("treeitem", { name: /Warmup/ })).not.toBeInTheDocument();
+    expect(api.library.listTracks).not.toHaveBeenCalledWith({ playlistId: "folder-night" });
+
+    await user.click(nightSets);
+    expect(screen.getByRole("treeitem", { name: /Warmup/ })).toBeVisible();
+    expect(api.library.listTracks).not.toHaveBeenCalledWith({ playlistId: "folder-night" });
+  });
+
+  it("appends the next track page and resets pagination for a playlist selection", async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    let resolveNextPage: ((page: { items: TrackListItem[]; nextCursor: null }) => void) | undefined;
+    api.library.listTracks = vi.fn()
+      .mockResolvedValueOnce({ items: tracks.slice(0, 2), nextCursor: "cursor-2" })
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        resolveNextPage = resolve;
+      }))
+      .mockResolvedValueOnce({ items: [tracks[3]], nextCursor: null });
+    renderLibrary(api);
+
+    expect(await screen.findByText("Blue Monday")).toBeVisible();
+    const loadMore = screen.getByRole("button", { name: "Load more tracks" });
+    await user.click(loadMore);
+    expect(loadMore).toBeDisabled();
+
+    expect(api.library.listTracks).toHaveBeenLastCalledWith({ cursor: "cursor-2" });
+    if (resolveNextPage === undefined) throw new Error("Expected the next page request");
+    const nextPageResolver = resolveNextPage;
+    await act(async () => {
+      nextPageResolver({ items: tracks.slice(2), nextCursor: null });
+    });
+    expect(await screen.findByText("Ain't No Mountain High Enough")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Load more tracks" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("treeitem", { name: /Warmup/ }));
+    expect(await screen.findByText("Untitled track")).toBeVisible();
+    expect(screen.queryByText("Blue Monday")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load more tracks" })).not.toBeInTheDocument();
+  });
+
   it("supports tree navigation with arrows and Enter selection", async () => {
     const user = userEvent.setup();
     const { api } = renderLibrary();
     const allTracks = await screen.findByRole("treeitem", { name: /All Tracks/ });
 
     allTracks.focus();
-    await user.keyboard("{ArrowDown}{ArrowRight}{ArrowDown}");
+    await user.keyboard("{ArrowDown}{ArrowLeft}");
+    expect(screen.queryByRole("treeitem", { name: /Warmup/ })).not.toBeInTheDocument();
+    await user.keyboard("{ArrowRight}");
+    expect(screen.getByRole("treeitem", { name: /Warmup/ })).toBeVisible();
+    expect(screen.getByRole("treeitem", { name: /Night sets/ })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("treeitem", { name: /Warmup/ })).toHaveFocus();
 
     await user.keyboard("{Enter}");
@@ -213,6 +286,24 @@ describe("LibraryScreen", () => {
     expect(screen.queryByRole("treeitem", { name: /Warmup/ })).not.toBeInTheDocument();
     await user.keyboard("{ArrowUp}");
     expect(allTracks).toHaveFocus();
+  });
+
+  it("assigns a bounded visual depth token to arbitrarily nested tree items", () => {
+    render(
+      <PlaylistTree
+        nodes={[
+          { id: "root", parentId: null, name: "Root", kind: "folder", order: 0, trackCount: 0 },
+          { id: "warmup", parentId: "root", name: "Warmup", kind: "folder", order: 0, trackCount: 0 },
+          { id: "opening", parentId: "warmup", name: "Opening", kind: "playlist", order: 0, trackCount: 1 },
+        ]}
+        selectedId={null}
+        onSelect={() => undefined}
+      />,
+    );
+
+    const opening = screen.getByRole("treeitem", { name: /Opening/ });
+    expect(opening).toHaveAttribute("aria-level", "3");
+    expect(opening).toHaveStyle("--tree-indent: 2rem");
   });
 
   it("keeps import, tree, and track table reachable with semantic controls", async () => {
@@ -232,7 +323,7 @@ describe("LibraryScreen", () => {
     renderLibrary(createApi({ status: { state: "degraded", message: "Core process stopped" } }));
 
     expect(await screen.findByText("Library service is unavailable")).toBeVisible();
-    expect(screen.getByText("Start the DJ Copilot core service, then import or refresh this library.")).toBeVisible();
+    expect(screen.getByText("Quit and reopen DJ Copilot, then try again.")).toBeVisible();
   });
 
   it("invites import when the library is empty", async () => {

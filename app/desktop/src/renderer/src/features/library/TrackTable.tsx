@@ -3,6 +3,9 @@ import type { TrackListItem } from "../../../../shared/contracts";
 interface TrackTableProps {
   tracks: TrackListItem[] | null;
   loading: boolean;
+  nextCursor: string | null;
+  loadingMore: boolean;
+  onLoadMore: () => void;
 }
 
 function formatBpm(bpmMilli: number | null): string {
@@ -15,7 +18,7 @@ function availability(track: TrackListItem) {
   return { icon: "●", label: "Available" };
 }
 
-export function TrackTable({ tracks, loading }: TrackTableProps) {
+export function TrackTable({ tracks, loading, nextCursor, loadingMore, onLoadMore }: TrackTableProps) {
   return (
     <section className="track-surface" aria-labelledby="track-heading">
       <div className="track-surface__heading">
@@ -56,6 +59,13 @@ export function TrackTable({ tracks, loading }: TrackTableProps) {
           })}
         </tbody>
       </table>
+      {nextCursor !== null ? (
+        <div className="track-surface__more">
+          <button type="button" className="load-more-button" disabled={loadingMore} onClick={onLoadMore}>
+            {loadingMore ? "Loading more tracks…" : "Load more tracks"}
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }
