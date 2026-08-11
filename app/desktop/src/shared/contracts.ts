@@ -799,6 +799,182 @@ export const exportConfirmResultSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
+const assistantPromptSchema = z.string().trim().min(1).max(2_000);
+const assistantTextSchema = z.string().max(8_000);
+const assistantSummarySchema = z.string().trim().min(1).max(500);
+const assistantSequenceSchema = z.number().int().nonnegative().max(2_147_483_647);
+const assistantSdkVersionSchema = z.literal("0.147.0");
+
+export const assistantAuthStatusSchema = z.strictObject({
+  state: z.enum(["checking", "ready", "signed_out", "unsupported_auth", "unavailable"]),
+  auth: z.enum(["chatgpt", "none", "other", "unknown"]),
+  message: z.string().min(1).max(500).refine((message) => !/sk-[A-Za-z0-9_-]{4,}/u.test(message), "Status must not contain credential-shaped text"),
+  sdkVersion: assistantSdkVersionSchema.nullable(),
+}).superRefine((status, context) => {
+  const expectedAuth = {
+    checking: "unknown",
+    ready: "chatgpt",
+    signed_out: "none",
+    unsupported_auth: "other",
+    unavailable: "unknown",
+  } as const;
+  if (status.auth !== expectedAuth[status.state]) {
+    context.addIssue({ code: "custom", path: ["auth"], message: "Assistant state and authentication category disagree" });
+  }
+  if (status.state === "ready" && status.sdkVersion !== "0.147.0") {
+    context.addIssue({ code: "custom", path: ["sdkVersion"], message: "A ready provider requires the selected SDK version" });
+  }
+});
+
+const assistantExplainContextSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("selected_track"), selectedTrackId: idSchema }),
+  z.strictObject({ kind: z.literal("next"), selectedTrackId: idSchema, intent: discoveryIntentSchema }),
+  z.strictObject({ kind: z.literal("draft"), draftId: idSchema, expectedRevision: revisionSchema }),
+]);
+
+export const assistantTaskRequestSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("search"), prompt: assistantPromptSchema, selectedTrackId: idSchema.optional() }),
+  z.strictObject({ kind: z.literal("plan"), prompt: assistantPromptSchema, selectedTrackId: idSchema.optional() }),
+  z.strictObject({
+    kind: z.literal("revise"),
+    prompt: assistantPromptSchema,
+    draftId: idSchema,
+    expectedRevision: revisionSchema,
+  }),
+  z.strictObject({ kind: z.literal("explain"), prompt: assistantPromptSchema, context: assistantExplainContextSchema }),
+]);
+
+const assistantConfirmedMutationSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("rename"), title: z.string().min(1).max(200) }),
+  z.strictObject({ type: z.literal("set_plan"), plan: setDraftPlanSchema }),
+  z.strictObject({ type: z.literal("move_entry"), entryId: idSchema, toIndex: indexSchema }),
+  z.strictObject({ type: z.literal("set_track_pin"), entryId: idSchema, pinned: z.boolean() }),
+  z.strictObject({ type: z.literal("set_position_pin"), entryId: idSchema, pinned: z.boolean() }),
+  z.strictObject({ type: z.literal("remove_entry"), entryId: idSchema }),
+  z.strictObject({ type: z.literal("ban_entry"), entryId: idSchema }),
+  z.strictObject({ type: z.literal("replace_entry"), entryId: idSchema, replacementTrackId: idSchema }),
+  z.strictObject({
+    type: z.literal("set_entry_goal"),
+    entryId: idSchema,
+    role: setRoleSchema.nullable(),
+    targetEnergyPpm: ppmSchema.nullable(),
+  }),
+  z.strictObject({ type: z.literal("optimize") }),
+]);
+
+export const assistantProposalSchema = z.discriminatedUnion("kind", [
+  z.strictObject({
+    kind: z.literal("plan"),
+    proposalId: idSchema,
+    summary: assistantSummarySchema,
+    title: z.string().trim().min(1).max(200),
+    plan: setDraftPlanSchema,
+    source: z.strictObject({
+      kind: z.literal("generated"),
+      seedTrackId: idSchema.optional(),
+      maxTracks: z.number().int().min(1).max(50),
+    }),
+    expiresAt: z.string().min(1).max(64),
+  }),
+  z.strictObject({
+    kind: z.literal("revision"),
+    proposalId: idSchema,
+    summary: assistantSummarySchema,
+    draftId: idSchema,
+    expectedRevision: revisionSchema,
+    mutation: assistantConfirmedMutationSchema,
+    evidenceTrackIds: z.array(idSchema).max(20).refine((ids) => new Set(ids).size === ids.length, "Evidence track IDs must be unique"),
+    expiresAt: z.string().min(1).max(64),
+  }),
+]);
+
+export const assistantSearchResultSchema = z.discriminatedUnion("mode", [
+  z.strictObject({ mode: z.literal("filters"), summary: assistantSummarySchema, filters: trackFiltersSchema, response: trackPageSchema }),
+  z.strictObject({
+    mode: z.literal("similar"),
+    summary: assistantSummarySchema,
+    seedTrackId: idSchema,
+    response: similarityResponseSchema,
+  }),
+  z.strictObject({
+    mode: z.literal("next"),
+    summary: assistantSummarySchema,
+    seedTrackId: idSchema,
+    intent: discoveryIntentSchema,
+    response: recommendationResponseSchema,
+  }),
+  z.strictObject({ mode: z.literal("unsupported"), reason: assistantSummarySchema }),
+]);
+
+const assistantErrorCodeSchema = z.enum([
+  "signed_out",
+  "unsupported_auth",
+  "timeout",
+  "cancelled",
+  "invalid_response",
+  "invalid_context",
+  "conflict",
+  "unavailable",
+  "unknown",
+]);
+
+export const assistantEventSchema = z.discriminatedUnion("type", [
+  z.strictObject({
+    sequence: assistantSequenceSchema,
+    type: z.literal("activity"),
+    activity: z.enum(["checking_auth", "interpreting", "searching_local", "preparing_proposal", "explaining", "validating"]),
+  }),
+  z.strictObject({ sequence: assistantSequenceSchema, type: z.literal("text_snapshot"), text: assistantTextSchema }),
+  z.strictObject({ sequence: assistantSequenceSchema, type: z.literal("search_result"), result: assistantSearchResultSchema }),
+  z.strictObject({ sequence: assistantSequenceSchema, type: z.literal("proposal"), proposal: assistantProposalSchema }),
+  z.strictObject({
+    sequence: assistantSequenceSchema,
+    type: z.literal("completed"),
+    evidenceTrackIds: z.array(idSchema).max(20).refine((ids) => new Set(ids).size === ids.length, "Evidence track IDs must be unique"),
+  }),
+  z.strictObject({ sequence: assistantSequenceSchema, type: z.literal("cancelled") }),
+  z.strictObject({
+    sequence: assistantSequenceSchema,
+    type: z.literal("failed"),
+    error: z.strictObject({ code: assistantErrorCodeSchema, message: z.string().min(1).max(500) }),
+  }),
+]);
+
+export const assistantStartResultSchema = z.strictObject({ requestId: idSchema });
+export const assistantPollRequestSchema = z.strictObject({ requestId: idSchema, afterSequence: assistantSequenceSchema });
+export const assistantPollResultSchema = z.strictObject({
+  events: z.array(assistantEventSchema).max(50),
+  nextSequence: assistantSequenceSchema,
+  terminal: z.boolean(),
+}).superRefine((result, context) => {
+  let previous = -1;
+  result.events.forEach((event, index) => {
+    if (event.sequence <= previous) {
+      context.addIssue({ code: "custom", path: ["events", index, "sequence"], message: "Event sequence must be strictly increasing" });
+    }
+    previous = event.sequence;
+    if ((event.type === "completed" || event.type === "cancelled" || event.type === "failed") && index !== result.events.length - 1) {
+      context.addIssue({ code: "custom", path: ["events", index], message: "A terminal event must be last" });
+    }
+  });
+  if (result.events.length > 0 && result.nextSequence < result.events[result.events.length - 1]!.sequence) {
+    context.addIssue({ code: "custom", path: ["nextSequence"], message: "Next sequence cannot precede returned events" });
+  }
+});
+export const assistantCancelRequestSchema = z.strictObject({ requestId: idSchema });
+export const assistantCancelResultSchema = z.strictObject({ status: z.enum(["cancelled", "already_terminal", "not_found"]) });
+export const assistantConfirmRequestSchema = z.strictObject({ requestId: idSchema, proposalId: idSchema });
+export const assistantConfirmResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("created"), snapshot: setDraftSnapshotSchema }),
+  z.strictObject({ status: z.literal("updated"), snapshot: setDraftSnapshotSchema }),
+  z.strictObject({ status: z.literal("conflict"), currentRevision: revisionSchema }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    code: z.enum(["not_found", "expired", "mismatch", "stale", "invalid", "unavailable"]),
+    message: z.string().min(1).max(500),
+  }),
+]);
+
 export const privateExportPreviewRequestSchema = z.strictObject({
   draftId: idSchema,
   expectedRevision: revisionSchema,
@@ -1038,6 +1214,15 @@ export type SetDraftReplacementResult = z.infer<typeof setDraftReplacementResult
 export type SetDraftInspectResult = z.infer<typeof setDraftInspectResultSchema>;
 export type ExportPrepareResult = z.infer<typeof exportPrepareResultSchema>;
 export type ExportConfirmResult = z.infer<typeof exportConfirmResultSchema>;
+export type AssistantAuthStatus = z.infer<typeof assistantAuthStatusSchema>;
+export type AssistantTaskRequest = z.infer<typeof assistantTaskRequestSchema>;
+export type AssistantProposal = z.infer<typeof assistantProposalSchema>;
+export type AssistantSearchResult = z.infer<typeof assistantSearchResultSchema>;
+export type AssistantEvent = z.infer<typeof assistantEventSchema>;
+export type AssistantStartResult = z.infer<typeof assistantStartResultSchema>;
+export type AssistantPollResult = z.infer<typeof assistantPollResultSchema>;
+export type AssistantCancelResult = z.infer<typeof assistantCancelResultSchema>;
+export type AssistantConfirmResult = z.infer<typeof assistantConfirmResultSchema>;
 export type CoreRequest = z.infer<typeof coreRequestSchema>;
 export type CoreResponse = z.infer<typeof coreResponseSchema>;
 
@@ -1072,6 +1257,14 @@ export interface DesktopApi {
     reset(): Promise<PreferenceResetResult>;
     prepareExport(): Promise<PreferenceExportPrepareResult>;
     confirmExport(confirmationId: string): Promise<PreferenceExportConfirmResult>;
+  };
+  assistant: {
+    getStatus(): Promise<AssistantAuthStatus>;
+    beginLogin(): Promise<AssistantAuthStatus>;
+    start(request: AssistantTaskRequest): Promise<AssistantStartResult>;
+    poll(requestId: string, afterSequence: number): Promise<AssistantPollResult>;
+    cancel(requestId: string): Promise<AssistantCancelResult>;
+    confirm(requestId: string, proposalId: string): Promise<AssistantConfirmResult>;
   };
   sets: {
     list(): Promise<SetDraftListResult>;

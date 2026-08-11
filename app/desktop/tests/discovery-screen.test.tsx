@@ -235,6 +235,14 @@ function createApi(): DesktopApi {
       prepareExport: vi.fn(async () => { throw new Error("Preferences are not configured in this discovery test."); }),
       confirmExport: vi.fn(async () => { throw new Error("Preferences are not configured in this discovery test."); }),
     },
+    assistant: {
+      getStatus: vi.fn().mockResolvedValue({ state: "unavailable", auth: "unknown", message: "Copilot is not configured in this test.", sdkVersion: null }),
+      beginLogin: vi.fn(async () => { throw new Error("Copilot is not configured in this discovery test."); }),
+      start: vi.fn(async () => { throw new Error("Copilot is not configured in this discovery test."); }),
+      poll: vi.fn(async () => { throw new Error("Copilot is not configured in this discovery test."); }),
+      cancel: vi.fn(async () => { throw new Error("Copilot is not configured in this discovery test."); }),
+      confirm: vi.fn(async () => { throw new Error("Copilot is not configured in this discovery test."); }),
+    },
     sets: { list: vi.fn(async () => ({ items: [] })), create: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }), get: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }), mutate: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }), findReplacements: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }), inspect: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }) },
     exports: { prepare: vi.fn(async () => { throw new Error("Exports are not configured in this discovery test."); }), confirm: vi.fn(async () => { throw new Error("Exports are not configured in this discovery test."); }) },
   };

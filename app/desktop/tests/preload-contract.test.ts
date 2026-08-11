@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createDesktopApi } from "../src/preload/index";
 
 describe("preload API", () => {
-  it("exposes only the twenty-nine named renderer operations through exact fixed channels", async () => {
+  it("exposes only the thirty-five named renderer operations through exact fixed channels", async () => {
     const invoke = vi.fn(async (channel: string) => {
       if (channel === "system:getStatus") return { state: "ready", message: null };
       if (channel === "library:importXml") return { success: false, error: { code: "cancelled", message: "No XML selected" }, preservedPreviousLibrary: true };
@@ -14,7 +14,7 @@ describe("preload API", () => {
     });
     const api = createDesktopApi({ invoke });
 
-    expect(Object.keys(api)).toEqual(["system", "library", "analysis", "discovery", "preferences", "sets", "exports"]);
+    expect(Object.keys(api)).toEqual(["system", "library", "analysis", "discovery", "preferences", "assistant", "sets", "exports"]);
     expect(Object.keys(api.system)).toEqual(["getStatus"]);
     expect(Object.keys(api.library)).toEqual([
       "importXml",
@@ -36,6 +36,7 @@ describe("preload API", () => {
       "prepareExport",
       "confirmExport",
     ]);
+    expect(Object.keys(api.assistant)).toEqual(["getStatus", "beginLogin", "start", "poll", "cancel", "confirm"]);
     expect(Object.keys(api.sets)).toEqual(["list", "create", "get", "mutate", "findReplacements", "inspect"]);
     expect(Object.keys(api.exports)).toEqual(["prepare", "confirm"]);
     expect("invoke" in api).toBe(false);
@@ -45,6 +46,7 @@ describe("preload API", () => {
     expect(Object.isFrozen(api.analysis)).toBe(true);
     expect(Object.isFrozen(api.discovery)).toBe(true);
     expect(Object.isFrozen(api.preferences)).toBe(true);
+    expect(Object.isFrozen(api.assistant)).toBe(true);
     expect(Object.isFrozen(api.sets)).toBe(true);
     expect(Object.isFrozen(api.exports)).toBe(true);
     await expect(api.system.getStatus()).resolves.toEqual({ state: "ready", message: null });
@@ -70,6 +72,12 @@ describe("preload API", () => {
     await api.preferences.reset();
     await api.preferences.prepareExport();
     await api.preferences.confirmExport("preference-confirmation-1");
+    await api.assistant.getStatus();
+    await api.assistant.beginLogin();
+    await api.assistant.start({ kind: "search", prompt: "Find warm house tracks" });
+    await api.assistant.poll("request-1", 0);
+    await api.assistant.cancel("request-1");
+    await api.assistant.confirm("request-1", "proposal-1");
     await api.sets.list();
     await api.sets.create({ title: "Friday set", plan: { intent: "smooth", targetDurationMs: null, maxArtistRepeats: null, candidateFilters: {} }, source: { kind: "empty" } });
     await api.sets.get({ draftId: "draft-1" });
@@ -78,7 +86,7 @@ describe("preload API", () => {
     await api.sets.inspect({ kind: "draft", draftId: "draft-1" });
     await api.exports.prepare({ draftId: "draft-1", expectedRevision: 1 });
     await api.exports.confirm({ confirmationId: "confirmation-1" });
-    expect(invoke.mock.calls.slice(-25)).toEqual([
+    expect(invoke.mock.calls.slice(-31)).toEqual([
       ["library:getTrackMetadata", { trackId: "track-1" }],
       ["library:updateTrackMetadata", { trackId: "track-1", rating: 5, tags: ["Warmup"], note: null }],
       ["library:listSavedFilters"],
@@ -96,6 +104,12 @@ describe("preload API", () => {
       ["preferences:reset"],
       ["preferences:prepareExport"],
       ["preferences:confirmExport", { confirmationId: "preference-confirmation-1" }],
+      ["assistant:getStatus"],
+      ["assistant:beginLogin"],
+      ["assistant:start", { kind: "search", prompt: "Find warm house tracks" }],
+      ["assistant:poll", { requestId: "request-1", afterSequence: 0 }],
+      ["assistant:cancel", { requestId: "request-1" }],
+      ["assistant:confirm", { requestId: "request-1", proposalId: "proposal-1" }],
       ["sets:list"],
       ["sets:create", { title: "Friday set", plan: { intent: "smooth", targetDurationMs: null, maxArtistRepeats: null, candidateFilters: {} }, source: { kind: "empty" } }],
       ["sets:get", { draftId: "draft-1" }],

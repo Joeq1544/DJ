@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
+  AssistantTaskRequest,
   CompareRecommendationsRequest,
   DesktopApi,
   ExportConfirmResult,
@@ -57,6 +58,14 @@ export function createDesktopApi(renderer: IpcRendererLike): DesktopApi {
       reset: () => renderer.invoke("preferences:reset") as ReturnType<DesktopApi["preferences"]["reset"]>,
       prepareExport: () => renderer.invoke("preferences:prepareExport") as ReturnType<DesktopApi["preferences"]["prepareExport"]>,
       confirmExport: (confirmationId: string) => renderer.invoke("preferences:confirmExport", { confirmationId }) as ReturnType<DesktopApi["preferences"]["confirmExport"]>,
+    }),
+    assistant: Object.freeze({
+      getStatus: () => renderer.invoke("assistant:getStatus") as ReturnType<DesktopApi["assistant"]["getStatus"]>,
+      beginLogin: () => renderer.invoke("assistant:beginLogin") as ReturnType<DesktopApi["assistant"]["beginLogin"]>,
+      start: (request: AssistantTaskRequest) => renderer.invoke("assistant:start", request) as ReturnType<DesktopApi["assistant"]["start"]>,
+      poll: (requestId: string, afterSequence: number) => renderer.invoke("assistant:poll", { requestId, afterSequence }) as ReturnType<DesktopApi["assistant"]["poll"]>,
+      cancel: (requestId: string) => renderer.invoke("assistant:cancel", { requestId }) as ReturnType<DesktopApi["assistant"]["cancel"]>,
+      confirm: (requestId: string, proposalId: string) => renderer.invoke("assistant:confirm", { requestId, proposalId }) as ReturnType<DesktopApi["assistant"]["confirm"]>,
     }),
     sets: Object.freeze({
       list: () => renderer.invoke("sets:list") as Promise<SetDraftListResult>,

@@ -269,6 +269,14 @@ function createApi(): DesktopApi {
         destinationState: "replaced",
       }),
     },
+    assistant: {
+      getStatus: vi.fn().mockResolvedValue({ state: "unavailable", auth: "unknown", message: "Copilot is not configured in this test.", sdkVersion: null }),
+      beginLogin: vi.fn(async () => { throw new Error("Copilot is not configured in this personalization test."); }),
+      start: vi.fn(async () => { throw new Error("Copilot is not configured in this personalization test."); }),
+      poll: vi.fn(async () => { throw new Error("Copilot is not configured in this personalization test."); }),
+      cancel: vi.fn(async () => { throw new Error("Copilot is not configured in this personalization test."); }),
+      confirm: vi.fn(async () => { throw new Error("Copilot is not configured in this personalization test."); }),
+    },
     sets: {
       list: vi.fn().mockResolvedValue({ items: [] }),
       create: vi.fn(async () => { throw new Error("Sets are not configured in this personalization test."); }),

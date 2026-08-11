@@ -5,7 +5,7 @@ const options = {
   bundle: true,
   platform: "node",
   format: "cjs",
-  external: ["electron"],
+  external: ["electron", "@openai/codex-sdk"],
   outbase: "src",
   outdir: "dist",
   outExtension: { ".js": ".cjs" },

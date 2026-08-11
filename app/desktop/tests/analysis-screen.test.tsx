@@ -182,6 +182,14 @@ function createApi(options: {
       prepareExport: vi.fn(async () => { throw new Error("Preferences are not configured in this analysis test."); }),
       confirmExport: vi.fn(async () => { throw new Error("Preferences are not configured in this analysis test."); }),
     },
+    assistant: {
+      getStatus: vi.fn().mockResolvedValue({ state: "unavailable", auth: "unknown", message: "Copilot is not configured in this test.", sdkVersion: null }),
+      beginLogin: vi.fn(async () => { throw new Error("Copilot is not configured in this analysis test."); }),
+      start: vi.fn(async () => { throw new Error("Copilot is not configured in this analysis test."); }),
+      poll: vi.fn(async () => { throw new Error("Copilot is not configured in this analysis test."); }),
+      cancel: vi.fn(async () => { throw new Error("Copilot is not configured in this analysis test."); }),
+      confirm: vi.fn(async () => { throw new Error("Copilot is not configured in this analysis test."); }),
+    },
     sets: { list: vi.fn(async () => ({ items: [] })), create: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), get: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), mutate: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), findReplacements: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), inspect: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }) },
     exports: { prepare: vi.fn(async () => { throw new Error("Exports are not configured in this analysis test."); }), confirm: vi.fn(async () => { throw new Error("Exports are not configured in this analysis test."); }) },
   };
