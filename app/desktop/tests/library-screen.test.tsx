@@ -125,6 +125,8 @@ function createApi(options: {
       findSimilar: vi.fn(async () => { throw new Error("Discovery is not configured in this library test."); }),
       recommendNext: vi.fn(async () => { throw new Error("Discovery is not configured in this library test."); }),
     },
+    sets: { list: vi.fn(async () => ({ items: [] })), create: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), get: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), mutate: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), findReplacements: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), inspect: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }) },
+    exports: { prepare: vi.fn(async () => { throw new Error("Exports are not configured in this library test."); }), confirm: vi.fn(async () => { throw new Error("Exports are not configured in this library test."); }) },
   };
 }
 

@@ -293,6 +293,278 @@ export const importResultSchema = z.discriminatedUnion("success", [
   }),
 ]);
 
+const revisionSchema = z.number().int().positive().max(2_147_483_647);
+const indexSchema = z.number().int().min(0).max(99);
+const setRoleSchema = z.enum(["warmup", "groove", "build", "peak", "singalong", "reset", "bridge", "closer"]);
+const strictTrackIdsSchema = z.array(idSchema).min(1).max(100).refine(
+  (trackIds) => new Set(trackIds).size === trackIds.length,
+  "Track IDs must be unique",
+);
+
+export const setDraftPlanSchema = z.strictObject({
+  intent: discoveryIntentSchema,
+  targetDurationMs: z.number().int().min(900_000).max(28_800_000).nullable(),
+  maxArtistRepeats: z.number().int().min(1).max(20).nullable(),
+  candidateFilters: trackFiltersSchema,
+});
+
+const setDraftSourceSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("empty") }),
+  z.strictObject({ kind: z.literal("tracks"), trackIds: strictTrackIdsSchema }),
+  z.strictObject({ kind: z.literal("playlist"), playlistId: idSchema }),
+  z.strictObject({
+    kind: z.literal("generated"),
+    seedTrackId: idSchema.optional(),
+    maxTracks: z.number().int().min(1).max(50),
+  }),
+]);
+
+export const setDraftCreateRequestSchema = z.strictObject({
+  title: z.string().min(1).max(200),
+  plan: setDraftPlanSchema,
+  source: setDraftSourceSchema,
+});
+
+export const setDraftGetRequestSchema = z.strictObject({
+  draftId: idSchema,
+  revision: revisionSchema.optional(),
+});
+
+const setDraftMutationSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("rename"), title: z.string().min(1).max(200) }),
+  z.strictObject({ type: z.literal("set_plan"), plan: setDraftPlanSchema }),
+  z.strictObject({ type: z.literal("insert_track"), trackId: idSchema, toIndex: z.number().int().min(0).max(100) }),
+  z.strictObject({ type: z.literal("move_entry"), entryId: idSchema, toIndex: indexSchema }),
+  z.strictObject({ type: z.literal("set_track_pin"), entryId: idSchema, pinned: z.boolean() }),
+  z.strictObject({ type: z.literal("set_position_pin"), entryId: idSchema, pinned: z.boolean() }),
+  z.strictObject({ type: z.literal("remove_entry"), entryId: idSchema }),
+  z.strictObject({ type: z.literal("ban_entry"), entryId: idSchema }),
+  z.strictObject({ type: z.literal("unban_track"), trackId: idSchema }),
+  z.strictObject({ type: z.literal("replace_entry"), entryId: idSchema, replacementTrackId: idSchema }),
+  z.strictObject({
+    type: z.literal("set_entry_goal"),
+    entryId: idSchema,
+    role: setRoleSchema.nullable(),
+    targetEnergyPpm: ppmSchema.nullable(),
+  }),
+  z.strictObject({ type: z.literal("optimize") }),
+  z.strictObject({ type: z.literal("undo") }),
+  z.strictObject({ type: z.literal("redo") }),
+  z.strictObject({ type: z.literal("save_version"), label: z.string().min(1).max(100) }),
+  z.strictObject({ type: z.literal("restore_version"), version: revisionSchema }),
+]);
+
+export const setDraftMutationRequestSchema = z.strictObject({
+  draftId: idSchema,
+  expectedRevision: revisionSchema,
+  mutation: setDraftMutationSchema,
+});
+
+export const setDraftReplacementRequestSchema = z.strictObject({
+  draftId: idSchema,
+  entryId: idSchema,
+  revision: revisionSchema.optional(),
+});
+
+export const setDraftInspectRequestSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("draft"), draftId: idSchema, revision: revisionSchema.optional() }),
+  z.strictObject({ kind: z.literal("playlist"), playlistId: idSchema }),
+]);
+
+export const setDraftEntrySchema = z.strictObject({
+  id: idSchema,
+  trackId: idSchema,
+  track: discoveryTrackSchema.nullable(),
+  resolution: z.enum(["resolved", "missing"]),
+  bpmMilli: z.number().int().positive().nullable(),
+  musicalKey: z.string().min(1).max(64).nullable(),
+  energyPpm: ppmSchema.nullable(),
+  trackPinned: z.boolean(),
+  positionPinned: z.boolean(),
+  role: setRoleSchema.nullable(),
+  targetEnergyPpm: ppmSchema.nullable(),
+}).superRefine((entry, context) => {
+  if ((entry.resolution === "resolved") !== (entry.track !== null)) {
+    context.addIssue({ code: "custom", message: "Resolution and current track disagree" });
+  }
+});
+
+export const setDraftVersionSchema = z.strictObject({
+  version: revisionSchema,
+  revision: revisionSchema,
+  label: z.string().min(1).max(100),
+});
+
+export const setDraftSnapshotSchema = z.strictObject({
+  draftId: idSchema,
+  currentRevision: revisionSchema,
+  contentRevision: revisionSchema,
+  title: z.string().min(1).max(200),
+  plan: setDraftPlanSchema,
+  entries: z.array(setDraftEntrySchema).max(100),
+  bans: z.array(idSchema).max(200).refine((bans) => new Set(bans).size === bans.length && bans.every((ban, index) => index === 0 || bans[index - 1]! < ban), "Bans must be unique and sorted"),
+  knownDurationMs: nonnegativeIntegerSchema,
+  unknownDurationCount: nonnegativeIntegerSchema,
+  unmetConstraints: z.array(z.strictObject({ code: z.string().min(1).max(64), message: messageSchema })).max(20),
+  canUndo: z.boolean(),
+  canRedo: z.boolean(),
+  versions: z.array(setDraftVersionSchema).max(100),
+  viewingVersion: revisionSchema.nullable(),
+});
+
+export const setDraftListItemSchema = z.strictObject({
+  draftId: idSchema,
+  currentRevision: revisionSchema,
+  title: z.string().min(1).max(200),
+  trackCount: z.number().int().min(0).max(100),
+  knownDurationMs: nonnegativeIntegerSchema,
+  unknownDurationCount: nonnegativeIntegerSchema,
+});
+
+export const setDraftListResultSchema = z.strictObject({ items: z.array(setDraftListItemSchema).max(100) });
+
+export const setDraftMutationResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("updated"), snapshot: setDraftSnapshotSchema }),
+  z.strictObject({ status: z.literal("conflict"), currentRevision: revisionSchema }),
+]);
+
+export const setTransitionSchema = z.strictObject({
+  fromPosition: z.number().int().min(0).max(99),
+  toPosition: z.number().int().min(1).max(100),
+  scorePpm: ppmSchema,
+  confidencePpm: ppmSchema,
+  utilitySignedPpm: signedPpmSchema,
+  reasons: z.array(z.string().min(1).max(200)).max(3),
+  components: z.array(scoreComponentSchema).min(1).max(8),
+});
+
+export const setDraftReplacementResultSchema = z.strictObject({
+  scannedCount: z.number().int().min(0).max(25_000),
+  scanTruncated: z.boolean(),
+  items: z.array(z.strictObject({
+    track: discoveryTrackSchema,
+    scorePpm: ppmSchema,
+    confidencePpm: ppmSchema,
+    goalScorePpm: ppmSchema.nullable(),
+    affectedTransitions: z.array(setTransitionSchema).max(2),
+  })).max(10),
+});
+
+const setInspectionPointSchema = z.strictObject({
+  position: z.number().int().min(0).max(99),
+  entryId: idSchema.nullable(),
+  trackId: idSchema,
+  track: discoveryTrackSchema.nullable(),
+  resolution: z.enum(["resolved", "missing"]),
+  bpmMilli: z.number().int().positive().nullable(),
+  musicalKey: z.string().min(1).max(64).nullable(),
+  energyPpm: ppmSchema.nullable(),
+  energyDirection: z.enum(["rise", "fall", "flat", "unknown"]),
+  bpmDirection: z.enum(["rise", "fall", "flat", "unknown"]),
+});
+
+const setWarningSchema = z.strictObject({ code: z.string().min(1).max(64), message: messageSchema });
+
+const organizationSuggestionSchema = z.strictObject({
+  kind: z.enum(["energy_group", "genre_group", "not_in_playlist"]),
+  label: z.string().min(1).max(200),
+  evidence: z.string().min(1).max(500),
+  trackIds: z.array(idSchema).max(100),
+  matchedTrackCount: nonnegativeIntegerSchema,
+  trackIdsTruncated: z.boolean(),
+});
+
+export const setDraftInspectResultSchema = z.strictObject({
+  sourcePositionCount: nonnegativeIntegerSchema,
+  inspectedPositionCount: z.number().int().min(0).max(100),
+  inputTruncated: z.boolean(),
+  knownDurationMs: nonnegativeIntegerSchema,
+  unknownDurationCount: nonnegativeIntegerSchema,
+  points: z.array(setInspectionPointSchema).max(100),
+  transitions: z.array(setTransitionSchema).max(99),
+  warnings: z.array(setWarningSchema).max(200),
+  matchedWarningCount: nonnegativeIntegerSchema,
+  warningsTruncated: z.boolean(),
+  scannedCount: z.number().int().min(0).max(25_000),
+  scanTruncated: z.boolean(),
+  organizationLabel: z.literal("Suggestions only—nothing has changed in Rekordbox."),
+  organizationSuggestions: z.array(organizationSuggestionSchema).max(20),
+  matchedSuggestionCount: nonnegativeIntegerSchema,
+  suggestionsTruncated: z.boolean(),
+}).superRefine((result, context) => {
+  if (result.inspectedPositionCount > result.sourcePositionCount) {
+    context.addIssue({ code: "custom", path: ["inspectedPositionCount"], message: "Cannot inspect more positions than supplied" });
+  }
+  if (result.inputTruncated !== (result.sourcePositionCount > result.inspectedPositionCount)) {
+    context.addIssue({ code: "custom", path: ["inputTruncated"], message: "Input truncation metadata disagrees" });
+  }
+});
+
+export const exportPrepareRequestSchema = z.strictObject({ draftId: idSchema, expectedRevision: revisionSchema });
+export const exportConfirmRequestSchema = z.strictObject({ confirmationId: idSchema });
+
+const exportReasonSchema = z.strictObject({ code: z.string().min(1).max(64), message: messageSchema });
+
+export const exportPrepareResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("cancelled") }),
+  z.strictObject({ status: z.literal("blocked"), reasons: z.array(exportReasonSchema).min(1).max(20) }),
+  z.strictObject({
+    status: z.literal("ready"),
+    confirmationId: idSchema,
+    playlistName: z.string().min(1).max(200),
+    trackCount: z.number().int().min(0).max(100),
+    knownDurationMs: nonnegativeIntegerSchema,
+    unknownDurationCount: nonnegativeIntegerSchema,
+    destinationDisplay: z.string().min(1).max(1_000),
+    willReplaceExisting: z.boolean(),
+    warnings: z.array(z.string().min(1).max(500)).max(20),
+  }),
+]);
+
+export const exportConfirmResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("exported"),
+    draftId: idSchema,
+    revision: revisionSchema,
+    playlistName: z.string().min(1).max(200),
+    trackCount: z.number().int().min(0).max(100),
+    overwritten: z.boolean(),
+    format: z.literal("rekordbox_xml_1_0_0"),
+    destinationState: z.literal("replaced"),
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    reasons: z.array(exportReasonSchema).min(1).max(20),
+    destinationState: z.enum(["unchanged", "unknown"]),
+  }),
+]);
+
+export const privateExportPreviewRequestSchema = z.strictObject({
+  draftId: idSchema,
+  expectedRevision: revisionSchema,
+  destinationPath: z.string().min(1).max(4_096),
+  expectedDestinationState: z.enum(["absent", "regular_file"]),
+});
+
+export const privateExportPreviewResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("ready"),
+    draftId: idSchema,
+    revision: revisionSchema,
+    playlistName: z.string().min(1).max(200),
+    trackCount: z.number().int().min(0).max(100),
+    knownDurationMs: nonnegativeIntegerSchema,
+    unknownDurationCount: nonnegativeIntegerSchema,
+    warnings: z.array(z.string().min(1).max(500)).max(20),
+    expectedDestinationState: z.enum(["absent", "regular_file"]),
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    reasons: z.array(exportReasonSchema).min(1).max(20),
+    destinationState: z.literal("unchanged"),
+  }),
+]);
+
 const requestBase = {
   version: z.literal(1),
   id: idSchema,
@@ -349,6 +621,46 @@ export const coreRequestSchema = z.discriminatedUnion("command", [
     command: z.literal("resume_analysis"),
     payload: z.strictObject({}),
   }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("list_set_drafts"),
+    payload: z.strictObject({}),
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("create_set_draft"),
+    payload: setDraftCreateRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("get_set_draft"),
+    payload: setDraftGetRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("mutate_set_draft"),
+    payload: setDraftMutationRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("find_set_replacements"),
+    payload: setDraftReplacementRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("analyze_set"),
+    payload: setDraftInspectRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("preview_set_export"),
+    payload: privateExportPreviewRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("export_set_draft"),
+    payload: privateExportPreviewRequestSchema,
+  }),
 ]);
 
 export const coreResponseSchema = z.discriminatedUnion("ok", [
@@ -391,6 +703,19 @@ export type AnalysisCapabilities = z.infer<typeof analysisCapabilitiesSchema>;
 export type AnalysisSummary = z.infer<typeof analysisSummarySchema>;
 export type AnalysisQueueStatus = z.infer<typeof analysisQueueStatusSchema>;
 export type AnalysisTrackIds = z.infer<typeof analysisTrackIdsSchema>;
+export type SetDraftPlan = z.infer<typeof setDraftPlanSchema>;
+export type SetDraftCreateRequest = z.infer<typeof setDraftCreateRequestSchema>;
+export type SetDraftGetRequest = z.infer<typeof setDraftGetRequestSchema>;
+export type SetDraftMutationRequest = z.infer<typeof setDraftMutationRequestSchema>;
+export type SetDraftReplacementRequest = z.infer<typeof setDraftReplacementRequestSchema>;
+export type SetDraftInspectRequest = z.infer<typeof setDraftInspectRequestSchema>;
+export type SetDraftListResult = z.infer<typeof setDraftListResultSchema>;
+export type SetDraftSnapshot = z.infer<typeof setDraftSnapshotSchema>;
+export type SetDraftMutationResult = z.infer<typeof setDraftMutationResultSchema>;
+export type SetDraftReplacementResult = z.infer<typeof setDraftReplacementResultSchema>;
+export type SetDraftInspectResult = z.infer<typeof setDraftInspectResultSchema>;
+export type ExportPrepareResult = z.infer<typeof exportPrepareResultSchema>;
+export type ExportConfirmResult = z.infer<typeof exportConfirmResultSchema>;
 export type CoreRequest = z.infer<typeof coreRequestSchema>;
 export type CoreResponse = z.infer<typeof coreResponseSchema>;
 
@@ -412,5 +737,17 @@ export interface DesktopApi {
   discovery: {
     findSimilar(request: FindSimilarRequest): Promise<SimilarityResponse>;
     recommendNext(request: RecommendNextRequest): Promise<RecommendationResponse>;
+  };
+  sets: {
+    list(): Promise<SetDraftListResult>;
+    create(request: SetDraftCreateRequest): Promise<SetDraftSnapshot>;
+    get(request: SetDraftGetRequest): Promise<SetDraftSnapshot>;
+    mutate(request: SetDraftMutationRequest): Promise<SetDraftMutationResult>;
+    findReplacements(request: SetDraftReplacementRequest): Promise<SetDraftReplacementResult>;
+    inspect(request: SetDraftInspectRequest): Promise<SetDraftInspectResult>;
+  };
+  exports: {
+    prepare(request: { draftId: string; expectedRevision: number }): Promise<ExportPrepareResult>;
+    confirm(request: { confirmationId: string }): Promise<ExportConfirmResult>;
   };
 }

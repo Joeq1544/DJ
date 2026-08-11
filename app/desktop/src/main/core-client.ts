@@ -4,6 +4,7 @@ import { coreRequestSchema, coreResponseSchema, type CoreRequest } from "../shar
 
 const MAX_LINE_BYTES = 1_048_576;
 const IMPORT_REQUEST_TIMEOUT_MS = 120_000;
+const SET_OPERATION_TIMEOUT_MS = 30_000;
 
 type SocketLike = Pick<Socket, "on" | "once" | "write" | "destroy">;
 
@@ -11,6 +12,7 @@ export interface CoreClientOptions {
   connectionTimeoutMs?: number;
   requestTimeoutMs?: number;
   importRequestTimeoutMs?: number;
+  setOperationTimeoutMs?: number;
   createConnection?: (socketPath: string) => SocketLike;
 }
 
@@ -36,6 +38,7 @@ export class CoreClient {
   private readonly connectionTimeoutMs: number;
   private readonly requestTimeoutMs: number;
   private readonly importRequestTimeoutMs: number;
+  private readonly setOperationTimeoutMs: number;
   private readonly connect: (socketPath: string) => SocketLike;
   private closed = false;
   private readonly activeSockets = new Set<SocketLike>();
@@ -45,18 +48,21 @@ export class CoreClient {
     this.connectionTimeoutMs = options.connectionTimeoutMs ?? 5_000;
     this.requestTimeoutMs = options.requestTimeoutMs ?? 5_000;
     this.importRequestTimeoutMs = options.importRequestTimeoutMs ?? IMPORT_REQUEST_TIMEOUT_MS;
+    this.setOperationTimeoutMs = options.setOperationTimeoutMs ?? SET_OPERATION_TIMEOUT_MS;
     this.connect = options.createConnection ?? ((path) => createConnection(path));
   }
 
   async request(command: CoreRequest["command"], payload: unknown): Promise<unknown> {
-    const request = { version: 1 as const, id: randomUUID(), command, payload };
-    if (!coreRequestSchema.safeParse(request).success) throw new Error("Invalid core request");
+    const rawRequest = { version: 1 as const, id: randomUUID(), command, payload };
+    const parsedRequest = coreRequestSchema.safeParse(rawRequest);
+    if (!parsedRequest.success) throw new Error("Invalid core request");
+    const request = parsedRequest.data;
     const socket = await this.openSocket();
     return new Promise<unknown>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.rejectPending(request.id, new Error("Core request timed out"));
         socket.destroy();
-      }, command === "import_library" ? this.importRequestTimeoutMs : this.requestTimeoutMs);
+      }, this.timeoutFor(request));
       this.pending.set(request.id, { socket, resolve, reject, timeout });
       try {
         socket.write(`${JSON.stringify(request)}\n`);
@@ -64,6 +70,20 @@ export class CoreClient {
         this.rejectPending(request.id, new Error("Core connection closed"));
       }
     });
+  }
+
+  private timeoutFor(request: CoreRequest): number {
+    if (request.command === "import_library") return this.importRequestTimeoutMs;
+    if (
+      request.command === "analyze_set" ||
+      request.command === "preview_set_export" ||
+      request.command === "export_set_draft" ||
+      (request.command === "create_set_draft" && request.payload.source.kind === "generated") ||
+      (request.command === "mutate_set_draft" && request.payload.mutation.type === "optimize")
+    ) {
+      return this.setOperationTimeoutMs;
+    }
+    return this.requestTimeoutMs;
   }
 
   close(): void {

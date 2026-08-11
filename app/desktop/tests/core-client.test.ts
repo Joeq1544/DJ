@@ -110,6 +110,28 @@ describe("CoreClient", () => {
     client.close();
   });
 
+  it("extends only generated, optimization, inspection, and export set operations to the bounded 30-second budget", async () => {
+    const server = await socketServer((socket, line) => {
+      const request = JSON.parse(line) as { id: string };
+      const timer = setTimeout(() => socket.end(response(request.id, { completed: true })), 30);
+      socket.once("close", () => clearTimeout(timer));
+    });
+    cleanup.push(() => server.close());
+    const client = new CoreClient(server.socketPath, {
+      requestTimeoutMs: 10,
+      setOperationTimeoutMs: 100,
+    });
+    const generated = {
+      title: "Generated", plan: { intent: "smooth", targetDurationMs: null, maxArtistRepeats: null, candidateFilters: {} },
+      source: { kind: "generated" as const, maxTracks: 1 },
+    };
+
+    await expect(client.request("create_set_draft", generated)).resolves.toEqual({ completed: true });
+    await expect(client.request("analyze_set", { kind: "playlist", playlistId: "playlist-1" })).resolves.toEqual({ completed: true });
+    await expect(client.request("create_set_draft", { ...generated, source: { kind: "empty" } })).rejects.toThrow("Core request timed out");
+    client.close();
+  });
+
   it("rejects a command outside the versioned core schema", async () => {
     const client = new CoreClient("/unused/core.sock");
 

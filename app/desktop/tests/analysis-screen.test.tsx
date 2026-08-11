@@ -150,6 +150,8 @@ function createApi(options: {
       findSimilar: vi.fn(async () => { throw new Error("Discovery is not configured in this analysis test."); }),
       recommendNext: vi.fn(async () => { throw new Error("Discovery is not configured in this analysis test."); }),
     },
+    sets: { list: vi.fn(async () => ({ items: [] })), create: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), get: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), mutate: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), findReplacements: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), inspect: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }) },
+    exports: { prepare: vi.fn(async () => { throw new Error("Exports are not configured in this analysis test."); }), confirm: vi.fn(async () => { throw new Error("Exports are not configured in this analysis test."); }) },
   };
 }
 

@@ -387,4 +387,146 @@ describe("guarded IPC", () => {
       }),
     ).rejects.toThrow("Core response failed validation");
   });
+
+  it("keeps save destinations in main, binds a ready preview to one single-use confirmation, and returns only a display name", async () => {
+    const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    const calls: Array<[string, unknown]> = [];
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+      dialog: {
+        showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
+        showSaveDialog: async () => ({ canceled: false, filePath: "/exports/Friday set.xml" }),
+      },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      now: () => 1_000,
+      createConfirmationId: () => "confirmation-1",
+      realpath: async (path) => path,
+      lstat: async () => { throw Object.assign(new Error("absent"), { code: "ENOENT" }); },
+      client: () => ({
+        request: async (command, payload) => {
+          calls.push([command, payload]);
+          if (command === "preview_set_export") {
+            return {
+              status: "ready", draftId: "draft-1", revision: 3, playlistName: "Friday set", trackCount: 4,
+              knownDurationMs: 720_000, unknownDurationCount: 0, warnings: [], expectedDestinationState: "absent",
+            };
+          }
+          return {
+            status: "exported", draftId: "draft-1", revision: 3, playlistName: "Friday set", trackCount: 4,
+            overwritten: false, format: "rekordbox_xml_1_0_0", destinationState: "replaced",
+          };
+        },
+      }),
+    });
+    const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
+
+    await expect(handlers.get("exports:prepare")!(event, { draftId: "draft-1", expectedRevision: 3 })).resolves.toEqual({
+      status: "ready", confirmationId: "confirmation-1", playlistName: "Friday set", trackCount: 4,
+      knownDurationMs: 720_000, unknownDurationCount: 0, destinationDisplay: "Friday set.xml", willReplaceExisting: false, warnings: [],
+    });
+    await expect(handlers.get("exports:confirm")!(event, { confirmationId: "confirmation-1" })).resolves.toMatchObject({ status: "exported" });
+    expect(calls).toEqual([
+      ["preview_set_export", { draftId: "draft-1", expectedRevision: 3, destinationPath: "/exports/Friday set.xml", expectedDestinationState: "absent" }],
+      ["export_set_draft", { draftId: "draft-1", expectedRevision: 3, destinationPath: "/exports/Friday set.xml", expectedDestinationState: "absent" }],
+    ]);
+    await expect(handlers.get("exports:confirm")!(event, { confirmationId: "confirmation-1" })).resolves.toEqual({
+      status: "blocked", reasons: [{ code: "invalid_confirmation", message: "The export confirmation is unavailable or has expired" }], destinationState: "unchanged",
+    });
+  });
+
+  it("rejects untrusted, cancelled, unsafe, raced, and expired export confirmations without forwarding a path", async () => {
+    const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    let now = 0;
+    let lstatCalls = 0;
+    const requests: string[] = [];
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+      dialog: {
+        showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
+        showSaveDialog: async () => ({ canceled: false, filePath: "/exports/unsafe.xml" }),
+      },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      now: () => now,
+      createConfirmationId: () => "confirmation-2",
+      realpath: async (path) => path,
+      lstat: async () => {
+        lstatCalls += 1;
+        if (lstatCalls === 1) throw Object.assign(new Error("absent"), { code: "ENOENT" });
+        return { isSymbolicLink: () => false, isFile: () => true };
+      },
+      client: () => ({
+        request: async (command) => {
+          requests.push(command);
+          return {
+            status: "ready", draftId: "draft-1", revision: 3, playlistName: "Friday set", trackCount: 4,
+            knownDurationMs: 720_000, unknownDurationCount: 0, warnings: [], expectedDestinationState: "absent",
+          };
+        },
+      }),
+    });
+    const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
+    const attacker = { senderFrame: { url: "https://attacker.test" } };
+
+    await expect(handlers.get("exports:prepare")!(attacker, { draftId: "draft-1", expectedRevision: 3 })).rejects.toThrow("Untrusted IPC sender");
+    await handlers.get("exports:prepare")!(event, { draftId: "draft-1", expectedRevision: 3 });
+    await expect(handlers.get("exports:confirm")!(event, { confirmationId: "confirmation-2" })).resolves.toEqual({
+      status: "blocked", reasons: [{ code: "destination_changed", message: "The export destination changed before confirmation" }], destinationState: "unchanged",
+    });
+    expect(requests).toEqual(["preview_set_export"]);
+
+    now = 1;
+    lstatCalls = 0;
+    await handlers.get("exports:prepare")!(event, { draftId: "draft-1", expectedRevision: 3 });
+    now = 600_002;
+    await expect(handlers.get("exports:confirm")!(event, { confirmationId: "confirmation-2" })).resolves.toMatchObject({ status: "blocked", destinationState: "unchanged" });
+    await expect(handlers.get("exports:confirm")!(event, { confirmationId: "confirmation-2", destinationPath: "/exports/other.xml" })).rejects.toThrow("Invalid IPC payload");
+  });
+
+  it("handles native save cancellation, overwrite state, core preview blocks, and transport uncertainty honestly", async () => {
+    const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    let cancelled = true;
+    let previewBlocked = false;
+    let exportDisconnects = false;
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+      dialog: {
+        showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
+        showSaveDialog: async () => ({ canceled: cancelled, filePath: "/exports/existing.xml" }),
+      },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      createConfirmationId: () => "confirmation-3",
+      realpath: async (path) => path,
+      lstat: async () => ({ isSymbolicLink: () => false, isFile: () => true }),
+      client: () => ({
+        request: async (command) => {
+          if (command === "preview_set_export") {
+            if (previewBlocked) return { status: "blocked", reasons: [{ code: "source_alias", message: "Export would replace the imported source" }], destinationState: "unchanged" };
+            return { status: "ready", draftId: "draft-1", revision: 3, playlistName: "Existing", trackCount: 1, knownDurationMs: 180_000, unknownDurationCount: 0, warnings: [], expectedDestinationState: "regular_file" };
+          }
+          if (exportDisconnects) throw new Error("Core connection closed");
+          return { status: "exported", draftId: "draft-1", revision: 3, playlistName: "Existing", trackCount: 1, overwritten: true, format: "rekordbox_xml_1_0_0", destinationState: "replaced" };
+        },
+      }),
+    });
+    const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
+
+    await expect(handlers.get("exports:prepare")!(event, { draftId: "draft-1", expectedRevision: 3 })).resolves.toEqual({ status: "cancelled" });
+    cancelled = false;
+    await expect(handlers.get("exports:prepare")!(event, { draftId: "draft-1", expectedRevision: 3 })).resolves.toMatchObject({ status: "ready", willReplaceExisting: true });
+    exportDisconnects = true;
+    await expect(handlers.get("exports:confirm")!(event, { confirmationId: "confirmation-3" })).resolves.toMatchObject({ status: "blocked", destinationState: "unknown" });
+    previewBlocked = true;
+    await expect(handlers.get("exports:prepare")!(event, { draftId: "draft-1", expectedRevision: 3 })).resolves.toEqual({
+      status: "blocked", reasons: [{ code: "source_alias", message: "Export would replace the imported source" }],
+    });
+  });
 });

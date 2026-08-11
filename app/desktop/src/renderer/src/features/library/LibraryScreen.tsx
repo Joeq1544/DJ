@@ -8,6 +8,7 @@ import type {
   TrackFilters,
   TrackListItem,
   TrackPageQuery,
+  SetDraftSnapshot,
 } from "../../../../shared/contracts";
 import { AnalysisControls } from "../analysis/AnalysisControls";
 import { DiscoveryFilters } from "../discovery/DiscoveryFilters";
@@ -16,6 +17,8 @@ import { ImportPanel } from "./ImportPanel";
 import { PlaylistTree } from "./PlaylistTree";
 import { StatusPanel } from "./StatusPanel";
 import { TrackTable } from "./TrackTable";
+import { SetDraftLauncher } from "../sets/SetDraftLauncher";
+import { SetWorkspace } from "../sets/SetWorkspace";
 
 interface DjCopilotWindow extends Window {
   djCopilot: DesktopApi;
@@ -121,6 +124,7 @@ export function LibraryScreen() {
   const [analysisAction, setAnalysisAction] = useState<AnalysisAction>(null);
   const [analysisStatusError, setAnalysisStatusError] = useState<string | null>(null);
   const [analysisActionError, setAnalysisActionError] = useState<string | null>(null);
+  const [setSnapshot, setSetSnapshot] = useState<SetDraftSnapshot | null>(null);
   const statusRefreshInProgress = useRef(false);
   const analysisPollInProgress = useRef(false);
   const trackRequestSequence = useRef(0);
@@ -498,6 +502,22 @@ export function LibraryScreen() {
         <div className="library-sidebar__brand">DJ COPILOT</div>
         <PlaylistTree nodes={tree} selectedId={selectedId} onSelect={(playlistId) => { void selectPlaylist(playlistId); }} />
       </aside>
+      <div className="set-workspace-slot">
+        <SetDraftLauncher
+          api={desktopApi() ?? null}
+          selectedTrackIds={stableSelectedIds(tracks, selectedTrackIds)}
+          playlistId={selectedId}
+          seedTrackId={discoverySeed?.id ?? null}
+          onOpen={setSetSnapshot}
+        />
+        {setSnapshot === null ? null : <SetWorkspace
+          api={desktopApi() ?? null}
+          snapshot={setSnapshot}
+          availableTracks={(tracks ?? []).map(({ analysis: _analysis, ...track }) => track)}
+          onSnapshot={setSetSnapshot}
+          onClose={() => setSetSnapshot(null)}
+        />}
+      </div>
     </main>
   );
 }
