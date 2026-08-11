@@ -1,8 +1,8 @@
 # DJ Copilot Tasks
 
 Last updated: 2026-08-11
-Current milestone: M2 — Local analysis slice
-Current state: M2 is complete at pushed implementation checkpoint `a66e0d6` and closure-record checkpoint `cb857a2`; the independent reviewer returned READY, M3 planning is next, and visual QA is deferred until all features are implemented
+Current milestone: M3 — Discovery and recommendation slice
+Current state: M2 is complete and pushed; the bounded M3 plan is frozen, implementation is starting, and visual QA remains deferred until all features are implemented
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -37,6 +37,15 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | M2-003 | desktop-boundary implementer | Four fixed analysis operations cross strict Python/Zod/IPC/preload contracts while library operations remain responsive and usable without the provider | done | Python service 13/13, including real `python -S` NumPy absence; focused boundary 24/24; strict typecheck and production build | `da730ba`, `a66e0d6`, pushed | External FFmpeg/NumPy absence degrades analysis honestly while library browsing remains available |
 | M2-004 | UI implementer | Users can select tracks, start/retry, pause/resume, monitor progress/failures, and inspect local features plus confidence/provenance accessibly | done | renderer behavior 24/24; complete desktop 62/62; production renderer build | `da730ba`, `a66e0d6`, pushed | Visual QA is deferred under D-045 |
 | M2-005 | primary | Generated-audio desktop flow proves pause, core restart, persisted resume, valid/failed isolation, feature display, current docs, review, and pushed checkpoint | done | post-review `pnpm verify:m2`: 56 core + 62 desktop + typecheck/build + 3 Electron flows; independent reviewer READY with no unresolved High/Medium finding | `e803c1d`, `a66e0d6`, `cb857a2`, pushed | Current GPL-configured Homebrew FFmpeg is development-only and must not be bundled |
+
+## M3 ledger
+
+| ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
+| --- | --- | --- | --- | --- | --- | --- |
+| M3-001 | ranking specialist | Deterministic schema-v2 search predicates, key/tempo normalization, similarity, all eight transition intents, confidence, reasons, penalties, missing evidence, and stable ties pass fixture tests | in-progress | Plan: `docs/superpowers/plans/2026-08-11-m3-discovery-recommendations.md`; focused evidence pending | pending | Heuristic weights require real-use tuning after functionality is complete |
+| M3-002 | primary + desktop boundary implementer | One bounded repository projection and three fixed core operations cross strict Python/Zod/IPC/preload contracts without paths, audio, schema migration, or N+1 summaries | not-started | Focused core and desktop boundary tests pending | pending | Personal-library scan cap and sparse evidence must be disclosed honestly |
+| M3-003 | macOS UI specialist | Library search/filter, seed exploration, similar tracks, recommendation intents, and component explanations work accessibly on the existing Library screen | not-started | Renderer behavior and production build pending | pending | Visual QA remains deferred under D-045 |
+| M3-004 | primary | Generated-fixture desktop discovery flow, aggregate gate, one bounded review, current evidence/docs, and green pushed checkpoint close M3 | not-started | Electron flow, `pnpm verify:m3`, review, and evidence pending | pending | Personal-library subjective relevance is deferred to Joe's final test period |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
@@ -86,7 +95,7 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | M0 | Scope reset and green foundation | done | Green checkpoint `1f1157054a59`; M0 evidence and recovery record |
 | M1 | App shell and real library slice | done | Green checkpoint `dec0698`; `docs/evidence/m1-app-shell-library.md` |
 | M2 | Local analysis slice | done | `docs/evidence/m2-local-analysis.md`; green implementation `a66e0d6`; closure records `cb857a2`; independent reviewer READY |
-| M3 | Discovery and recommendation slice | not-started | Separate plan after M2 |
+| M3 | Discovery and recommendation slice | in-progress | `docs/superpowers/plans/2026-08-11-m3-discovery-recommendations.md` |
 | M4 | Set workflow slice | not-started | Separate plan after M3 |
 | M5 | Personalization slice | not-started | Separate plan after M4 |
 | M6 | Codex-assisted slice | not-started | Separate plan after M5 |

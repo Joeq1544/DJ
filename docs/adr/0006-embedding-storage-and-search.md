@@ -38,9 +38,15 @@ not a latency/memory/product benchmark and does not approve a 512-dimensional
 model. No embedding model is approved for the default build; metadata/basic-
 feature similarity remains the fallback.
 
+## Personal-MVP implementation amendment (M3)
+
+The approved personal MVP does not yet have an embedding producer or model. M3 therefore uses the required metadata/basic-feature fallback directly from the schema-v2 library and successful local analysis rows. Search is bounded casefolded token matching and similarity/ranking is deterministic brute-force Python under `feature-similarity-v1` and `transition-v1`. This adds no vector rows, schema migration, native extension, or model dependency.
+
+A synthetic 10,000-track benchmark is no longer a mandatory milestone gate. Representative use on Joe's library decides whether ordinary bounded search is perceptibly slow; only measured need reopens an embedding-model, vector-storage, or ANN decision. The Phase 0 portable format remains valid evidence for that future option, not an instruction to add unused infrastructure now.
+
 ## Later implementation verification
 
-Phase 4 records the synthetic 10,000-track latency/memory benchmark and decides whether brute force meets targets or ANN work is justified. Phase 9 verifies migration/backup/package behavior. These measurements do not block the Phase 0 portable-format decision.
+If a later approved embedding provider is introduced, that slice records the model/license/provenance choice, production migration and backup, representative latency/memory, stale-model behavior, and packaging evidence. M7 verifies the migrations and packaging that actually exist in the personal build.
 
 ## Consequences
 
