@@ -1,8 +1,8 @@
 # DJ Copilot Tasks
 
 Last updated: 2026-08-11
-Current milestone: M5 — Personalization and library metadata
-Current state: M0–M4 are closed and pushed through `320d027`; ADR-0008 and the bounded M5 implementation plan freeze the three-table `preference-linear-v1` slice; pure model/filter-compatibility work begins next and visual QA stays deferred until all features are implemented
+Current milestone: M6 — Codex-assisted slice, bounded research and planning
+Current state: M5 is closed after its reviewer-found stale-comparison defect was corrected; post-fix `pnpm verify:m5` passes 151 core, 137 desktop, strict typecheck/build, and all six Electron flows; M6 is defining the smallest existing-auth Codex integration and visual QA stays deferred until all features are implemented
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -63,10 +63,10 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
 | --- | --- | --- | --- | --- | --- | --- |
 | M5-001 | primary + ranking specialist | ADR-0008, v3/v4 filter compatibility, and pure deterministic preference/profile/scorer behavior are frozen and tested | done | 47/47 personalization/discovery/set-workflow tests: every signal, threshold/ramp/cap, deterministic affinities, metadata filters, preference component, baseline stripping, and exact v3/v4 draft filters | `3ada231`, pushed | Personal effects remain zero below five signals and capped thereafter; subjective usefulness remains deferred |
-| M5-002 | core implementer | Schema-v4 backup, metadata/saved-filter/feedback persistence, strict service commands, same-universe comparison, reset, and atomic successful-draft evidence work | in-progress | Repository cycle green 11/11; strict service/comparison and atomic set-feedback cycles in progress | pending | Retained metadata and old M4 drafts must survive migration/reimport |
-| M5-003 | primary + desktop boundary implementer | Strict shared schemas, trusted IPC/preload, and confirmed atomic preference JSON export work without renderer paths | done | 34/34 focused contract/IPC/preload/export tests; complete desktop aggregate 136/136; strict typecheck and main/production builds passed | `035e1ba`, pushed | Export confirmation binds profile revision and destination state; same-user filesystem races remain accepted personal-MVP scope |
-| M5-004 | macOS UI specialist | Inline metadata, saved filters, feedback, comparison, profile/export/reset controls expose complete accessible behavior | done | 41/41 focused renderer tests; complete desktop 136/136; strict typecheck/build; accessible focus-return corrections included | `035e1ba`, pushed | Visual appearance remains deferred under D-045; state/error semantics are automated |
-| M5-005 | primary | Generated personalization Electron flow, complete aggregate, one bounded review, current evidence/docs, and green pushed checkpoint close M5 | in-progress | Generated flow compiles and imports successfully; expected RED currently stops at the pre-Task-2 track response without `userMetadata`; aggregate script and memory update in progress | pending | Subjective usefulness and all visual QA belong to Joe's final hands-on period |
+| M5-002 | core implementer | Schema-v4 backup, metadata/saved-filter/feedback persistence, strict service commands, same-universe comparison, reset, and atomic successful-draft evidence work | done | 30/30 focused repository/service/set tests and complete core 151/151; retained-track reimport, exact reset, active standard/set scoring, and atomic no-false-event behavior pass | `b5cbee6`, pushed | Stale feedback history remains stored but contributes no current evidence by design |
+| M5-003 | primary + desktop boundary implementer | Strict shared schemas, trusted IPC/preload, and confirmed atomic preference JSON export work without renderer paths | done | 34/34 focused contract/IPC/preload/export tests; post-fix complete desktop aggregate 137/137; strict typecheck and main/production builds passed | `035e1ba`, pushed | Export confirmation binds profile revision and destination state; same-user filesystem races remain accepted personal-MVP scope |
+| M5-004 | macOS UI specialist | Inline metadata, saved filters, feedback, comparison, profile/export/reset controls expose complete accessible behavior | done | Post-review renderer aggregate 42/42; reset invalidation and accessible focus-return regressions included; strict typecheck/build | `035e1ba`, pushed; reviewed correction in closure checkpoint | Visual appearance remains deferred under D-045; state/error semantics are automated |
+| M5-005 | primary | Generated personalization Electron flow, complete aggregate, one bounded review, current evidence/docs, and green pushed checkpoint close M5 | done | Reviewer found one stale open-comparison defect; its RED/GREEN regression and correction are included. Post-fix `pnpm verify:m5`: 151 core + 137 desktop + strict typecheck/build + all 6 Electron flows | `b5cbee6`, pushed; reviewed closure commit | Subjective usefulness and all visual QA belong to Joe's final hands-on period |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
@@ -118,6 +118,6 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | M2 | Local analysis slice | done | `docs/evidence/m2-local-analysis.md`; green implementation `a66e0d6`; closure records `cb857a2`; independent reviewer READY |
 | M3 | Discovery and recommendation slice | done | `docs/evidence/m3-discovery-recommendations.md`; green implementation `5a5d59d`/`bb85aaa`; reviewed correction/closure `1e9d347`; independent reviewer READY |
 | M4 | Set workflow slice | done | `docs/evidence/m4-set-workflow-export.md`; green/reviewed closure `10d2511` |
-| M5 | Personalization slice | in-progress | ADR-0008 and `docs/superpowers/plans/2026-08-11-m5-personalization-library-metadata.md`; Task 1 next |
-| M6 | Codex-assisted slice | not-started | Separate plan after M5 |
+| M5 | Personalization slice | done | `docs/evidence/m5-personalization-library-metadata.md`; implementation `b5cbee6`; post-review gate 151 core/137 desktop/6 Electron flows |
+| M6 | Codex-assisted slice | in-progress | Current official SDK research and separate bounded plan in preparation |
 | M7 | Personal release polish | not-started | Separate plan after M6 |

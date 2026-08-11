@@ -33,7 +33,7 @@ DJ Copilot is a local-first companion. Rekordbox remains authoritative, while th
 
 Use Electron's ordinary renderer sandbox and context isolation. The preload exposes fixed named operations rather than general message forwarding. The Python core remains the sole app-database owner; later milestones introduce only the protocol messages they actually use.
 
-## Implemented M1–M4 slices
+## Implemented M1–M5 slices
 
 Electron 43.3.0 starts a sandboxed React 19 renderer and supervises a Python core over a mode-`0600` Unix socket in a mode-`0700` temporary runtime directory. The main process owns the XML picker. M1 exposed service status, selected-XML import, playlist tree, and paged tracks; M2 added queue, selected-status, pause, and resume analysis operations; M3 extends track paging with strict filters and adds only fixed find-similar and recommend-next operations. Requests and responses use strict runtime schemas and one JSON line capped at 1 MiB. Ordinary calls time out after five seconds; the bounded XML import has an explicit 120-second budget.
 
@@ -51,9 +51,11 @@ The M4 desktop boundary adds six fixed set operations and two export operations.
 
 The production build currently bundles the Electron main, isolated preload, and renderer only. A bundled CPython 3.12 runtime and packaged resource discovery remain M7 work; development success is not packaging evidence.
 
-## M5 implementation contract (in progress)
+M5 upgrades schema-v3 databases to schema version 4 only after creating the first free `*.pre-m5.sqlite3` sibling backup. It adds exactly three app-owned tables for track metadata, saved filters, and strict feedback, without cascading foreign keys to the replace-on-import track projection. Retained stable IDs keep ratings/tags/notes across reimport; removed-track metadata is cleaned. Draft decoding accepts exact schema-v3 or schema-v4 filter shapes, and new drafts emit v4.
 
-ADR-0008 freezes schema v4 as exactly three additional app-owned tables for track metadata, saved filters, and strict feedback. The planned pure `preference-linear-v1` model activates only after five effective signals, adds the existing optional preference component with a maximum 150,000-ppm weight, and exposes one same-universe baseline comparison. Tags/notes remain searchable explicit metadata rather than learned sentiment. Reset clears ratings/feedback to restore baseline while preserving tags, notes, saved filters, drafts, analysis, and library data. Electron main will own confirmed atomic bounded-JSON preference export. None of this paragraph is implementation evidence until M5 tasks and gates record it.
+The pure deterministic `preference-linear-v1` projection activates only after five effective signals, ramps the existing optional preference component to a maximum 150,000-ppm weight, and exposes bounded track/genre affinities plus event counts. Standard recommendations and M4 set scoring receive the active evidence; comparison rescoring uses one baseline-selected candidate universe. Successful non-no-op replace/move/positive-pin/remove/ban edits append feedback in the same transaction as the draft revision, while conflicts, failures, no-ops, undo, and redo append none. Tags/notes remain searchable authored metadata, not learned sentiment.
+
+The renderer exposes inline ratings/tags/notes, exact tag/rating/text filters, saved views, direct and recommendation feedback, learning/active status, rank deltas, profile inspection, export, and disclosed reset. Reset deletes feedback and clears ratings while preserving tags, notes, saved filters, drafts, analysis, and library data. Electron main owns the preference JSON destination, single-use revision-bound confirmation, mode-`0600` temporary write, strict reparse, destination recheck, and atomic replace; the bounded export contains no paths, authored metadata, display metadata, raw events, audio, or credentials.
 
 ## Data ownership and source immutability
 

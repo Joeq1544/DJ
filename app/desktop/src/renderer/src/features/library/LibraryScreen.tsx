@@ -126,6 +126,7 @@ export function LibraryScreen() {
   const [discoverySeed, setDiscoverySeed] = useState<DiscoverySeed | null>(null);
   const [metadataTrack, setMetadataTrack] = useState<TrackListItem | null>(null);
   const [preferenceProfile, setPreferenceProfile] = useState<PreferenceProfile | null>(null);
+  const [preferenceResetNonce, setPreferenceResetNonce] = useState(0);
   const [preferenceLoading, setPreferenceLoading] = useState(true);
   const [preferenceError, setPreferenceError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
@@ -595,6 +596,7 @@ export function LibraryScreen() {
           onProfile={acceptProfile}
           onReset={() => {
             setMetadataTrack(null);
+            setPreferenceResetNonce((current) => current + 1);
             refreshVisibleTracks("Tracks could not be refreshed after resetting preferences.");
           }}
         />
@@ -604,6 +606,7 @@ export function LibraryScreen() {
             api={desktopApi() ?? null}
             seed={discoverySeed}
             filters={discoveryFilters}
+            preferenceResetNonce={preferenceResetNonce}
             onProfile={acceptProfile}
           />
         )}

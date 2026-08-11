@@ -25,6 +25,7 @@ interface DiscoveryPanelProps {
   api: DesktopApi | null;
   seed: DiscoverySeed;
   filters: TrackFilters;
+  preferenceResetNonce: number;
   onProfile: (profile: PreferenceProfile) => void;
 }
 
@@ -158,11 +159,12 @@ function readableError(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function DiscoveryPanel({ api, seed, filters, onProfile }: DiscoveryPanelProps) {
+export function DiscoveryPanel({ api, seed, filters, preferenceResetNonce, onProfile }: DiscoveryPanelProps) {
   const [mode, setMode] = useState<DiscoveryMode>("similar");
   const [intent, setIntent] = useState<DiscoveryIntent>("smooth");
   const [similarResult, setSimilarResult] = useState<SimilarityResponse | null>(null);
   const [comparisonResult, setComparisonResult] = useState<CompareRecommendationsResponse | null>(null);
+  const [comparisonResetNonce, setComparisonResetNonce] = useState(preferenceResetNonce);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
@@ -175,6 +177,7 @@ export function DiscoveryPanel({ api, seed, filters, onProfile }: DiscoveryPanel
   const headingRef = useRef<HTMLHeadingElement>(null);
   const similarTabRef = useRef<HTMLButtonElement>(null);
   const nextTabRef = useRef<HTMLButtonElement>(null);
+  const nextComparisonNonce = mode === "next" ? preferenceResetNonce : 0;
 
   useEffect(() => {
     mounted.current = true;
@@ -222,6 +225,7 @@ export function DiscoveryPanel({ api, seed, filters, onProfile }: DiscoveryPanel
         } else {
           const comparison = result as CompareRecommendationsResponse;
           setComparisonResult(comparison);
+          setComparisonResetNonce(preferenceResetNonce);
           onProfile(comparison.profile);
         }
       })
@@ -239,9 +243,10 @@ export function DiscoveryPanel({ api, seed, filters, onProfile }: DiscoveryPanel
     return () => {
       active = false;
     };
-  }, [api, filters, intent, mode, onProfile, requestNonce, seed.id]);
+  }, [api, filters, intent, mode, nextComparisonNonce, onProfile, requestNonce, seed.id]);
 
-  const result = mode === "similar" ? similarResult : comparisonResult;
+  const visibleComparisonResult = comparisonResetNonce === preferenceResetNonce ? comparisonResult : null;
+  const result = mode === "similar" ? similarResult : visibleComparisonResult;
   const tabId = mode === "similar" ? "discovery-tab-similar" : "discovery-tab-next";
 
   const chooseMode = (nextMode: DiscoveryMode, moveFocus = false) => {
@@ -300,9 +305,9 @@ export function DiscoveryPanel({ api, seed, filters, onProfile }: DiscoveryPanel
   const response = result === null ? null : "baseline" in result
     ? (result.profile.status === "active" ? result.personalized : result.baseline)
     : result;
-  const rankChanges = comparisonResult === null
+  const rankChanges = visibleComparisonResult === null
     ? new Map<string, RecommendationRankChange>()
-    : new Map(comparisonResult.rankChanges.map((change) => [change.trackId, change]));
+    : new Map(visibleComparisonResult.rankChanges.map((change) => [change.trackId, change]));
 
   return (
     <section className="discovery-panel" aria-labelledby="discovery-heading">
@@ -328,9 +333,9 @@ export function DiscoveryPanel({ api, seed, filters, onProfile }: DiscoveryPanel
           </label>
         ) : null}
 
-        {mode === "next" && comparisonResult !== null ? (
-          <p className={`comparison-status comparison-status--${comparisonResult.profile.status}`} role="status" aria-live="polite">
-            {preferenceStatusText(comparisonResult.profile)}
+        {mode === "next" && visibleComparisonResult !== null ? (
+          <p className={`comparison-status comparison-status--${visibleComparisonResult.profile.status}`} role="status" aria-live="polite">
+            {preferenceStatusText(visibleComparisonResult.profile)}
           </p>
         ) : null}
 

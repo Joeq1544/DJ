@@ -1,11 +1,11 @@
 # DJ Copilot User Guide
 
-Status: M4 development app runnable; personalization, Codex assistance, and personal release packaging remain in progress
+Status: M5 development app runnable; Codex assistance and personal release packaging remain in progress
 Roadmap: M0–M7 personal MVP
 
-DJ Copilot is a personal companion to Rekordbox, not a replacement performance platform. M4 launches a desktop app, imports selected Rekordbox XML, browses and filters the app-owned library projection, analyzes selected local tracks, produces deterministic similar/next-track suggestions, builds persistent set drafts, inspects playlists/sets, and exports a self-contained Rekordbox XML without uploading or modifying audio.
+DJ Copilot is a personal companion to Rekordbox, not a replacement performance platform. M5 launches a desktop app, imports selected Rekordbox XML, browses and filters the app-owned library projection, analyzes selected local tracks, produces deterministic similar/next-track suggestions, builds persistent set drafts, learns bounded visible preferences, and exports self-contained Rekordbox/preference files without uploading or modifying audio.
 
-## Run the M4 development app
+## Run the M5 development app
 
 1. Install external FFmpeg and ffprobe 8.1.2, then from the repository run `pnpm setup` once and `pnpm dev`.
 2. Wait for the window to report **Library service ready**.
@@ -22,10 +22,14 @@ DJ Copilot is a personal companion to Rekordbox, not a replacement performance p
 13. Use **Undo**, **Redo**, or Command-Z/Command-Shift-Z. **Save version** records the current revision; choose it under **Saved versions** to view it read-only, return to the current draft, or restore it as a new current revision. Drafts persist after restart.
 14. **Inspect set** shows text-backed BPM/energy progression, adjacent transition evidence, warnings, and organization advice. Organization output is advisory only—nothing is written to Rekordbox.
 15. **Prepare Rekordbox XML export** opens the native save dialog. Cancellation changes nothing. Review the destination name, warnings, and whether the operation creates or replaces a file, then choose **Confirm export**. Export requires current available tracks and a remembered selected source XML; it writes one self-contained collection and one ordered playlist. Import the resulting XML through Rekordbox yourself.
+16. Choose **Details** on a track to set a 1–5 rating, comma-separated tags, and a note, or record a Like/Dislike. Search text includes tags/notes; **Minimum rating** and **Exact tag** compose with every existing filter. Rekordbox reimport keeps this metadata when the stable app track ID remains.
+17. In **Saved filters**, name the current complete view, then load or delete it later. A saved view that names a removed playlist reports the problem and leaves the current view unchanged.
+18. Next-track cards offer Accept, Reject, and Skip. The **Preference profile** stays in learning mode for fewer than five effective signals and cannot change rank; once active, personalized order is primary and each candidate shows its baseline rank/delta. Successful direct set edits also contribute visible evidence.
+19. **Prepare preference export** creates or replaces a bounded JSON summary only after confirmation. **Reset preferences** clearly discloses that it clears feedback and ratings while preserving tags, notes, saved filters, sets, analysis, and the imported library.
 
 An invalid or unsupported XML reports the problem while retaining the prior usable library. Analysis jobs/results are app-owned and persistent; an interrupted running job is queued after restart while a user-paused queue remains paused. Reimport keeps analysis for an unchanged local source, but changing its path/availability clears that track's old result so it can be analyzed again safely. One bad/corrupt file fails only its own row. Missing NumPy/FFmpeg disables analysis without disabling library browsing. If the local core stops once, the app attempts one restart and reuses SQLite state. If the service reaches the degraded state, quit and reopen DJ Copilot before trying again.
 
-The deterministic demo input is `fixtures/rekordbox/phase0-library.xml`; it contains four generated metadata records, nested playlists, duplicate display names, Unicode, encoded paths, and intentionally unavailable audio paths. Its paths are unavailable, so it demonstrates browsing but cannot produce a successful M4 export. The automated M4 flow creates temporary available marker files and official numeric-KeyType XML outside the repository. Do not add a personal XML export, app database, or audio to Git.
+The deterministic demo input is `fixtures/rekordbox/phase0-library.xml`; it contains four generated metadata records, nested playlists, duplicate display names, Unicode, encoded paths, and intentionally unavailable audio paths. Its paths are unavailable, so it demonstrates browsing but cannot produce a successful Rekordbox export. Automated M4/M5 flows create temporary available marker files and XML outside the repository. Do not add a personal XML export, app database, preference export, or audio to Git.
 
 ## Intended complete workflow
 
@@ -39,4 +43,4 @@ The deterministic demo input is `fixtures/rekordbox/phase0-library.xml`; it cont
 8. Use Codex for natural-language search, planning, revision, and explanation when available.
 9. Confirm export to a new Rekordbox-compatible XML destination and import it through Rekordbox.
 
-Rekordbox databases, imported source XML, and source audio are never modified. Raw audio stays local. The app never asks for an OpenAI API key. M4 uses a project virtual environment/host Python plus external FFmpeg in development; the self-contained personal build and distributable decoder arrive in M7. Discovery/set scans cap ordinary catalogs at 25,000 tracks, drafts at 100 positions, generated drafts at 50, and inspection at 100 positions with explicit truncation. Ranking is deliberately deterministic; personal-library tuning, saved filters, and learned preferences arrive through later use/M5. The current Homebrew GPL-configured FFmpeg is a personal development prerequisite, not a bundled app artifact.
+Rekordbox databases, imported source XML, and source audio are never modified. Raw audio stays local. The app never asks for an OpenAI API key. M5 uses a project virtual environment/host Python plus external FFmpeg in development; the self-contained personal build and distributable decoder arrive in M7. Discovery/set scans cap ordinary catalogs at 25,000 tracks, drafts at 100 positions, generated drafts at 50, and inspection at 100 positions with explicit truncation. Ranking and learned preference effects are deliberately deterministic, bounded, inspectable, and resettable. The current Homebrew GPL-configured FFmpeg is a personal development prerequisite, not a bundled app artifact.

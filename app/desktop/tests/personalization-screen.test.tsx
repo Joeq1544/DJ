@@ -447,6 +447,47 @@ describe("recommendation feedback and visible ranking comparison", () => {
     expect(within(candidates).getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent))
       .toEqual(["Next Two", "Next One"]);
   });
+
+  it("invalidates an open personalized comparison when preferences are reset", async () => {
+    const user = userEvent.setup();
+    let resolveResetComparison: ((value: CompareRecommendationsResponse) => void) | undefined;
+    const api = createApi();
+    vi.mocked(api.preferences.getProfile).mockResolvedValue(activeProfile);
+    vi.mocked(api.preferences.compareRecommendations)
+      .mockResolvedValueOnce(comparison(activeProfile))
+      .mockImplementationOnce(() => new Promise<CompareRecommendationsResponse>((resolve) => {
+        resolveResetComparison = resolve;
+      }));
+    renderLibrary(api);
+    await screen.findByText("Alpha");
+
+    await user.click(screen.getByRole("button", { name: "Explore Alpha" }));
+    await user.click(screen.getByRole("tab", { name: "Next" }));
+    const discovery = screen.getByRole("region", { name: "Explore Alpha" });
+    expect(await within(discovery).findByText("Personalization active · 5 signals · 1.5% weight")).toBeVisible();
+    let candidates = within(discovery).getByRole("list", { name: "Next-track candidates" });
+    expect(within(candidates).getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent))
+      .toEqual(["Next Two", "Next One"]);
+
+    const preferencePanel = screen.getByRole("region", { name: "Preference profile" });
+    await user.click(within(preferencePanel).getByRole("button", { name: "Reset preferences" }));
+    await user.click(within(preferencePanel).getByRole("button", { name: "Confirm preference reset" }));
+    expect(await within(preferencePanel).findByText("Reset 5 feedback events and 1 rating. Saved filters and personal notes remain.")).toBeVisible();
+
+    expect(within(discovery).queryByText("Personalization active · 5 signals · 1.5% weight")).not.toBeInTheDocument();
+    expect(within(discovery).queryByRole("list", { name: "Next-track candidates" })).not.toBeInTheDocument();
+    await waitFor(() => expect(api.preferences.compareRecommendations).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      resolveResetComparison?.(comparison(baselineProfile));
+    });
+    expect(await within(discovery).findByText("No preference evidence yet. Recommendations use the non-personal baseline.")).toBeVisible();
+    candidates = within(discovery).getByRole("list", { name: "Next-track candidates" });
+    expect(within(candidates).getAllByRole("heading", { level: 3 }).map((heading) => heading.textContent))
+      .toEqual(["Next One", "Next Two"]);
+    expect(within(candidates).getByText("Baseline #1 · no rank change")).toBeVisible();
+    expect(within(candidates).queryByText("Baseline #2 · up 1")).not.toBeInTheDocument();
+  });
 });
 
 describe("preference profile controls", () => {

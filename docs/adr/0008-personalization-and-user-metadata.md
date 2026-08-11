@@ -35,3 +35,7 @@ Extend `TrackFilters` only with `ratingMin` and one exact normalized `tag`. Text
 Personalization remains transparent, bounded, local, deterministic, and immediately resettable. It influences real recommendation/set paths without introducing asynchronous learning or opaque state. A tiny feedback set is labeled learning and cannot alter ranking. Ratings are intentionally part of resettable preference evidence, while tags and notes remain durable user-authored metadata.
 
 M5 must prove migration backup, retained-track metadata, old-draft compatibility, atomic successful-edit feedback, same-universe baseline comparison, exact reset restoration, and confirmed export. Visual QA remains deferred under D-045.
+
+## Implementation evidence
+
+Implemented through checkpoint `b5cbee6` and the reviewed closure correction. The final `pnpm verify:m5` gate passes 151 core tests, 137 desktop tests, strict typecheck/build, and all six generated Electron flows. The single bounded review found one visible stale-comparison defect after reset; its failing renderer reproduction now passes by invalidating and refetching an open Next comparison against the reset profile. No High or other Medium normal-workflow finding remained.

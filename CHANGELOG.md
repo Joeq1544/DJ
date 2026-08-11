@@ -10,7 +10,10 @@ All notable project changes are recorded here. The project has not yet produced 
 - Kept the slice on the existing SQLite/ranking/Library-screen architecture with no ML service, embeddings, FTS, background learner, event framework, or visual QA gate.
 - Added and pushed deterministic `preference-linear-v1`, metadata-aware filtering, the existing scorer's optional preference component, and exact schema-v3/v4 draft-filter compatibility at `3ada231`; its focused pure aggregate passes 47/47.
 - Added and pushed strict desktop contracts, fixed trusted IPC/preload operations, bounded revision-bound atomic JSON export, and accessible inline metadata/filter/feedback/comparison/profile/reset controls at `035e1ba`.
-- The desktop implementation passes 34/34 focused boundary tests, 41/41 focused renderer tests, the complete 136/136 desktop aggregate, strict typecheck, and the production build. Visual QA remains skipped under D-045.
+- The desktop implementation passes 34/34 focused boundary tests, the post-review 42/42 renderer aggregate, the complete 137/137 desktop aggregate, strict typecheck, and the production build. Visual QA remains skipped under D-045.
+- Added schema-v4 backup/migration, metadata and saved-filter persistence, strict feedback/profile/comparison/reset/export services, active recommendation/set evidence, and atomic successful-draft signals at `b5cbee6`.
+- Added `pnpm verify:m5` and a seven-track generated Electron flow. The final gate passes 151 core tests, 137 desktop tests, strict typecheck/build, and all six Electron flows, including retained metadata, a visible active rank change, bounded preference export, exact reset, restart preservation, immutable sources, and cleanup.
+- The single bounded reviewer found that resetting preferences could leave an open Next panel visibly stale. A RED/GREEN renderer regression now invalidates the old comparison immediately and refetches the baseline in place; no High finding or other Medium finding remained, so M5 is closed.
 
 ### 2026-08-11 — M4 set workflow and Rekordbox export slice
 
