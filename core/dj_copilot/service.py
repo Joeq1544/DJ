@@ -13,6 +13,7 @@ import unicodedata
 from .analysis.jobs import AnalysisManager
 from .analysis.provider import AnalysisFeatures, FfmpegNumpyProvider, ProviderCapabilities
 from .database import (
+    CURRENT_SCHEMA_VERSION,
     DISCOVERY_SCAN_LIMIT,
     FeedbackWrite,
     LibraryDatabase,
@@ -54,6 +55,7 @@ from .set_workflow import (
 MAX_LINE_BYTES = 1_048_576
 PROTOCOL_VERSION = 1
 FALLBACK_REQUEST_ID = "invalid-request"
+CORE_VERSION = "0.1.0"
 
 
 class RequestError(ValueError):
@@ -187,9 +189,12 @@ def _validate_request(raw_request: Any) -> tuple[str, str, dict[str, Any]]:
         "get_playlist_tree",
         "list_tracks",
         "queue_analysis",
+        "rebuild_analysis",
         "get_analysis_status",
         "pause_analysis",
         "resume_analysis",
+        "get_diagnostics",
+        "backup_database",
         "find_similar_tracks",
         "recommend_next_tracks",
         "get_track_metadata",
@@ -226,6 +231,7 @@ def _validate_request(raw_request: Any) -> tuple[str, str, dict[str, Any]]:
         "get_preference_profile",
         "reset_preferences",
         "get_preference_export",
+        "get_diagnostics",
     }:
         if payload:
             raise RequestError("invalid_request", "This command does not accept a payload.")
@@ -249,10 +255,12 @@ def _validate_request(raw_request: Any) -> tuple[str, str, dict[str, Any]]:
         _validate_discovery_payload(payload, recommendation=False)
     elif command in {"recommend_next_tracks", "compare_recommendations"}:
         _validate_discovery_payload(payload, recommendation=True)
-    elif command == "queue_analysis":
+    elif command in {"queue_analysis", "rebuild_analysis"}:
         _validate_analysis_track_ids_payload(payload, optional=False)
     elif command == "get_analysis_status":
         _validate_analysis_track_ids_payload(payload, optional=True)
+    elif command == "backup_database":
+        _validate_backup_database_payload(payload)
     elif command == "create_set_draft":
         _validate_set_create_payload(payload)
     elif command == "get_set_draft":
@@ -492,6 +500,21 @@ def _validate_analysis_track_ids_payload(payload: dict[str, Any], *, optional: b
         raise RequestError("invalid_request", "Analysis trackIds must be non-empty strings.")
     if len(set(track_ids)) != len(track_ids):
         raise RequestError("invalid_request", "Analysis trackIds must be unique.")
+
+
+def _validate_backup_database_payload(payload: dict[str, Any]) -> None:
+    destination = payload.get("destinationPath")
+    if (
+        set(payload) != {"destinationPath"}
+        or not isinstance(destination, str)
+        or not 1 <= len(destination) <= 4_096
+        or "\x00" in destination
+        or not Path(destination).is_absolute()
+    ):
+        raise RequestError(
+            "invalid_request",
+            "The backup destinationPath must be an absolute file path.",
+        )
 
 
 def _valid_id(value: object) -> bool:
@@ -860,9 +883,33 @@ def _dispatch(
             return {"status": "exported", "draftId": record.id, "revision": record.current_revision, "playlistName": result.playlist_name, "trackCount": result.track_count, "overwritten": result.overwritten, "format": result.format, "destinationState": result.destination_state}
         except RekordboxExportError as error:
             return {"status": "blocked", "reasons": [{"code": error.code, "message": error.message}], "destinationState": error.destination_state}
+    if command == "get_diagnostics":
+        return {
+            "coreVersion": CORE_VERSION,
+            "schemaVersion": CURRENT_SCHEMA_VERSION,
+            "databaseIntegrity": database.integrity_status(),
+            "analysis": _capabilities_wire(manager.status().capabilities),
+        }
+    if command == "backup_database":
+        try:
+            backup = database.backup_database(Path(payload["destinationPath"]))
+        except ValueError as error:
+            raise RequestError(
+                "invalid_request",
+                "The database backup destination is invalid.",
+            ) from error
+        return {
+            "status": backup.status,
+            "schemaVersion": backup.schema_version,
+            "integrity": backup.integrity,
+            "sizeBytes": backup.size_bytes,
+            "createdAt": backup.created_at,
+        }
     try:
         if command == "queue_analysis":
             return _analysis_queue_wire(manager.queue_tracks(tuple(payload["trackIds"])))
+        if command == "rebuild_analysis":
+            return _analysis_queue_wire(manager.rebuild_tracks(tuple(payload["trackIds"])))
         if command == "get_analysis_status":
             track_ids = tuple(payload["trackIds"]) if "trackIds" in payload else None
             return _analysis_queue_wire(manager.status(track_ids))

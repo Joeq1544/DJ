@@ -76,6 +76,7 @@ class ControllableProvider:
         self.failures = failures or {}
         self.analyzed_names: list[str] = []
         self.entered = threading.Event()
+        self.interrupted = threading.Event()
 
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(
@@ -99,6 +100,7 @@ class ControllableProvider:
             self.entered.set()
             while not should_stop():
                 time.sleep(0.005)
+            self.interrupted.set()
             raise AnalysisInterrupted()
         progress(500_000)
         progress(1_000_000)
@@ -203,6 +205,64 @@ class AnalysisManagerTests(unittest.TestCase):
         finished = self._wait_for(lambda: manager.status() if manager.status().succeeded == 2 else None)
         self.assertEqual(finished.failed, 0)
         self.assertEqual(provider.analyzed_names, ["one.wav", "one.wav", "two.wav"])
+
+    def test_rebuild_interrupts_selected_running_work_and_preserves_unselected_analysis(self):
+        """A stale selected completion or collateral invalidation must fail the rebuild flow."""
+        retained_track_id = self.ids["two.wav"]
+        retained_features = _features(
+            "fp-two.wav",
+            provider="fake-local",
+            provider_version="1.2.3",
+            pipeline_version="pipeline-v1",
+        )
+        self.database.put_analysis_job(
+            retained_track_id,
+            status="succeeded",
+            progress_ppm=1_000_000,
+            attempt_count=4,
+            error_code=None,
+            error_message=None,
+            fingerprint=retained_features.fingerprint,
+            provider=retained_features.provider,
+            provider_version=retained_features.provider_version,
+            pipeline_version=retained_features.pipeline_version,
+        )
+        self.database.put_track_features(retained_track_id, retained_features)
+        provider = ControllableProvider(block_once=("one.wav",))
+        manager = self._start(provider)
+        rebuilt_track_id = self.ids["one.wav"]
+        manager.queue_tracks((rebuilt_track_id,))
+        self.assertTrue(provider.entered.wait(1.0))
+
+        manager.rebuild_tracks((rebuilt_track_id,))
+
+        rebuilt = self._wait_for(
+            lambda: manager.status((rebuilt_track_id,))
+            if manager.status((rebuilt_track_id,)).items[0][1].status == "succeeded"
+            else None
+        )
+        self.assertEqual(provider.analyzed_names, ["one.wav", "one.wav"])
+        self.assertEqual(rebuilt.items[0][1].attempt_count, 1)
+        retained = manager.status((retained_track_id,)).items[0][1]
+        self.assertEqual(retained.status, "succeeded")
+        self.assertEqual(retained.attempt_count, 4)
+        self.assertEqual(retained.features, retained_features)
+
+    def test_rebuild_with_any_unknown_track_does_not_interrupt_known_running_work(self):
+        """Validating after signalling the worker would partially apply a rejected rebuild."""
+        provider = ControllableProvider(block_once=("one.wav",))
+        manager = self._start(provider)
+        running_track_id = self.ids["one.wav"]
+        manager.queue_tracks((running_track_id,))
+        self.assertTrue(provider.entered.wait(1.0))
+
+        with self.assertRaises(ValueError):
+            manager.rebuild_tracks((running_track_id, "unknown-track"))
+
+        self.assertFalse(provider.interrupted.wait(0.1))
+        running = manager.status((running_track_id,)).items[0][1]
+        self.assertEqual(running.status, "running")
+        self.assertEqual(provider.analyzed_names, ["one.wav"])
 
     def test_stop_requeues_running_work_for_a_fresh_manager(self):
         """Leaving a durable running row after shutdown must fail restart recovery."""

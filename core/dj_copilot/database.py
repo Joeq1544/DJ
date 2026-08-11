@@ -2,11 +2,14 @@
 
 import base64
 from dataclasses import asdict, dataclass, fields
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
 import sqlite3
+import stat
+import tempfile
 import threading
 import time
 import unicodedata
@@ -58,6 +61,23 @@ _FEEDBACK_EVENT_TYPES = frozenset(
 DISCOVERY_SCAN_LIMIT = 25_000
 CURRENT_SCHEMA_VERSION = 4
 _EMPTY_METADATA_TIMESTAMP = "00000000000000000000"
+_REQUIRED_SCHEMA_TABLES = frozenset(
+    (
+        "library_state",
+        "tracks",
+        "playlists",
+        "playlist_tracks",
+        "analysis_control",
+        "analysis_jobs",
+        "track_features",
+        "set_drafts",
+        "set_draft_revisions",
+        "set_draft_versions",
+        "track_user_metadata",
+        "saved_filters",
+        "user_feedback",
+    )
+)
 
 
 @dataclass(frozen=True)
@@ -127,6 +147,15 @@ class PreferenceExportRecord:
     rating_count: int
 
 
+@dataclass(frozen=True)
+class DatabaseBackupRecord:
+    status: str
+    schema_version: int
+    integrity: str
+    size_bytes: int
+    created_at: str
+
+
 class LibraryDatabase:
     """Single-process SQLite repository. Rekordbox XML is parsed before writing."""
 
@@ -143,6 +172,119 @@ class LibraryDatabase:
     def close(self) -> None:
         with self._lock:
             self.connection.close()
+
+    def integrity_status(self) -> str:
+        """Verify the live app-owned database without exposing its contents."""
+        with self._lock:
+            _verify_database(self.connection)
+        return "ok"
+
+    def backup_database(self, destination: Path) -> DatabaseBackupRecord:
+        """Create, verify, and atomically finalize one online SQLite backup."""
+        canonical_destination = self._backup_destination(destination)
+        descriptor: int | None = None
+        temporary_path: Path | None = None
+        try:
+            descriptor, temporary_name = tempfile.mkstemp(
+                dir=canonical_destination.parent,
+                prefix=f".{canonical_destination.name}.",
+                suffix=".tmp",
+            )
+            temporary_path = Path(temporary_name)
+            os.fchmod(descriptor, 0o600)
+            os.close(descriptor)
+            descriptor = None
+
+            with self._lock:
+                backup_connection = sqlite3.connect(temporary_path)
+                try:
+                    self.connection.backup(backup_connection)
+                finally:
+                    backup_connection.close()
+
+            verification_connection = sqlite3.connect(
+                f"{temporary_path.as_uri()}?mode=ro",
+                uri=True,
+            )
+            try:
+                _verify_database(verification_connection)
+            finally:
+                verification_connection.close()
+
+            descriptor = os.open(temporary_path, os.O_RDONLY)
+            os.fchmod(descriptor, 0o600)
+            os.fsync(descriptor)
+            os.close(descriptor)
+            descriptor = None
+            size_bytes = temporary_path.stat().st_size
+
+            if self._backup_destination(destination) != canonical_destination:
+                raise ValueError("backup destination changed during creation")
+            os.replace(temporary_path, canonical_destination)
+            temporary_path = None
+            created_at = (
+                datetime.now(timezone.utc)
+                .isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z")
+            )
+            return DatabaseBackupRecord(
+                status="backed_up",
+                schema_version=CURRENT_SCHEMA_VERSION,
+                integrity="ok",
+                size_bytes=size_bytes,
+                created_at=created_at,
+            )
+        finally:
+            if descriptor is not None:
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    pass
+            if temporary_path is not None:
+                try:
+                    temporary_path.unlink()
+                except (FileNotFoundError, OSError):
+                    pass
+
+    def _backup_destination(self, destination: Path) -> Path:
+        raw = str(destination)
+        if not raw or "\x00" in raw or len(raw) > 4_096:
+            raise ValueError("backup destination is invalid")
+        selected = Path(destination)
+        if not selected.is_absolute() or selected.name in ("", ".", ".."):
+            raise ValueError("backup destination must be an absolute file path")
+        try:
+            parent = selected.parent.resolve(strict=True)
+            parent_status = parent.stat()
+        except (FileNotFoundError, NotADirectoryError, OSError) as error:
+            raise ValueError("backup destination parent is unavailable") from error
+        if not stat.S_ISDIR(parent_status.st_mode):
+            raise ValueError("backup destination parent must be a directory")
+        canonical = parent / selected.name
+        try:
+            destination_status = os.lstat(canonical)
+        except FileNotFoundError:
+            destination_status = None
+        except OSError as error:
+            raise ValueError("backup destination cannot be inspected") from error
+        if destination_status is not None:
+            if stat.S_ISLNK(destination_status.st_mode):
+                raise ValueError("backup destination cannot be a symbolic link")
+            if not stat.S_ISREG(destination_status.st_mode):
+                raise ValueError("backup destination must be a regular file")
+        try:
+            live_database = self.path.resolve(strict=True)
+        except OSError as error:
+            raise ValueError("live database path cannot be resolved") from error
+        if canonical == live_database:
+            raise ValueError("backup destination cannot replace the live database")
+        if destination_status is not None:
+            try:
+                if os.path.samefile(canonical, live_database):
+                    raise ValueError("backup destination cannot alias the live database")
+            except OSError as error:
+                raise ValueError("backup destination cannot be compared safely") from error
+        return canonical
 
     def import_path(self, source_path: Path) -> ImportSummary:
         with self._lock:
@@ -1189,6 +1331,71 @@ class LibraryDatabase:
                 self.connection.rollback()
                 raise
 
+    def rebuild_analysis_tracks(
+        self,
+        track_ids: tuple[str, ...],
+        *,
+        provider: str,
+        provider_version: str | None,
+        pipeline_version: str,
+    ) -> None:
+        """Invalidate only selected app-owned analysis and queue it from scratch."""
+        if (
+            not isinstance(track_ids, tuple)
+            or not 1 <= len(track_ids) <= 200
+            or any(not isinstance(track_id, str) or not track_id for track_id in track_ids)
+            or len(set(track_ids)) != len(track_ids)
+        ):
+            raise ValueError("analysis track IDs must contain 1 to 200 unique IDs")
+        with self._lock:
+            known = {
+                row["id"]
+                for row in self.connection.execute(
+                    f"SELECT id FROM tracks WHERE id IN ({_placeholders(len(track_ids))})",
+                    track_ids,
+                )
+            }
+            if len(known) != len(track_ids):
+                raise KeyError("unknown track ID")
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                self.connection.execute(
+                    f"DELETE FROM track_features WHERE track_id IN ({_placeholders(len(track_ids))})",
+                    track_ids,
+                )
+                for track_id in track_ids:
+                    self.connection.execute(
+                        """
+                        INSERT INTO analysis_jobs (
+                            track_id, status, progress_ppm, attempt_count, error_code,
+                            error_message, fingerprint, provider, provider_version,
+                            pipeline_version, updated_at
+                        ) VALUES (?, 'queued', 0, 0, NULL, NULL, NULL, ?, ?, ?, ?)
+                        ON CONFLICT(track_id) DO UPDATE SET
+                            status = 'queued',
+                            progress_ppm = 0,
+                            attempt_count = 0,
+                            error_code = NULL,
+                            error_message = NULL,
+                            fingerprint = NULL,
+                            provider = excluded.provider,
+                            provider_version = excluded.provider_version,
+                            pipeline_version = excluded.pipeline_version,
+                            updated_at = excluded.updated_at
+                        """,
+                        (
+                            track_id,
+                            provider,
+                            provider_version,
+                            pipeline_version,
+                            self._timestamp(),
+                        ),
+                    )
+                self.connection.commit()
+            except Exception:
+                self.connection.rollback()
+                raise
+
     def pause_analysis(self) -> None:
         with self._lock:
             self.connection.execute(
@@ -1964,6 +2171,23 @@ def _normalize_user_metadata(
                 "A track note may contain at most 2,000 characters.",
             )
     return rating, tuple(normalized_tags), note
+
+
+def _verify_database(connection: sqlite3.Connection) -> None:
+    integrity = connection.execute("PRAGMA integrity_check").fetchone()
+    if integrity is None or integrity[0] != "ok":
+        raise RuntimeError("database integrity check failed")
+    version = connection.execute("PRAGMA user_version").fetchone()
+    if version is None or version[0] != CURRENT_SCHEMA_VERSION:
+        raise RuntimeError("database schema version check failed")
+    tables = {
+        row[0]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        )
+    }
+    if not _REQUIRED_SCHEMA_TABLES.issubset(tables):
+        raise RuntimeError("database schema table check failed")
 
 
 def _validate_feedback_write(write: FeedbackWrite) -> None:

@@ -106,6 +106,34 @@ class AnalysisProviderTests(unittest.TestCase):
         self.assertIsNone(capabilities.provider_version)
         self.assertIn("ffmpeg version 8.1.2", capabilities.unavailable_reason)
 
+    def test_executable_version_requires_the_exact_8_1_2_token(self):
+        """A longer version or token-prefix impostor must not satisfy the pinned runtime."""
+        cases = (
+            ("ffmpeg", "ffmpeg version 8.1.20", "ffmpeg"),
+            ("ffmpeg", "ffmpeg version 8.1.2-impostor", "ffmpeg"),
+            ("ffprobe", "ffprobe version 8.1.20", "ffprobe"),
+            ("ffprobe", "ffprobe version 8.1.2-impostor", "ffprobe"),
+        )
+        for index, (tool, version_line, expected_name) in enumerate(cases):
+            with self.subTest(version_line=version_line):
+                fake = self.root / f"impostor-{index}"
+                fake.write_text(
+                    f"#!/bin/sh\necho {version_line!r}\n",
+                    encoding="utf-8",
+                )
+                fake.chmod(0o700)
+                paths = (
+                    {"ffmpeg_path": fake}
+                    if tool == "ffmpeg"
+                    else {"ffprobe_path": fake}
+                )
+
+                capabilities = self.provider(**paths).capabilities()
+
+                self.assertFalse(capabilities.available)
+                self.assertIsNone(capabilities.provider_version)
+                self.assertIn(expected_name, capabilities.unavailable_reason)
+
     def test_fingerprint_is_fast_metadata_and_edge_content_evidence(self):
         """Reading or mutating complete source media must fail the fingerprint contract."""
         provider = self.provider()

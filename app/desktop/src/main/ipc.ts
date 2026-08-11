@@ -17,6 +17,10 @@ import {
   appStatusSchema,
   compareRecommendationsRequestSchema,
   compareRecommendationsResponseSchema,
+  coreDiagnosticsSchema,
+  databaseBackupResultSchema,
+  diagnosticsExportResultSchema,
+  diagnosticsSnapshotSchema,
   findSimilarRequestSchema,
   importResultSchema,
   playlistTreeSchema,
@@ -40,6 +44,7 @@ import {
   exportPrepareResultSchema,
   privateExportPreviewRequestSchema,
   privateExportPreviewResultSchema,
+  privateDatabaseBackupResultSchema,
   setDraftCreateRequestSchema,
   setDraftGetRequestSchema,
   setDraftInspectRequestSchema,
@@ -51,6 +56,7 @@ import {
   setDraftReplacementResultSchema,
   setDraftSnapshotSchema,
   similarityResponseSchema,
+  showDataFolderResultSchema,
   trackPageQuerySchema,
   trackPageSchema,
   trackMetadataGetRequestSchema,
@@ -64,7 +70,9 @@ import {
   type AssistantStartResult,
   type AssistantTaskRequest,
   type CoreRequest,
+  type CoreDiagnostics,
   type DesktopApi,
+  type DiagnosticsSnapshot,
 } from "../shared/contracts";
 import { CoreServiceError } from "./core-client";
 import { createPreferenceExportCoordinator } from "./preference-export";
@@ -84,6 +92,14 @@ interface AssistantBoundary {
   confirm(requestId: string, proposalId: string): Promise<AssistantConfirmResult>;
 }
 
+interface DiagnosticsBoundary {
+  getSnapshot(core: CoreDiagnostics): Promise<unknown>;
+  writeSnapshot(
+    destinationPath: string,
+    snapshot: DiagnosticsSnapshot,
+  ): Promise<{ sizeBytes: number; createdAt: string }>;
+}
+
 export interface IpcDependencies {
   ipcMain: { handle(channel: string, handler: IpcHandler): void };
   dialog: {
@@ -97,6 +113,9 @@ export interface IpcDependencies {
   status(): AppStatus;
   client(): CoreRequester;
   assistant?: AssistantBoundary;
+  diagnostics?: DiagnosticsBoundary;
+  userDataPath?: string;
+  shell?: { openPath(path: string): Promise<string> };
   now?(): number;
   createConfirmationId?(): string;
   lstat?(path: string): Promise<{ isFile(): boolean; isSymbolicLink(): boolean }>;
@@ -152,6 +171,29 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
   const assistantBoundary = () => {
     if (!dependencies.assistant) throw new Error("Assistant is unavailable");
     return dependencies.assistant;
+  };
+  const diagnosticsBoundary = () => {
+    if (!dependencies.diagnostics) throw new Error("Diagnostics are unavailable");
+    return dependencies.diagnostics;
+  };
+  const loadDiagnosticsSnapshot = async () => {
+    let rawCoreResult: unknown;
+    try {
+      rawCoreResult = await dependencies.client().request("get_diagnostics", {});
+    } catch {
+      throw new Error("Diagnostics are unavailable");
+    }
+    const coreResult = coreDiagnosticsSchema.safeParse(rawCoreResult);
+    if (!coreResult.success) throw new Error("Core response failed validation");
+    let rawSnapshot: unknown;
+    try {
+      rawSnapshot = await diagnosticsBoundary().getSnapshot(coreResult.data);
+    } catch {
+      throw new Error("Diagnostics are unavailable");
+    }
+    const snapshot = diagnosticsSnapshotSchema.safeParse(rawSnapshot);
+    if (!snapshot.success) throw new Error("Diagnostics response failed validation");
+    return snapshot.data;
   };
   const assistantResult = <Output>(
     schema: { safeParse(value: unknown): { success: true; data: Output } | { success: false } },
@@ -348,6 +390,14 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
     trust(event);
     noPayload(payload);
     return analysisResult(await dependencies.client().request("resume_analysis", {}));
+  });
+  dependencies.ipcMain.handle("analysis:rebuild", async (event, payload) => {
+    trust(event);
+    const request = analysisQueueRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    return analysisResult(
+      await dependencies.client().request("rebuild_analysis", request.data),
+    );
   });
   dependencies.ipcMain.handle("assistant:getStatus", async (event, payload) => {
     trust(event);
@@ -549,6 +599,82 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
       return exportConfirmResultSchema.parse(destinationBlocked("export_outcome_unknown", "The export outcome could not be confirmed", "unknown"));
     }
   });
+  dependencies.ipcMain.handle("diagnostics:getSnapshot", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    return loadDiagnosticsSnapshot();
+  });
+  dependencies.ipcMain.handle("diagnostics:backupDatabase", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    let destinationPath: string | undefined;
+    try {
+      destinationPath = await chooseMainOwnedSavePath(
+        dependencies,
+        canonicalize,
+        {
+          label: "DJ Copilot database",
+          extension: "sqlite3",
+          defaultPath: "DJ Copilot Backup.sqlite3",
+        },
+      );
+    } catch {
+      throw new Error("Backup destination is unavailable");
+    }
+    if (!destinationPath) return databaseBackupResultSchema.parse({ status: "cancelled" });
+    let result: unknown;
+    try {
+      result = await dependencies.client().request("backup_database", { destinationPath });
+    } catch {
+      throw new Error("Database backup failed");
+    }
+    const parsed = privateDatabaseBackupResultSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return databaseBackupResultSchema.parse({
+      ...parsed.data,
+      fileName: basename(destinationPath),
+    });
+  });
+  dependencies.ipcMain.handle("diagnostics:exportBundle", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    let destinationPath: string | undefined;
+    try {
+      destinationPath = await chooseMainOwnedSavePath(
+        dependencies,
+        canonicalize,
+        {
+          label: "DJ Copilot diagnostics",
+          extension: "json",
+          defaultPath: "DJ Copilot Diagnostics.json",
+        },
+      );
+    } catch {
+      throw new Error("Diagnostics destination is unavailable");
+    }
+    if (!destinationPath) return diagnosticsExportResultSchema.parse({ status: "cancelled" });
+    const snapshot = await loadDiagnosticsSnapshot();
+    let written: { sizeBytes: number; createdAt: string };
+    try {
+      written = await diagnosticsBoundary().writeSnapshot(destinationPath, snapshot);
+    } catch {
+      throw new Error("Diagnostics export failed");
+    }
+    return diagnosticsExportResultSchema.parse({
+      status: "exported",
+      fileName: basename(destinationPath),
+      sizeBytes: written.sizeBytes,
+      createdAt: written.createdAt,
+    });
+  });
+  dependencies.ipcMain.handle("diagnostics:showDataFolder", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    if (!dependencies.shell || !dependencies.userDataPath) throw new Error("Data folder is unavailable");
+    const error = await dependencies.shell.openPath(dependencies.userDataPath);
+    if (error !== "") throw new Error("Data folder could not be opened");
+    return showDataFolderResultSchema.parse({ opened: true });
+  });
 }
 
 async function chooseXmlPath(dependencies: IpcDependencies, env: NodeJS.ProcessEnv): Promise<string | undefined> {
@@ -580,6 +706,29 @@ async function chooseSaveXmlPath(
   if (choice.canceled || !choice.filePath) return undefined;
   if (!isAbsolute(choice.filePath) || extname(choice.filePath).toLowerCase() !== ".xml") {
     throw new Error("Invalid export destination");
+  }
+  const candidate = resolve(choice.filePath);
+  const canonicalParent = await canonicalize(dirname(candidate));
+  return join(canonicalParent, basename(candidate));
+}
+
+async function chooseMainOwnedSavePath(
+  dependencies: IpcDependencies,
+  canonicalize: (path: string) => Promise<string>,
+  options: { label: string; extension: string; defaultPath: string },
+): Promise<string | undefined> {
+  const showSaveDialog = dependencies.dialog.showSaveDialog;
+  if (!showSaveDialog) throw new Error("Save dialog is unavailable");
+  const choice = await showSaveDialog(dependencies.getWindow(), {
+    defaultPath: options.defaultPath,
+    filters: [{ name: options.label, extensions: [options.extension] }],
+  });
+  if (choice.canceled || !choice.filePath) return undefined;
+  if (
+    !isAbsolute(choice.filePath)
+    || extname(choice.filePath).toLowerCase() !== `.${options.extension}`
+  ) {
+    throw new Error("Invalid save destination");
   }
   const candidate = resolve(choice.filePath);
   const canonicalParent = await canonicalize(dirname(candidate));

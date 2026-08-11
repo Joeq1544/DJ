@@ -126,6 +126,10 @@ class _OutputLimitExceeded(Exception):
     pass
 
 
+def _has_exact_version_token(line: str, required: str) -> bool:
+    return line.split()[:3] == required.split()
+
+
 class _Accumulator:
     def __init__(self, expected_samples: int):
         self.expected_samples = max(1, int(expected_samples))
@@ -242,9 +246,9 @@ class FfmpegNumpyProvider:
             else:
                 ffmpeg_line = self._version_line(self.ffmpeg_path)
                 ffprobe_line = self._version_line(self.ffprobe_path)
-                if not ffmpeg_line.startswith(REQUIRED_FFMPEG_PREFIX):
+                if not _has_exact_version_token(ffmpeg_line, REQUIRED_FFMPEG_PREFIX):
                     reason = f"requires {REQUIRED_FFMPEG_PREFIX}; found {ffmpeg_line or 'no version'}"
-                elif not ffprobe_line.startswith(REQUIRED_FFPROBE_PREFIX):
+                elif not _has_exact_version_token(ffprobe_line, REQUIRED_FFPROBE_PREFIX):
                     reason = f"requires {REQUIRED_FFPROBE_PREFIX}; found {ffprobe_line or 'no version'}"
         except (OSError, subprocess.SubprocessError, _OutputLimitExceeded) as error:
             reason = f"provider prerequisite check failed: {error}"

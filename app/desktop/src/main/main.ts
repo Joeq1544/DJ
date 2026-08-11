@@ -1,10 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
-import { join, resolve } from "node:path";
+import { app, BrowserWindow, dialog, ipcMain, session, shell } from "electron";
+import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { AssistantCoordinator } from "./assistant/coordinator";
+import { CodexProvider, type CodexSdkModuleLike } from "./assistant/codex-provider";
 import { createAssistantRuntime } from "./assistant/runtime";
 import { CoreSupervisor } from "./core-supervisor";
+import { createDiagnosticsBoundary, writeDiagnosticsSnapshot } from "./diagnostics";
 import { registerIpcHandlers } from "./ipc";
+import { resolveRuntimeLayout } from "./runtime-paths";
 import { installGracefulShutdown } from "./shutdown";
 import { createWindowOptions, installContentSecurityPolicy, installWindowSecurity } from "./window-security";
 
@@ -29,7 +32,12 @@ function installTestHook(): void {
 }
 
 async function createMainWindow(): Promise<void> {
-  const repositoryRoot = app.isPackaged ? process.resourcesPath : resolve(__dirname, "../../../..");
+  const runtimeLayout = resolveRuntimeLayout({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    compiledDirectory: __dirname,
+  });
+  const { repositoryRoot, packagedResourcesPath, codexSdkPackageDirectory } = runtimeLayout;
   const devRendererUrl = process.env.VITE_DEV_SERVER_URL;
   const isDevelopment = devRendererUrl === "http://127.0.0.1:5173";
   const rendererUrl = isDevelopment
@@ -39,6 +47,7 @@ async function createMainWindow(): Promise<void> {
   supervisor = new CoreSupervisor({
     userDataPath: app.getPath("userData"),
     repositoryRoot,
+    ...(packagedResourcesPath === undefined ? {} : { packagedResourcesPath }),
   });
   await supervisor.start();
   const assistantRuntime = await createAssistantRuntime({
@@ -48,18 +57,42 @@ async function createMainWindow(): Promise<void> {
       if (!supervisor) throw new Error("Core service is unavailable");
       return supervisor.getClient();
     },
+    ...(codexSdkPackageDirectory === undefined ? {} : {
+      loadCodexProvider: async (workingDirectory: string) => new CodexProvider({
+        workingDirectory,
+        sdkPackageDirectory: codexSdkPackageDirectory,
+        loadSdk: async () => import(
+          pathToFileURL(join(codexSdkPackageDirectory, "dist", "index.js")).href
+        ) as unknown as Promise<CodexSdkModuleLike>,
+      }),
+    }),
   });
   assistantCoordinator = assistantRuntime.coordinator;
   installTestHook();
   installContentSecurityPolicy(session.defaultSession, isDevelopment);
   const window = new BrowserWindow(createWindowOptions(preloadPath));
   installWindowSecurity(window.webContents, rendererUrl);
+  const userDataPath = app.getPath("userData");
+  const diagnostics = createDiagnosticsBoundary({
+    releaseMode: app.isPackaged ? "personal_arm64" : "development",
+    ...(packagedResourcesPath === undefined ? {} : { resourcesPath: packagedResourcesPath }),
+    repositoryRoot,
+    appVersion: app.getVersion(),
+    electronVersion: process.versions.electron,
+    architecture: process.arch,
+  });
   registerIpcHandlers({
     ipcMain,
     dialog,
     getWindow: () => window,
     repositoryRoot,
     rendererUrl,
+    userDataPath,
+    shell: { openPath: (path) => shell.openPath(path) },
+    diagnostics: {
+      getSnapshot: (core) => diagnostics.getSnapshot(core),
+      writeSnapshot: (destinationPath, snapshot) => writeDiagnosticsSnapshot(destinationPath, snapshot),
+    },
     status: () => supervisor?.status() ?? { state: "degraded", message: "Core service is unavailable" },
     assistant: assistantCoordinator,
     client: () => {

@@ -215,6 +215,29 @@ describe("guarded IPC", () => {
       },
     ],
   };
+  const coreDiagnostics = {
+    coreVersion: "0.1.0",
+    schemaVersion: 4,
+    databaseIntegrity: "ok",
+    analysis: analysisStatus.capabilities,
+  };
+  const diagnosticsSnapshot = {
+    appVersion: "0.1.0",
+    electronVersion: "43.3.0",
+    architecture: "arm64",
+    releaseMode: "personal_arm64",
+    schemaVersion: 4,
+    databaseIntegrity: "ok",
+    analysis: analysisStatus.capabilities,
+    resources: {
+      core: { status: "available", version: "0.1.0", source: "bundled", message: null },
+      ffmpeg: { status: "available", version: "8.1.2", source: "bundled", message: null },
+      ffprobe: { status: "available", version: "8.1.2", source: "bundled", message: null },
+      codex: { status: "available", version: "0.147.0", source: "bundled", message: null },
+    },
+    generatedAt: "2026-08-11T12:00:00.000Z",
+    privacy: "No audio, library metadata, notes, credentials, paths, logs, or Codex response text included.",
+  } as const;
 
   function harness(overrides: Partial<{
     senderUrl: string;
@@ -269,7 +292,8 @@ describe("guarded IPC", () => {
             command === "queue_analysis" ||
             command === "get_analysis_status" ||
             command === "pause_analysis" ||
-            command === "resume_analysis"
+            command === "resume_analysis" ||
+            command === "rebuild_analysis"
           ) return analysisStatus;
           return { status: "ok" };
         },
@@ -414,7 +438,9 @@ describe("guarded IPC", () => {
     await expect(handlers.get("analysis:getStatus")!(event, { trackIds: ["track-1"] })).resolves.toEqual(analysisStatus);
     await expect(handlers.get("analysis:pause")!(event)).resolves.toEqual(analysisStatus);
     await expect(handlers.get("analysis:resume")!(event)).resolves.toEqual(analysisStatus);
+    await expect(handlers.get("analysis:rebuild")!(event, { trackIds: ["track-1"] })).resolves.toEqual(analysisStatus);
     await expect(handlers.get("analysis:queue")!(event, { trackIds: [] })).rejects.toThrow("Invalid IPC payload");
+    await expect(handlers.get("analysis:rebuild")!(event, { trackIds: [] })).rejects.toThrow("Invalid IPC payload");
     await expect(handlers.get("analysis:getStatus")!(event, null)).rejects.toThrow("Invalid IPC payload");
     await expect(handlers.get("analysis:pause")!(event, {})).rejects.toThrow("Invalid IPC payload");
   });
@@ -462,6 +488,217 @@ describe("guarded IPC", () => {
     await expect(handlers.get("analysis:getStatus")!(event)).resolves.toEqual(analysisStatus);
     activeClient = restartedClient;
     await expect(handlers.get("analysis:getStatus")!(event)).resolves.toEqual(recoveredStatus);
+  });
+
+  it("keeps diagnostics destinations private while returning only validated basenames and status", async () => {
+    const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    const requestCalls: Array<[string, unknown]> = [];
+    const written: Array<{ destinationPath: string; snapshot: unknown }> = [];
+    const opened: string[] = [];
+    const saveChoices = [
+      "/private/exports/DJ Copilot Backup.sqlite3",
+      "/private/exports/DJ Copilot Diagnostics.json",
+    ];
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+      dialog: {
+        showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
+        showSaveDialog: async () => {
+          const filePath = saveChoices.shift();
+          return filePath === undefined ? { canceled: true } : { canceled: false, filePath };
+        },
+      },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      userDataPath: "/private/user-data/DJ Copilot",
+      shell: {
+        openPath: async (path) => {
+          opened.push(path);
+          return "";
+        },
+      },
+      diagnostics: {
+        getSnapshot: async (value) => {
+          expect(value).toEqual(coreDiagnostics);
+          return diagnosticsSnapshot;
+        },
+        writeSnapshot: async (destinationPath, snapshot) => {
+          written.push({ destinationPath, snapshot });
+          return { sizeBytes: 2048, createdAt: diagnosticsSnapshot.generatedAt };
+        },
+      },
+      realpath: async (path) => path,
+      client: () => ({
+        request: async (command, payload) => {
+          requestCalls.push([command, payload]);
+          if (command === "get_diagnostics") return coreDiagnostics;
+          if (command === "backup_database") {
+            return {
+              status: "backed_up",
+              schemaVersion: 4,
+              integrity: "ok",
+              sizeBytes: 4096,
+              createdAt: "2026-08-11T12:01:00.000Z",
+            };
+          }
+          throw new Error("unexpected core command");
+        },
+      }),
+    });
+    const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
+
+    await expect(handlers.get("diagnostics:getSnapshot")!(event)).resolves.toEqual(diagnosticsSnapshot);
+    const backupResult = await handlers.get("diagnostics:backupDatabase")!(event);
+    expect(backupResult).toEqual({
+      status: "backed_up",
+      fileName: "DJ Copilot Backup.sqlite3",
+      schemaVersion: 4,
+      integrity: "ok",
+      sizeBytes: 4096,
+      createdAt: "2026-08-11T12:01:00.000Z",
+    });
+    await expect(handlers.get("diagnostics:exportBundle")!(event)).resolves.toEqual({
+      status: "exported",
+      fileName: "DJ Copilot Diagnostics.json",
+      sizeBytes: 2048,
+      createdAt: diagnosticsSnapshot.generatedAt,
+    });
+    await expect(handlers.get("diagnostics:showDataFolder")!(event)).resolves.toEqual({ opened: true });
+
+    expect(requestCalls).toEqual([
+      ["get_diagnostics", {}],
+      ["backup_database", { destinationPath: "/private/exports/DJ Copilot Backup.sqlite3" }],
+      ["get_diagnostics", {}],
+    ]);
+    expect(written).toEqual([{
+      destinationPath: "/private/exports/DJ Copilot Diagnostics.json",
+      snapshot: diagnosticsSnapshot,
+    }]);
+    expect(opened).toEqual(["/private/user-data/DJ Copilot"]);
+    expect(JSON.stringify(backupResult)).not.toContain("/private/");
+  });
+
+  it("returns path-free cancellation without contacting core or writing diagnostics", async () => {
+    const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    const requests: string[] = [];
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+      dialog: {
+        showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
+        showSaveDialog: async () => ({ canceled: true }),
+      },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      diagnostics: {
+        getSnapshot: async () => { throw new Error("must not inspect on cancellation"); },
+        writeSnapshot: async () => { throw new Error("must not write on cancellation"); },
+      },
+      client: () => ({
+        request: async (command) => {
+          requests.push(command);
+          throw new Error("must not contact core on cancellation");
+        },
+      }),
+    });
+    const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
+
+    await expect(handlers.get("diagnostics:backupDatabase")!(event)).resolves.toEqual({ status: "cancelled" });
+    await expect(handlers.get("diagnostics:exportBundle")!(event)).resolves.toEqual({ status: "cancelled" });
+    expect(requests).toEqual([]);
+  });
+
+  it("guards every diagnostics channel and rejects malformed private results before renderer", async () => {
+    const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    let coreResult: unknown = { ...coreDiagnostics, databasePath: "/private/data.sqlite3" };
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+      dialog: {
+        showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
+        showSaveDialog: async () => ({ canceled: false, filePath: "/private/backup.sqlite3" }),
+      },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      userDataPath: "/private/user-data",
+      shell: { openPath: async () => "/private/failure-detail" },
+      diagnostics: {
+        getSnapshot: async () => diagnosticsSnapshot,
+        writeSnapshot: async () => ({ sizeBytes: 1, createdAt: diagnosticsSnapshot.generatedAt }),
+      },
+      realpath: async (path) => path,
+      client: () => ({ request: async () => coreResult }),
+    });
+    const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
+    const attacker = { senderFrame: { url: "https://attacker.test" } };
+
+    for (const channel of [
+      "diagnostics:getSnapshot",
+      "diagnostics:backupDatabase",
+      "diagnostics:exportBundle",
+      "diagnostics:showDataFolder",
+    ]) {
+      await expect(handlers.get(channel)!(attacker)).rejects.toThrow("Untrusted IPC sender");
+      await expect(handlers.get(channel)!(event, {})).rejects.toThrow("Invalid IPC payload");
+    }
+    await expect(handlers.get("analysis:rebuild")!(attacker, { trackIds: ["track-1"] })).rejects.toThrow("Untrusted IPC sender");
+    await expect(handlers.get("diagnostics:getSnapshot")!(event)).rejects.toThrow("Core response failed validation");
+
+    coreResult = {
+      status: "backed_up",
+      schemaVersion: 4,
+      integrity: "ok",
+      sizeBytes: 1,
+      createdAt: "2026-08-11T12:00:00.000Z",
+      destinationPath: "/private/backup.sqlite3",
+    };
+    await expect(handlers.get("diagnostics:backupDatabase")!(event)).rejects.toThrow("Core response failed validation");
+    await expect(handlers.get("diagnostics:showDataFolder")!(event)).rejects.toThrow("Data folder could not be opened");
+  });
+
+  it("redacts native destination and diagnostics write failures", async () => {
+    const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    let rejectCanonicalization = true;
+    const saveChoices = ["/private/backup.sqlite3", "/private/diagnostics.json"];
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+      dialog: {
+        showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
+        showSaveDialog: async () => {
+          const filePath = saveChoices.shift();
+          return filePath === undefined ? { canceled: true } : { canceled: false, filePath };
+        },
+      },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      realpath: async (path) => {
+        if (rejectCanonicalization) throw new Error(`cannot resolve ${path}`);
+        return path;
+      },
+      diagnostics: {
+        getSnapshot: async () => diagnosticsSnapshot,
+        writeSnapshot: async (path) => { throw new Error(`cannot write ${path}`); },
+      },
+      client: () => ({ request: async () => coreDiagnostics }),
+    });
+    const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
+
+    const backupError = await handlers.get("diagnostics:backupDatabase")!(event).catch((error: unknown) => error);
+    expect(backupError).toBeInstanceOf(Error);
+    expect((backupError as Error).message).toBe("Backup destination is unavailable");
+    expect((backupError as Error).message).not.toContain("/private/");
+
+    rejectCanonicalization = false;
+    const exportError = await handlers.get("diagnostics:exportBundle")!(event).catch((error: unknown) => error);
+    expect(exportError).toBeInstanceOf(Error);
+    expect((exportError as Error).message).toBe("Diagnostics export failed");
+    expect((exportError as Error).message).not.toContain("/private/");
   });
 
   it("maps only the two fixed discovery channels to validated core commands", async () => {

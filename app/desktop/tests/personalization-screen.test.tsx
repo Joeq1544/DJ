@@ -233,6 +233,7 @@ function createApi(): DesktopApi {
       getStatus: vi.fn().mockResolvedValue(analysisStatus),
       pause: vi.fn().mockResolvedValue(analysisStatus),
       resume: vi.fn().mockResolvedValue(analysisStatus),
+      rebuild: vi.fn().mockResolvedValue(analysisStatus),
     },
     discovery: {
       findSimilar: vi.fn().mockResolvedValue({
@@ -289,6 +290,7 @@ function createApi(): DesktopApi {
       prepare: vi.fn(async () => { throw new Error("Set exports are not configured in this personalization test."); }),
       confirm: vi.fn(async () => { throw new Error("Set exports are not configured in this personalization test."); }),
     },
+    diagnostics: { getSnapshot: vi.fn(async () => { throw new Error("Diagnostics are not configured in this personalization test."); }), backupDatabase: vi.fn(async () => { throw new Error("Diagnostics are not configured in this personalization test."); }), exportBundle: vi.fn(async () => { throw new Error("Diagnostics are not configured in this personalization test."); }), showDataFolder: vi.fn(async () => { throw new Error("Diagnostics are not configured in this personalization test."); }) },
   };
 }
 

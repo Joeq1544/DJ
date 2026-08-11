@@ -81,6 +81,25 @@ class AnalysisManager:
             self._condition.notify_all()
         return self.status(requested)
 
+    def rebuild_tracks(self, track_ids: tuple[str, ...]) -> AnalysisQueueStatus:
+        requested = _validate_track_ids(track_ids)
+        with self._condition:
+            try:
+                self._database.rebuild_analysis_tracks(
+                    requested,
+                    provider=self._capabilities.provider,
+                    provider_version=self._capabilities.provider_version,
+                    pipeline_version=self._capabilities.pipeline_version,
+                )
+            except KeyError as error:
+                raise ValueError(
+                    "analysis track IDs must refer to known library tracks"
+                ) from error
+            if self._current_track_id in requested:
+                self._interrupt.set()
+            self._condition.notify_all()
+        return self.status(requested)
+
     def pause(self) -> AnalysisQueueStatus:
         with self._condition:
             self._database.pause_analysis()

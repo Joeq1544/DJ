@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -133,6 +134,130 @@ class AnalysisServiceTests(unittest.TestCase):
         self._assert_path_free(finished)
         self._assert_path_free(tracks)
 
+    def test_diagnostics_and_online_backup_are_exact_path_free_core_results(self):
+        """Private paths, content, incomplete snapshots, or unverifiable backups must fail."""
+        diagnostics = self.request("diagnostics-1", "get_diagnostics", {})
+        self.assertTrue(diagnostics["ok"], diagnostics)
+        self.assertEqual(
+            diagnostics["result"],
+            {
+                "coreVersion": "0.1.0",
+                "schemaVersion": 4,
+                "databaseIntegrity": "ok",
+                "analysis": {
+                    "available": True,
+                    "provider": "ffmpeg-numpy-basic",
+                    "providerVersion": "ffmpeg 8.1.2; ffprobe 8.1.2; numpy 2.4.4",
+                    "pipelineVersion": "baseline-v1",
+                    "availableStages": ["metadata", "basic_features"],
+                    "unavailableStages": ["structure", "embeddings"],
+                    "unavailableReason": None,
+                },
+            },
+        )
+        destination = self.root / "DJ Copilot Backup.sqlite3"
+        backed_up = self.request(
+            "backup-1",
+            "backup_database",
+            {"destinationPath": str(destination)},
+        )
+        self.assertTrue(backed_up["ok"], backed_up)
+        result = backed_up["result"]
+        self.assertEqual(
+            set(result),
+            {"status", "schemaVersion", "integrity", "sizeBytes", "createdAt"},
+        )
+        self.assertEqual(result["status"], "backed_up")
+        self.assertEqual(result["schemaVersion"], 4)
+        self.assertEqual(result["integrity"], "ok")
+        self.assertEqual(result["sizeBytes"], destination.stat().st_size)
+        self.assertRegex(result["createdAt"], r"^\d{4}-\d{2}-\d{2}T.*Z$")
+        backup = sqlite3.connect(destination)
+        try:
+            self.assertEqual(backup.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+            self.assertEqual(backup.execute("PRAGMA user_version").fetchone()[0], 4)
+            self.assertEqual(backup.execute("SELECT COUNT(*) FROM tracks").fetchone()[0], 2)
+        finally:
+            backup.close()
+        self._assert_path_free(diagnostics["result"])
+        self._assert_path_free(result)
+
+        missing_parent = self.root / "missing" / "DJ Copilot Backup.sqlite3"
+        rejected = self.request(
+            "backup-missing-parent",
+            "backup_database",
+            {"destinationPath": str(missing_parent)},
+        )
+        self.assertEqual(
+            (rejected["ok"], rejected["error"]),
+            (
+                False,
+                {
+                    "code": "invalid_request",
+                    "message": "The database backup destination is invalid.",
+                },
+            ),
+        )
+
+    def test_selected_rebuild_removes_cached_evidence_and_reanalyzes_without_source_writes(self):
+        """Rebuild must not reuse selected features, disturb other tracks, or edit source audio."""
+        selected = self.track_ids["Harmonic"]
+        retained = self.track_ids["Silence"]
+        source_paths = (
+            self.audio_root / "harmonic.wav",
+            self.audio_root / "silence.wav",
+        )
+        source_hashes = {
+            path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+            for path in source_paths
+        }
+        queued = self.request(
+            "queue-before-rebuild",
+            "queue_analysis",
+            {"trackIds": [selected, retained]},
+        )
+        self.assertTrue(queued["ok"], queued)
+        self._wait_for_status([selected, retained], succeeded=2)
+        paused = self.request("pause-before-rebuild", "pause_analysis", {})
+        self.assertEqual(paused["result"]["state"], "paused")
+
+        rebuilt = self.request(
+            "rebuild-1",
+            "rebuild_analysis",
+            {"trackIds": [selected]},
+        )
+
+        self.assertTrue(rebuilt["ok"], rebuilt)
+        self.assertEqual(rebuilt["result"]["state"], "paused")
+        self.assertEqual(
+            (rebuilt["result"]["queued"], rebuilt["result"]["succeeded"]),
+            (1, 1),
+        )
+        self.assertEqual(len(rebuilt["result"]["items"]), 1)
+        self.assertEqual(rebuilt["result"]["items"][0]["trackId"], selected)
+        self.assertEqual(rebuilt["result"]["items"][0]["status"], "queued")
+        self.assertIsNone(rebuilt["result"]["items"][0]["features"])
+        tracks = self.request(
+            "tracks-after-rebuild", "list_tracks", {"limit": 10}
+        )["result"]
+        by_id = {item["id"]: item for item in tracks["items"]}
+        self.assertEqual(by_id[selected]["analysis"]["status"], "queued")
+        self.assertIsNone(by_id[selected]["analysis"]["features"])
+        self.assertEqual(by_id[retained]["analysis"]["status"], "succeeded")
+        self.assertIsNotNone(by_id[retained]["analysis"]["features"])
+
+        self.request("resume-after-rebuild", "resume_analysis", {})
+        finished = self._wait_for_status([selected], succeeded=2)
+        self.assertEqual(finished["items"][0]["status"], "succeeded")
+        self.assertIsNotNone(finished["items"][0]["features"])
+        self.assertEqual(
+            {
+                path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in source_paths
+            },
+            source_hashes,
+        )
+
     def test_analysis_commands_reject_ambiguous_or_unbounded_payloads(self):
         known = self.track_ids["Harmonic"]
         invalid_queue_payloads = (
@@ -168,6 +293,46 @@ class AnalysisServiceTests(unittest.TestCase):
         for command in ("pause_analysis", "resume_analysis"):
             response = self.request(f"bad-{command}", command, {"unexpected": True})
             self.assertEqual((response["ok"], response["error"]["code"]), (False, "invalid_request"))
+
+        invalid_rebuild_payloads = (
+            {},
+            {"trackIds": []},
+            {"trackIds": [known, known]},
+            {"trackIds": ["unknown-track"]},
+            {"trackIds": [known], "extra": True},
+        )
+        for index, payload in enumerate(invalid_rebuild_payloads):
+            with self.subTest(command="rebuild_analysis", payload=payload):
+                response = self.request(
+                    f"bad-rebuild-{index}", "rebuild_analysis", payload
+                )
+                self.assertEqual(
+                    (response["ok"], response["error"]["code"]),
+                    (False, "invalid_request"),
+                )
+
+        invalid_backup_payloads = (
+            {},
+            {"destinationPath": ""},
+            {"destinationPath": "relative.sqlite3"},
+            {"destinationPath": str(self.root / "backup.sqlite3"), "extra": True},
+        )
+        for index, payload in enumerate(invalid_backup_payloads):
+            with self.subTest(command="backup_database", payload=payload):
+                response = self.request(
+                    f"bad-backup-{index}", "backup_database", payload
+                )
+                self.assertEqual(
+                    (response["ok"], response["error"]["code"]),
+                    (False, "invalid_request"),
+                )
+        response = self.request(
+            "bad-diagnostics", "get_diagnostics", {"unexpected": True}
+        )
+        self.assertEqual(
+            (response["ok"], response["error"]["code"]),
+            (False, "invalid_request"),
+        )
 
     def test_unavailable_provider_keeps_health_and_library_ready(self):
         self._stop_service()

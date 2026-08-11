@@ -362,3 +362,104 @@ td { font-size: 0.875rem; }
 @media (forced-colors: active) {
   .copilot-citation, .copilot-proposal, .copilot-score-components li { border: 0.125rem solid CanvasText; }
 }
+
+.diagnostics-panel {
+  background: #eef3f4;
+  border-bottom: 0.0625rem solid #b9c7cc;
+  border-left: 0.25rem solid #287b76;
+  margin: 0.75rem 0;
+  padding: 0.875rem 1rem;
+}
+.diagnostics-panel__heading { align-items: center; display: flex; gap: 1rem; justify-content: space-between; }
+.diagnostics-panel__heading .eyebrow { margin-bottom: 0.15rem; }
+.diagnostics-panel__unchecked, .diagnostics-panel__snapshot-note, .diagnostics-panel__help, .diagnostics-panel__limitations p {
+  color: #52676f;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.diagnostics-panel__unchecked { margin: 0.75rem 0; }
+.diagnostics-panel__snapshot { border-top: 0.0625rem solid #ced9dc; margin-top: 0.75rem; padding-top: 0.65rem; }
+.diagnostics-panel__build {
+  color: #263843;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  margin: 0;
+}
+.diagnostics-panel__snapshot-note { margin: 0.25rem 0 0; }
+.diagnostics-panel__resources {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0.75rem 0 0;
+}
+.diagnostics-panel__resource { background: #f8fafa; border-left: 0.1875rem solid #1c716d; min-width: 0; padding: 0.45rem 0.55rem; }
+.diagnostics-panel__resource--unavailable { border-left-color: #923d25; }
+.diagnostics-panel__resource dt {
+  color: #63767f;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.625rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.diagnostics-panel__resource dd { color: #263843; font-size: 0.6875rem; line-height: 1.4; margin: 0.2rem 0 0; overflow-wrap: anywhere; }
+.diagnostics-panel__actions, .diagnostics-panel__confirmation-actions { align-items: center; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.diagnostics-panel__actions { margin-top: 0.75rem; }
+.diagnostics-button {
+  background: transparent;
+  border: 0.0625rem solid #70858e;
+  border-radius: 0.25rem;
+  color: #263843;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+}
+.diagnostics-button:hover:not(:disabled) { background: #e7edf0; }
+.diagnostics-button:disabled { cursor: not-allowed; opacity: 0.55; }
+.diagnostics-button--rebuild { border-color: #9a6115; margin-left: auto; }
+.diagnostics-button--confirm { background: #e3a63b; border-color: #b27b1d; color: #12202b; }
+.diagnostics-button--confirm:hover:not(:disabled) { background: #f0bc56; }
+.diagnostics-panel__help { margin: 0.45rem 0 0; }
+.diagnostics-panel__confirmation { background: #fffaf0; border-left: 0.25rem solid #e3a63b; margin-top: 0.75rem; padding: 0.75rem; }
+.diagnostics-panel__confirmation h3 { color: #263843; font-size: 0.8125rem; margin: 0; }
+.diagnostics-panel__confirmation p { color: #52676f; font-size: 0.75rem; line-height: 1.45; margin: 0.25rem 0 0.65rem; }
+.diagnostics-panel__message { border-left: 0.1875rem solid currentColor; font-size: 0.75rem; font-weight: 650; margin: 0.75rem 0 0; padding: 0.4rem 0.65rem; }
+.diagnostics-panel__message--success { color: #1c716d; }
+.diagnostics-panel__message--error { color: #923d25; }
+.diagnostics-panel__limitations { border-top: 0.0625rem solid #ced9dc; display: grid; gap: 0.5rem 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 0.75rem; padding-top: 0.65rem; }
+.diagnostics-panel__limitations p { margin: 0; }
+
+@media (max-width: 54rem) {
+  .diagnostics-panel__resources { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 44rem) {
+  .diagnostics-panel__heading { align-items: stretch; flex-direction: column; }
+  .diagnostics-panel__resources, .diagnostics-panel__limitations { grid-template-columns: 1fr; }
+  .diagnostics-panel__actions .diagnostics-button { flex: 1 1 11rem; }
+  .diagnostics-button--rebuild { margin-left: 0; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .diagnostics-panel { background: #20343e; border-color: #3e5661; border-left-color: #79c8c1; }
+  .diagnostics-panel__snapshot, .diagnostics-panel__limitations { border-color: #3e5661; }
+  .diagnostics-panel__unchecked, .diagnostics-panel__snapshot-note, .diagnostics-panel__help, .diagnostics-panel__limitations p, .diagnostics-panel__confirmation p { color: #bfd0d5; }
+  .diagnostics-panel__build, .diagnostics-panel__resource dd, .diagnostics-panel__confirmation h3 { color: #f8fafa; }
+  .diagnostics-panel__resource { background: #182a33; border-left-color: #79c8c1; }
+  .diagnostics-panel__resource--unavailable { border-left-color: #f0a28a; }
+  .diagnostics-panel__resource dt { color: #a7bbc2; }
+  .diagnostics-button { border-color: #9eb1b8; color: #e7edf0; }
+  .diagnostics-button:hover:not(:disabled) { background: #263843; }
+  .diagnostics-button--rebuild { border-color: #efbd67; color: #efbd67; }
+  .diagnostics-button--confirm { background: #e3a63b; border-color: #e3a63b; color: #12202b; }
+  .diagnostics-panel__confirmation { background: #2d281d; border-color: #efbd67; }
+  .diagnostics-panel__message--success { color: #79c8c1; }
+  .diagnostics-panel__message--error { color: #f0a28a; }
+}
+
+@media (forced-colors: active) {
+  .diagnostics-panel, .diagnostics-panel__resource, .diagnostics-panel__confirmation { border: 0.125rem solid CanvasText; }
+}

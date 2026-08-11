@@ -13,6 +13,8 @@ node_modules/
 .pnpm-store/
 dist/
 build/
+out/
+.release-work/
 coverage/
 .coverage
 *.log

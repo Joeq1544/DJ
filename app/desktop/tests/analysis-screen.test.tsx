@@ -169,6 +169,7 @@ function createApi(options: {
       getStatus: vi.fn().mockResolvedValue(status),
       pause: vi.fn().mockResolvedValue(analysisStatus({ state: "paused" })),
       resume: vi.fn().mockResolvedValue(analysisStatus({ state: "running" })),
+      rebuild: vi.fn().mockResolvedValue(status),
     },
     discovery: {
       findSimilar: vi.fn(async () => { throw new Error("Discovery is not configured in this analysis test."); }),
@@ -192,6 +193,7 @@ function createApi(options: {
     },
     sets: { list: vi.fn(async () => ({ items: [] })), create: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), get: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), mutate: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), findReplacements: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), inspect: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }) },
     exports: { prepare: vi.fn(async () => { throw new Error("Exports are not configured in this analysis test."); }), confirm: vi.fn(async () => { throw new Error("Exports are not configured in this analysis test."); }) },
+    diagnostics: { getSnapshot: vi.fn(async () => { throw new Error("Diagnostics are not configured in this analysis test."); }), backupDatabase: vi.fn(async () => { throw new Error("Diagnostics are not configured in this analysis test."); }), exportBundle: vi.fn(async () => { throw new Error("Diagnostics are not configured in this analysis test."); }), showDataFolder: vi.fn(async () => { throw new Error("Diagnostics are not configured in this analysis test."); }) },
   };
 }
 

@@ -17,6 +17,7 @@ interface CoreRequester {
 export interface CoreSupervisorOptions {
   userDataPath: string;
   repositoryRoot: string;
+  packagedResourcesPath?: string;
   pythonExecutable?: string;
   environment?: NodeJS.ProcessEnv;
   isExecutable?: (path: string) => Promise<boolean>;
@@ -45,7 +46,9 @@ export class CoreSupervisor {
     this.spawnProcess = options.spawn ?? ((command, args, spawnOptions) =>
       nodeSpawn(command, args, { env: spawnOptions.env, stdio: ["ignore", "ignore", "pipe"] }));
     this.createClient = options.createClient ?? ((socketPath) => new CoreClient(socketPath));
-    this.pythonExecutable = options.pythonExecutable;
+    this.pythonExecutable = options.packagedResourcesPath === undefined
+      ? options.pythonExecutable
+      : undefined;
     this.environment = options.environment ?? process.env;
     this.isExecutable = options.isExecutable ?? (async (path) => {
       try {
@@ -128,10 +131,24 @@ export class CoreSupervisor {
     this.state = isRetry
       ? { state: "retrying", message: "Restarting core service" }
       : { state: "starting", message: null };
+    const packaged = this.options.packagedResourcesPath !== undefined;
+    const args = packaged
+      ? ["--socket", socketPath, "--database", join(this.options.userDataPath, "dj-copilot.sqlite3")]
+      : ["-B", "-m", "dj_copilot.service", "--socket", socketPath, "--database", join(this.options.userDataPath, "dj-copilot.sqlite3")];
+    const environment = { ...this.environment };
+    if (packaged) {
+      delete environment.PYTHONPATH;
+      delete environment.DJ_COPILOT_PYTHON;
+      environment.PATH = "/usr/bin:/bin";
+      environment.DJ_COPILOT_FFMPEG = join(this.options.packagedResourcesPath!, "bin", "ffmpeg");
+      environment.DJ_COPILOT_FFPROBE = join(this.options.packagedResourcesPath!, "bin", "ffprobe");
+    } else {
+      environment.PYTHONPATH = join(this.options.repositoryRoot, "core");
+    }
     const child = this.spawnProcess(
       this.pythonExecutable ?? "python3",
-      ["-B", "-m", "dj_copilot.service", "--socket", socketPath, "--database", join(this.options.userDataPath, "dj-copilot.sqlite3")],
-      { env: { ...this.environment, PYTHONPATH: join(this.options.repositoryRoot, "core") } },
+      args,
+      { env: environment },
     );
     this.child = child;
     child.stderr?.on("data", (chunk: Buffer | string) => {
@@ -151,6 +168,18 @@ export class CoreSupervisor {
   }
 
   private async selectPythonExecutable(): Promise<string> {
+    if (this.options.packagedResourcesPath !== undefined) {
+      const bundledCore = join(
+        this.options.packagedResourcesPath,
+        "core",
+        "dj-copilot-core",
+        "dj-copilot-core",
+      );
+      if (!(await this.isExecutable(bundledCore))) {
+        throw new Error("Bundled core executable is unavailable");
+      }
+      return bundledCore;
+    }
     const configured = this.environment.DJ_COPILOT_PYTHON;
     if (configured) return configured;
     const repositoryPython = join(this.options.repositoryRoot, ".venv", "bin", "python");

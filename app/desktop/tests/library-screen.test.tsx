@@ -147,6 +147,7 @@ function createApi(options: {
       getStatus: vi.fn().mockResolvedValue(analysisStatus),
       pause: vi.fn().mockResolvedValue({ ...analysisStatus, state: "paused" }),
       resume: vi.fn().mockResolvedValue({ ...analysisStatus, state: "running" }),
+      rebuild: vi.fn().mockResolvedValue(analysisStatus),
     },
     discovery: {
       findSimilar: vi.fn(async () => { throw new Error("Discovery is not configured in this library test."); }),
@@ -170,6 +171,7 @@ function createApi(options: {
     },
     sets: { list: vi.fn(async () => ({ items: [] })), create: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), get: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), mutate: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), findReplacements: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), inspect: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }) },
     exports: { prepare: vi.fn(async () => { throw new Error("Exports are not configured in this library test."); }), confirm: vi.fn(async () => { throw new Error("Exports are not configured in this library test."); }) },
+    diagnostics: { getSnapshot: vi.fn(async () => { throw new Error("Diagnostics are not configured in this library test."); }), backupDatabase: vi.fn(async () => { throw new Error("Diagnostics are not configured in this library test."); }), exportBundle: vi.fn(async () => { throw new Error("Diagnostics are not configured in this library test."); }), showDataFolder: vi.fn(async () => { throw new Error("Diagnostics are not configured in this library test."); }) },
   };
 }
 
@@ -218,6 +220,45 @@ describe("LibraryScreen", () => {
     expect(await screen.findByRole("region", { name: "Copilot" })).toBeVisible();
     expect(screen.getByRole("table", { name: "Tracks" })).toBeVisible();
     expect(screen.getByRole("navigation", { name: "Library navigation" })).toBeVisible();
+  });
+
+  it("keeps diagnostics explicit and rebuild unavailable until tracks are selected", async () => {
+    const { api } = renderLibrary();
+
+    await screen.findByText("Library service ready");
+    const diagnostics = screen.getByRole("region", { name: "Diagnostics and recovery" });
+
+    expect(within(diagnostics).getByText("Not checked yet. Refresh when you need a current snapshot.")).toBeVisible();
+    expect(within(diagnostics).getByRole("button", { name: "Rebuild selected analysis" })).toBeDisabled();
+    expect(api.diagnostics.getSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("applies a confirmed rebuild result to the selected track row", async () => {
+    const user = userEvent.setup();
+    const api = createApi();
+    api.analysis.rebuild = vi.fn().mockResolvedValue({
+      ...analysisStatus,
+      state: "running",
+      queued: 1,
+      items: [{
+        trackId: "track-1",
+        status: "queued",
+        progressPpm: 0,
+        attemptCount: 1,
+        errorCode: null,
+        errorMessage: null,
+        features: null,
+      }],
+    });
+    renderLibrary(api);
+
+    await user.click(await screen.findByRole("checkbox", { name: "Select Sæglópur for analysis" }));
+    await user.click(screen.getByRole("button", { name: "Rebuild selected analysis" }));
+    await user.click(screen.getByRole("button", { name: "Confirm rebuild" }));
+
+    expect(api.analysis.rebuild).toHaveBeenCalledWith(["track-1"]);
+    const row = screen.getByRole("row", { name: /Sæglópur/ });
+    expect(within(row).getByText("Queued")).toBeVisible();
   });
 
   it("refreshes the core status after initial load", async () => {
@@ -410,6 +451,10 @@ describe("LibraryScreen", () => {
       screen.getByRole("tab", { name: "Search" }),
       screen.getByRole("textbox", { name: "Ask Copilot" }),
       screen.getByRole("button", { name: "Run Copilot" }),
+      screen.getByRole("button", { name: "Refresh diagnostics" }),
+      screen.getByRole("button", { name: "Back up database" }),
+      screen.getByRole("button", { name: "Export redacted diagnostics" }),
+      screen.getByRole("button", { name: "Show data folder" }),
       screen.getByRole("searchbox", { name: "Search library" }),
       screen.getByRole("spinbutton", { name: "Minimum BPM" }),
       screen.getByRole("spinbutton", { name: "Maximum BPM" }),

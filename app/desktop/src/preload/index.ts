@@ -46,6 +46,7 @@ export function createDesktopApi(renderer: IpcRendererLike): DesktopApi {
       getStatus: (trackIds?: string[]) => renderer.invoke("analysis:getStatus", trackIds === undefined ? undefined : { trackIds }) as ReturnType<DesktopApi["analysis"]["getStatus"]>,
       pause: () => renderer.invoke("analysis:pause") as ReturnType<DesktopApi["analysis"]["pause"]>,
       resume: () => renderer.invoke("analysis:resume") as ReturnType<DesktopApi["analysis"]["resume"]>,
+      rebuild: (trackIds: string[]) => renderer.invoke("analysis:rebuild", { trackIds }) as ReturnType<DesktopApi["analysis"]["rebuild"]>,
     }),
     discovery: Object.freeze({
       findSimilar: (request: FindSimilarRequest) => renderer.invoke("discovery:findSimilar", request) as ReturnType<DesktopApi["discovery"]["findSimilar"]>,
@@ -78,6 +79,12 @@ export function createDesktopApi(renderer: IpcRendererLike): DesktopApi {
     exports: Object.freeze({
       prepare: (request: { draftId: string; expectedRevision: number }) => renderer.invoke("exports:prepare", request) as Promise<ExportPrepareResult>,
       confirm: (request: { confirmationId: string }) => renderer.invoke("exports:confirm", request) as Promise<ExportConfirmResult>,
+    }),
+    diagnostics: Object.freeze({
+      getSnapshot: () => renderer.invoke("diagnostics:getSnapshot") as ReturnType<DesktopApi["diagnostics"]["getSnapshot"]>,
+      backupDatabase: () => renderer.invoke("diagnostics:backupDatabase") as ReturnType<DesktopApi["diagnostics"]["backupDatabase"]>,
+      exportBundle: () => renderer.invoke("diagnostics:exportBundle") as ReturnType<DesktopApi["diagnostics"]["exportBundle"]>,
+      showDataFolder: () => renderer.invoke("diagnostics:showDataFolder") as ReturnType<DesktopApi["diagnostics"]["showDataFolder"]>,
     }),
   });
 }

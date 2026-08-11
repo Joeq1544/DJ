@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "main": "dist/main/main.cjs",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "install:electron": "install-electron --no",
     "dev": "concurrently --kill-others-on-fail --names renderer,bundle,electron \"pnpm dev:renderer\" \"pnpm dev:bundle\" \"pnpm dev:electron\"",
@@ -30,6 +33,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@electron/packager": "20.0.0",
     "@modelcontextprotocol/sdk": "1.24.0",
     "@playwright/test": "1.62.1",
     "@testing-library/jest-dom": "7.0.1",

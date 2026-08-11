@@ -16,6 +16,7 @@ import { AnalysisControls } from "../analysis/AnalysisControls";
 import { CopilotPanel } from "../assistant/CopilotPanel";
 import { DiscoveryFilters } from "../discovery/DiscoveryFilters";
 import { DiscoveryPanel, type DiscoverySeed } from "../discovery/DiscoveryPanel";
+import { DiagnosticsPanel } from "./DiagnosticsPanel";
 import { ImportPanel } from "./ImportPanel";
 import { PlaylistTree } from "./PlaylistTree";
 import { StatusPanel } from "./StatusPanel";
@@ -584,6 +585,11 @@ export function LibraryScreen() {
           onAnalyze={() => { void queueSelected(); }}
           onPause={() => { void pauseAnalysis(); }}
           onResume={() => { void resumeAnalysis(); }}
+        />
+        <DiagnosticsPanel
+          api={desktopApi() ?? null}
+          selectedTrackIds={stableSelectedIds(tracks, selectedTrackIds)}
+          onAnalysisRebuilt={mergeAnalysisStatus}
         />
         <DiscoveryFilters
           activeFilters={activeFilters}

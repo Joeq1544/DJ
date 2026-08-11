@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { access, mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CoreSupervisor } from "../src/main/core-supervisor";
 
 class FakeChild extends EventEmitter {
@@ -188,5 +188,70 @@ describe("CoreSupervisor", () => {
 
     await expect(access(runtimeDirectory)).rejects.toThrow();
     await expect(supervisor.stop()).resolves.toBeUndefined();
+  });
+
+  it("launches only the fixed bundled core and decoder paths in packaged mode", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "dj-supervisor-"));
+    directories.push(directory);
+    const invocations: Array<{ command: string; args: string[]; env: NodeJS.ProcessEnv }> = [];
+    const child = new FakeChild();
+    const supervisor = new CoreSupervisor({
+      userDataPath: directory,
+      repositoryRoot: "/repo-that-must-not-be-used",
+      packagedResourcesPath: "/Applications/DJ Copilot.app/Contents/Resources",
+      pythonExecutable: "/tmp/untrusted-python",
+      environment: {
+        PATH: "/tmp/untrusted-bin",
+        PYTHONPATH: "/tmp/untrusted-modules",
+        DJ_COPILOT_PYTHON: "/tmp/untrusted-python-from-env",
+        DJ_COPILOT_FFMPEG: "/tmp/untrusted-ffmpeg",
+        DJ_COPILOT_FFPROBE: "/tmp/untrusted-ffprobe",
+      },
+      isExecutable: async (path) => path === "/Applications/DJ Copilot.app/Contents/Resources/core/dj-copilot-core/dj-copilot-core",
+      spawn: (command, args, options) => {
+        invocations.push({ command, args, env: options.env });
+        return child as never;
+      },
+      createClient: () => ({ request: async () => ({ status: "ok" }), close() {} }),
+    });
+
+    await supervisor.start();
+
+    expect(invocations).toHaveLength(1);
+    expect(invocations[0]!.command).toBe(
+      "/Applications/DJ Copilot.app/Contents/Resources/core/dj-copilot-core/dj-copilot-core",
+    );
+    expect(invocations[0]!.args).toEqual([
+      "--socket",
+      join(supervisor.runtimeDirectory(), "core.sock"),
+      "--database",
+      join(directory, "dj-copilot.sqlite3"),
+    ]);
+    expect(invocations[0]!.args).not.toContain("-m");
+    expect(invocations[0]!.env).toEqual({
+      PATH: "/usr/bin:/bin",
+      DJ_COPILOT_FFMPEG: "/Applications/DJ Copilot.app/Contents/Resources/bin/ffmpeg",
+      DJ_COPILOT_FFPROBE: "/Applications/DJ Copilot.app/Contents/Resources/bin/ffprobe",
+    });
+    await supervisor.stop();
+  });
+
+  it("fails packaged startup when the fixed bundled core executable is unavailable", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "dj-supervisor-"));
+    directories.push(directory);
+    const spawn = vi.fn();
+    const supervisor = new CoreSupervisor({
+      userDataPath: directory,
+      repositoryRoot: "/repo",
+      packagedResourcesPath: "/missing/Resources",
+      environment: { DJ_COPILOT_PYTHON: "/tmp/ambient-python" },
+      isExecutable: async () => false,
+      spawn,
+      createClient: () => ({ request: async () => ({ status: "ok" }), close() {} }),
+    });
+
+    await expect(supervisor.start()).rejects.toThrow("Bundled core executable is unavailable");
+    expect(spawn).not.toHaveBeenCalled();
+    await supervisor.stop();
   });
 });

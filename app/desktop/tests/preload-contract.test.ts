@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createDesktopApi } from "../src/preload/index";
 
 describe("preload API", () => {
-  it("exposes only the thirty-five named renderer operations through exact fixed channels", async () => {
+  it("exposes only the forty named renderer operations through exact fixed channels", async () => {
     const invoke = vi.fn(async (channel: string) => {
       if (channel === "system:getStatus") return { state: "ready", message: null };
       if (channel === "library:importXml") return { success: false, error: { code: "cancelled", message: "No XML selected" }, preservedPreviousLibrary: true };
@@ -14,7 +14,7 @@ describe("preload API", () => {
     });
     const api = createDesktopApi({ invoke });
 
-    expect(Object.keys(api)).toEqual(["system", "library", "analysis", "discovery", "preferences", "assistant", "sets", "exports"]);
+    expect(Object.keys(api)).toEqual(["system", "library", "analysis", "discovery", "preferences", "assistant", "sets", "exports", "diagnostics"]);
     expect(Object.keys(api.system)).toEqual(["getStatus"]);
     expect(Object.keys(api.library)).toEqual([
       "importXml",
@@ -26,7 +26,7 @@ describe("preload API", () => {
       "saveSavedFilter",
       "deleteSavedFilter",
     ]);
-    expect(Object.keys(api.analysis)).toEqual(["queue", "getStatus", "pause", "resume"]);
+    expect(Object.keys(api.analysis)).toEqual(["queue", "getStatus", "pause", "resume", "rebuild"]);
     expect(Object.keys(api.discovery)).toEqual(["findSimilar", "recommendNext"]);
     expect(Object.keys(api.preferences)).toEqual([
       "getProfile",
@@ -39,6 +39,7 @@ describe("preload API", () => {
     expect(Object.keys(api.assistant)).toEqual(["getStatus", "beginLogin", "start", "poll", "cancel", "confirm"]);
     expect(Object.keys(api.sets)).toEqual(["list", "create", "get", "mutate", "findReplacements", "inspect"]);
     expect(Object.keys(api.exports)).toEqual(["prepare", "confirm"]);
+    expect(Object.keys(api.diagnostics)).toEqual(["getSnapshot", "backupDatabase", "exportBundle", "showDataFolder"]);
     expect("invoke" in api).toBe(false);
     expect(Object.isFrozen(api)).toBe(true);
     expect(Object.isFrozen(api.system)).toBe(true);
@@ -49,6 +50,7 @@ describe("preload API", () => {
     expect(Object.isFrozen(api.assistant)).toBe(true);
     expect(Object.isFrozen(api.sets)).toBe(true);
     expect(Object.isFrozen(api.exports)).toBe(true);
+    expect(Object.isFrozen(api.diagnostics)).toBe(true);
     await expect(api.system.getStatus()).resolves.toEqual({ state: "ready", message: null });
     await expect(api.library.listTracks({ limit: 1 })).resolves.toEqual({ items: [], nextCursor: null, truncated: false });
     await api.library.getTrackMetadata("track-1");
@@ -60,6 +62,7 @@ describe("preload API", () => {
     await expect(api.analysis.getStatus(["track-1"])).resolves.toMatchObject({ state: "idle" });
     await expect(api.analysis.pause()).resolves.toMatchObject({ state: "idle" });
     await expect(api.analysis.resume()).resolves.toMatchObject({ state: "idle" });
+    await expect(api.analysis.rebuild(["track-1"])).resolves.toMatchObject({ state: "idle" });
     await expect(
       api.discovery.findSimilar({ seedTrackId: "track-1", filters: { genre: "House" } }),
     ).resolves.toMatchObject({ algorithmVersion: "feature-similarity-v1" });
@@ -86,7 +89,11 @@ describe("preload API", () => {
     await api.sets.inspect({ kind: "draft", draftId: "draft-1" });
     await api.exports.prepare({ draftId: "draft-1", expectedRevision: 1 });
     await api.exports.confirm({ confirmationId: "confirmation-1" });
-    expect(invoke.mock.calls.slice(-31)).toEqual([
+    await api.diagnostics.getSnapshot();
+    await api.diagnostics.backupDatabase();
+    await api.diagnostics.exportBundle();
+    await api.diagnostics.showDataFolder();
+    expect(invoke.mock.calls.slice(-36)).toEqual([
       ["library:getTrackMetadata", { trackId: "track-1" }],
       ["library:updateTrackMetadata", { trackId: "track-1", rating: 5, tags: ["Warmup"], note: null }],
       ["library:listSavedFilters"],
@@ -96,6 +103,7 @@ describe("preload API", () => {
       ["analysis:getStatus", { trackIds: ["track-1"] }],
       ["analysis:pause"],
       ["analysis:resume"],
+      ["analysis:rebuild", { trackIds: ["track-1"] }],
       ["discovery:findSimilar", { seedTrackId: "track-1", filters: { genre: "House" } }],
       ["discovery:recommendNext", { seedTrackId: "track-1", intent: "build", limit: 5 }],
       ["preferences:getProfile"],
@@ -118,6 +126,10 @@ describe("preload API", () => {
       ["sets:inspect", { kind: "draft", draftId: "draft-1" }],
       ["exports:prepare", { draftId: "draft-1", expectedRevision: 1 }],
       ["exports:confirm", { confirmationId: "confirmation-1" }],
+      ["diagnostics:getSnapshot"],
+      ["diagnostics:backupDatabase"],
+      ["diagnostics:exportBundle"],
+      ["diagnostics:showDataFolder"],
     ]);
   });
 });

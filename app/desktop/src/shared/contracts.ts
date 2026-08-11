@@ -1002,6 +1002,84 @@ export const privateExportPreviewResultSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
+const safeFileNameSchema = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[^/\\\u0000]+$/u, "Only a file name may cross the renderer boundary");
+
+const generatedAtSchema = z.string().datetime({ offset: true }).max(64);
+
+export const diagnosticsResourceStateSchema = z
+  .strictObject({
+    status: z.enum(["available", "unavailable"]),
+    version: z.string().min(1).max(128).nullable(),
+    source: z.enum(["bundled", "development"]),
+    message: messageSchema.nullable(),
+  })
+  .superRefine((resource, context) => {
+    if (resource.status === "available" && (resource.version === null || resource.message !== null)) {
+      context.addIssue({ code: "custom", message: "Available resources require a version and no error" });
+    }
+    if (resource.status === "unavailable" && (resource.version !== null || resource.message === null)) {
+      context.addIssue({ code: "custom", message: "Unavailable resources require a safe reason and no version" });
+    }
+  });
+
+export const coreDiagnosticsSchema = z.strictObject({
+  coreVersion: z.literal("0.1.0"),
+  schemaVersion: z.literal(4),
+  databaseIntegrity: z.literal("ok"),
+  analysis: analysisCapabilitiesSchema,
+});
+
+export const diagnosticsSnapshotSchema = z.strictObject({
+  appVersion: z.literal("0.1.0"),
+  electronVersion: z.string().min(1).max(64),
+  architecture: z.enum(["arm64", "x64"]),
+  releaseMode: z.enum(["development", "personal_arm64"]),
+  schemaVersion: z.literal(4),
+  databaseIntegrity: z.literal("ok"),
+  analysis: analysisCapabilitiesSchema,
+  resources: z.strictObject({
+    core: diagnosticsResourceStateSchema,
+    ffmpeg: diagnosticsResourceStateSchema,
+    ffprobe: diagnosticsResourceStateSchema,
+    codex: diagnosticsResourceStateSchema,
+  }),
+  generatedAt: generatedAtSchema,
+  privacy: z.literal("No audio, library metadata, notes, credentials, paths, logs, or Codex response text included."),
+});
+
+export const privateDatabaseBackupRequestSchema = z.strictObject({
+  destinationPath: z.string().min(1).max(4_096),
+});
+
+export const privateDatabaseBackupResultSchema = z.strictObject({
+  status: z.literal("backed_up"),
+  schemaVersion: z.literal(4),
+  integrity: z.literal("ok"),
+  sizeBytes: nonnegativeIntegerSchema,
+  createdAt: generatedAtSchema,
+});
+
+export const databaseBackupResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("cancelled") }),
+  privateDatabaseBackupResultSchema.extend({ fileName: safeFileNameSchema }),
+]);
+
+export const diagnosticsExportResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("cancelled") }),
+  z.strictObject({
+    status: z.literal("exported"),
+    fileName: safeFileNameSchema,
+    sizeBytes: nonnegativeIntegerSchema,
+    createdAt: generatedAtSchema,
+  }),
+]);
+
+export const showDataFolderResultSchema = z.strictObject({ opened: z.literal(true) });
+
 const requestBase = {
   version: z.literal(1),
   id: idSchema,
@@ -1110,6 +1188,21 @@ export const coreRequestSchema = z.discriminatedUnion("command", [
   }),
   z.strictObject({
     ...requestBase,
+    command: z.literal("rebuild_analysis"),
+    payload: analysisQueueRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("get_diagnostics"),
+    payload: z.strictObject({}),
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("backup_database"),
+    payload: privateDatabaseBackupRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
     command: z.literal("list_set_drafts"),
     payload: z.strictObject({}),
   }),
@@ -1202,6 +1295,11 @@ export type AnalysisCapabilities = z.infer<typeof analysisCapabilitiesSchema>;
 export type AnalysisSummary = z.infer<typeof analysisSummarySchema>;
 export type AnalysisQueueStatus = z.infer<typeof analysisQueueStatusSchema>;
 export type AnalysisTrackIds = z.infer<typeof analysisTrackIdsSchema>;
+export type CoreDiagnostics = z.infer<typeof coreDiagnosticsSchema>;
+export type DiagnosticsSnapshot = z.infer<typeof diagnosticsSnapshotSchema>;
+export type DatabaseBackupResult = z.infer<typeof databaseBackupResultSchema>;
+export type DiagnosticsExportResult = z.infer<typeof diagnosticsExportResultSchema>;
+export type ShowDataFolderResult = z.infer<typeof showDataFolderResultSchema>;
 export type SetDraftPlan = z.infer<typeof setDraftPlanSchema>;
 export type SetDraftCreateRequest = z.infer<typeof setDraftCreateRequestSchema>;
 export type SetDraftGetRequest = z.infer<typeof setDraftGetRequestSchema>;
@@ -1246,6 +1344,7 @@ export interface DesktopApi {
     getStatus(trackIds?: string[]): Promise<AnalysisQueueStatus>;
     pause(): Promise<AnalysisQueueStatus>;
     resume(): Promise<AnalysisQueueStatus>;
+    rebuild(trackIds: string[]): Promise<AnalysisQueueStatus>;
   };
   discovery: {
     findSimilar(request: FindSimilarRequest): Promise<SimilarityResponse>;
@@ -1278,5 +1377,11 @@ export interface DesktopApi {
   exports: {
     prepare(request: { draftId: string; expectedRevision: number }): Promise<ExportPrepareResult>;
     confirm(request: { confirmationId: string }): Promise<ExportConfirmResult>;
+  };
+  diagnostics: {
+    getSnapshot(): Promise<DiagnosticsSnapshot>;
+    backupDatabase(): Promise<DatabaseBackupResult>;
+    exportBundle(): Promise<DiagnosticsExportResult>;
+    showDataFolder(): Promise<ShowDataFolderResult>;
   };
 }

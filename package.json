@@ -20,6 +20,10 @@
     "verify:m4": "bash scripts/verify-m4.sh",
     "verify:m5": "bash scripts/verify-m5.sh",
     "verify:m6": "bash scripts/verify-m6.sh",
-    "smoke:m6:real": "pnpm --dir app/desktop smoke:m6:real"
+    "smoke:m6:real": "pnpm --dir app/desktop smoke:m6:real",
+    "build:release:ffmpeg": "bash scripts/release/build-ffmpeg.sh",
+    "build:release:core": "bash scripts/release/build-core.sh",
+    "package:mac": "bash scripts/release/compose-personal-arm64.sh",
+    "verify:package": "bash scripts/release/verify-personal-arm64.sh \"out/DJ Copilot-darwin-arm64/DJ Copilot.app\""
   }
 }
