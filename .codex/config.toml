@@ -1,0 +1,4 @@
+[agents]
+# Codex CLI 0.144.1 accepts this documented legacy alias; the newer
+# max_concurrent_threads_per_session key is rejected by this installed runtime.
+max_threads = 4

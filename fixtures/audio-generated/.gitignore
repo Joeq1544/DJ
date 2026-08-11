@@ -1,0 +1,2 @@
+# Generated only by scripts/generate-audio-fixtures.py; never commit audio artifacts.
+*.wav

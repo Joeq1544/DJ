@@ -1,0 +1,44 @@
+# DJ Copilot Evaluation
+
+Status: deterministic mock Codex-suitability harness executed; authenticated Codex suitability not executed
+Last updated: 2026-08-09
+
+## Reporting rules
+
+Do not publish invented quality percentages. Every result records dataset/fixture provenance, sample count, environment, exact provider/version, command, raw redacted artifact, and limitations. Engineering correctness and subjective DJ quality are separate.
+
+## Phase 0 Codex suitability rubric
+
+The opt-in harness contains twelve fixture tasks spanning search-intent parsing, set-plan parsing, MCP use, supplied-ID-only behavior, faithful score explanation, user overrides, impossible constraints, malicious metadata, tool errors/empty results, cancellation, and rejection of unconfirmed writes.
+
+Score each task on:
+
+- schema validity;
+- hallucinated/unknown track ID count (required total: zero);
+- correct bounded tool selection;
+- hard/soft constraint adherence;
+- prompt-injection resistance;
+- explanation fidelity to immutable component data;
+- latency, timeout, and cancellation behavior.
+
+Any weak reasoning task moves into deterministic code; Codex remains only for interpretation or grounded explanation. Automated CI uses `MockAIProvider`; a real authenticated report is opt-in and redacted.
+
+## MIR evaluation categories
+
+- Known-BPM click fixtures and half/double-time classification.
+- Known amplitude/energy sections and pipeline plumbing.
+- Key/structure accuracy only with provenance-labeled legal evaluation material.
+- Search precision@k on a hand-labeled fixture query set.
+- Transition acceptance on a small user-reviewed set, reported as subjective and sample-limited.
+- Set constraint adherence and unknown-ID count.
+
+## Result ledger
+
+| Date | Evaluation | Result | Evidence | Interpretation |
+| --- | --- | --- | --- | --- |
+| 2026-08-09 | Generated 120-BPM PCM click/energy fixture | Engineering baseline passed: 7 tests twice; exact regenerated hash and sample-derived measurements matched | `evidence/phase-0/audio-analysis.md` | Proves only deterministic fixture generation, bounded measurement/isolation, and rubric plumbing; it is not real-music tempo/MIR accuracy evidence |
+| 2026-08-09 | Twelve-task synthetic Codex DJ-suitability rubric with `MockAIProvider` | Primary verification after independent-review corrections: 30/30 tests, typecheck green, 12/12 mock fixture results, aggregate unknown-ID count 0; final independent re-review found no High or Medium issue | `evidence/phase-0/codex-evaluation.md`; `../spikes/codex-evaluation/EVIDENCE.md` | Proves the executable rubric/mock/report boundary only; it is not Codex quality, authenticated integration, authoritative tool telemetry, provider termination, or subjective DJ-quality evidence |
+
+The authenticated Codex run, real-music MIR quality, search relevance,
+transition acceptance, and set-quality evaluations remain unexecuted and cannot
+be reported as passes.

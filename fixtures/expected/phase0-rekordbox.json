@@ -1,0 +1,6 @@
+[
+  {"external_id":"1","path":"/Users/example/Music/alpha & beta.mp3","available":false,"playlists":[{"path":["Root","Warmup","Opening"],"order":1}]},
+  {"external_id":"2","path":"/Users/example/Music/Café ✓.mp3","available":false,"playlists":[{"path":["Root","Warmup","Opening"],"order":0}]},
+  {"external_id":"3","path":"/Users/example/Music/missing.mp3","available":false,"playlists":[{"path":["Root","Closer"],"order":1}]},
+  {"external_id":"4","path":"/Users/example/Music/100% hit.mp3","available":false,"playlists":[{"path":["Root","Closer"],"order":0}]}
+]

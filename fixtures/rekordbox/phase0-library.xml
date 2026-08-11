@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DJ_PLAYLISTS Version="1.0.0">
+  <PRODUCT Name="rekordbox" Version="7.0.0"/>
+  <COLLECTION Entries="4">
+    <TRACK TrackID="1" Name="Same Title" Artist="Same Artist" Location="file://localhost/Users/example/Music/alpha%20%26%20beta.mp3"/>
+    <TRACK TrackID="2" Name="Same Title" Artist="Same Artist" Location="file://localhost/Users/example/Music/Caf%C3%A9%20%E2%9C%93.mp3"><TEMPO Inizio="0.0" Bpm="120.0"/><TEMPO Inizio="10.0" Bpm="121.0"/><POSITION_MARK Name="Cue A" Start="1.0"/></TRACK>
+    <TRACK TrackID="3" Name="Missing" Artist="Elsewhere" Location="file://localhost/Users/example/Music/missing.mp3"/>
+    <TRACK TrackID="4" Name="Percent%" Artist="Special &amp; Artist" Location="file://localhost/Users/example/Music/100%25%20hit.mp3"/>
+  </COLLECTION>
+  <PLAYLISTS>
+    <NODE Type="0" Name="Root" Count="2">
+      <NODE Type="0" Name="Warmup" Count="1">
+        <NODE Type="1" Name="Opening" Entries="2"><TRACK KeyType="TrackID" Key="2"/><TRACK KeyType="Location" Key="file://localhost/Users/example/Music/alpha%20%26%20beta.mp3"/></NODE>
+      </NODE>
+      <NODE Type="1" Name="Closer" Entries="2"><TRACK KeyType="TrackID" Key="4"/><TRACK KeyType="TrackID" Key="3"/></NODE>
+    </NODE>
+  </PLAYLISTS>
+</DJ_PLAYLISTS>

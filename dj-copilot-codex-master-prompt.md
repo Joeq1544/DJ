@@ -1,3 +1,8 @@
+> [!IMPORTANT]
+> ## Personal-use MVP scope amendment (2026-08-10)
+>
+> The approved design in `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md` governs MVP execution when it conflicts with the commercial-grade phase gates below. All user-facing features remain in scope. The app uses an ordinary same-user trust model, focused verification, milestone-sized plans, and frequent green GitHub checkpoints. Completed Phase 0 research remains historical evidence; P0-016 and the forensic Codex containment gates are stopped rather than passed. The original prompt is retained below for product detail and decision history.
+
 # Codex Master Build Prompt: DJ Copilot for Rekordbox on macOS
 
 Use this as a **Goal** in Codex from the root of a new Git repository. The app’s working name is **DJ Copilot**. You may rename internal packages later through a documented ADR, but do not spend time on branding before the product works.
