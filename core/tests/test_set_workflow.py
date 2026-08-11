@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dj_copilot.analysis.provider import AnalysisFeatures
 from dj_copilot.discovery import TrackEvidence, TrackFilters, score_transition
 from dj_copilot.models import AnalysisSummary, StoredTrack
+from dj_copilot.personalization import PreferenceEvidence
 from dj_copilot.set_workflow import (
     DraftEntry,
     DraftError,
@@ -105,14 +106,59 @@ class DraftSnapshotTests(unittest.TestCase):
 
     def test_strict_snapshot_round_trip_preserves_repeats_and_both_pin_types(self):
         state = draft_state_from_payload(self.document["snapshot"])
+        expected_v4 = json.loads(json.dumps(self.document["snapshot"]))
+        expected_v4["plan"]["candidateFilters"].update(
+            {"ratingMin": None, "tag": None}
+        )
 
-        self.assertEqual(draft_state_to_payload(state), self.document["snapshot"])
+        self.assertEqual(draft_state_to_payload(state), expected_v4)
         self.assertEqual(len(state.entries), 4)
         self.assertEqual(state.entries[2].track_id, state.entries[3].track_id)
         self.assertTrue(state.entries[0].track_pinned)
         self.assertFalse(state.entries[0].position_pinned)
         self.assertTrue(state.entries[1].track_pinned)
         self.assertTrue(state.entries[1].position_pinned)
+
+    def test_decoder_accepts_exact_v3_or_v4_filters_and_rejects_hybrid_shapes(self):
+        v3 = json.loads(json.dumps(self.document["snapshot"]))
+        v4 = json.loads(json.dumps(v3))
+        v4["plan"]["candidateFilters"].update(
+            {"ratingMin": 4, "tag": "Peak Time"}
+        )
+        hybrid = json.loads(json.dumps(v3))
+        hybrid["plan"]["candidateFilters"]["ratingMin"] = 4
+        unknown = json.loads(json.dumps(v4))
+        unknown["plan"]["candidateFilters"]["unknown"] = None
+
+        old_state = draft_state_from_payload(v3)
+        new_state = draft_state_from_payload(v4)
+
+        self.assertIsNone(old_state.plan.candidate_filters.rating_min)
+        self.assertIsNone(old_state.plan.candidate_filters.tag)
+        self.assertEqual(new_state.plan.candidate_filters.rating_min, 4)
+        self.assertEqual(new_state.plan.candidate_filters.tag, "Peak Time")
+        self.assertEqual(
+            set(draft_state_to_payload(old_state)["plan"]["candidateFilters"]),
+            {
+                "text",
+                "playlistId",
+                "bpmMinMilli",
+                "bpmMaxMilli",
+                "musicalKey",
+                "keyRelation",
+                "genre",
+                "energyMinPpm",
+                "energyMaxPpm",
+                "analysisState",
+                "availability",
+                "ratingMin",
+                "tag",
+            },
+        )
+        for payload in (hybrid, unknown):
+            with self.subTest(payload=payload), self.assertRaises(DraftError) as raised:
+                draft_state_from_payload(payload)
+            self.assertEqual(raised.exception.code, "invalid_snapshot")
 
     def test_snapshot_rejects_unknown_fields_bad_bounds_and_broken_invariants(self):
         original = self.document["snapshot"]
@@ -478,6 +524,37 @@ class ReplacementAndOptimizerTests(unittest.TestCase):
         self.assertEqual([entry.track_id for entry in second.state.entries], [entry.track_id for entry in first.state.entries])
         self.assertFalse(second.changed)
         self.assertEqual(second.before, second.after)
+
+    def test_set_transition_scoring_uses_active_preference_evidence(self):
+        preferred = replace(
+            self.roles["build"],
+            preference=PreferenceEvidence(
+                score_ppm=1_000_000,
+                quality_ppm=500_000,
+                weight_ppm=75_000,
+                supporting_evidence_count=5,
+            ),
+        )
+        state = DraftState(
+            "Personalized set",
+            _plan(intent="build"),
+            (
+                _entry(1, self.roles["seed"]),
+                _entry(2, preferred),
+            ),
+            (),
+        )
+
+        result = inspect_set(state, (self.roles["seed"], preferred))
+        component = next(
+            item
+            for item in result.transitions[0].candidate.components
+            if item.name == "preference"
+        )
+
+        self.assertEqual(component.score_ppm, 1_000_000)
+        self.assertEqual(component.weight_ppm, 75_000)
+        self.assertEqual(component.effect, "bonus")
 
 
 class InspectionAndOrganizationTests(unittest.TestCase):

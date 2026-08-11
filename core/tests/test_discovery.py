@@ -18,8 +18,10 @@ from dj_copilot.discovery import (
     find_similar_tracks,
     recommend_next_tracks,
     score_transition,
+    strip_preference,
 )
 from dj_copilot.models import AnalysisSummary, StoredTrack
+from dj_copilot.personalization import PreferenceEvidence
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -229,6 +231,41 @@ class DiscoveryFilterTests(unittest.TestCase):
             ],
         )
         self.assertEqual(missing, (self.roles["sparse_unavailable"],))
+
+    def test_rating_tag_and_metadata_text_filters_compose_with_exact_tag_semantics(self):
+        enriched = replace(
+            self.roles["build"],
+            rating=4,
+            tags=("Peak Time", "Élan"),
+            note="Golden bridge for the late set",
+        )
+        lower_rating = replace(
+            self.roles["reset"],
+            rating=3,
+            tags=("Peak",),
+            note="Golden alternative",
+        )
+
+        matched = filter_evidence(
+            (lower_rating, enriched),
+            TrackFilters(
+                text="golden peak",
+                rating_min=4,
+                tag="peak time",
+            ),
+        )
+        exact_tag_miss = filter_evidence(
+            (enriched,),
+            TrackFilters(tag="peak"),
+        )
+        unicode_tag = filter_evidence(
+            (enriched,),
+            TrackFilters(text="ÉLAN", tag="élan"),
+        )
+
+        self.assertEqual(matched, (enriched,))
+        self.assertEqual(exact_tag_miss, ())
+        self.assertEqual(unicode_tag, (enriched,))
 
 
 class SimilarityTests(unittest.TestCase):
@@ -552,6 +589,89 @@ class RecommendationTests(unittest.TestCase):
                             self.assertIsNone(component.score_ppm)
                             self.assertEqual(component.contribution_signed_ppm, 0)
 
+    def test_active_preference_reorders_ties_and_baseline_stripping_is_exact(self):
+        base = self.roles["compatible_key"]
+        disliked = replace(
+            _with_track(
+                base,
+                id="00000000-0000-4000-8000-000000000051",
+                external_id="preference-51",
+                title="Alpha",
+            ),
+            rating=1,
+            tags=("Keep",),
+            note="Metadata survives baseline stripping",
+            preference=PreferenceEvidence(
+                score_ppm=0,
+                quality_ppm=500_000,
+                weight_ppm=150_000,
+                supporting_evidence_count=5,
+            ),
+        )
+        liked = replace(
+            _with_track(
+                base,
+                id="00000000-0000-4000-8000-000000000052",
+                external_id="preference-52",
+                title="Beta",
+            ),
+            preference=PreferenceEvidence(
+                score_ppm=1_000_000,
+                quality_ppm=500_000,
+                weight_ppm=150_000,
+                supporting_evidence_count=5,
+            ),
+        )
+        personalized_catalog = (self.roles["seed"], disliked, liked)
+
+        baseline_catalog = strip_preference(personalized_catalog)
+        baseline = recommend_next_tracks(baseline_catalog, SEED_ID, "smooth", limit=20)
+        personalized = recommend_next_tracks(personalized_catalog, SEED_ID, "smooth", limit=20)
+
+        self.assertEqual([item.track.id for item in baseline.items], [disliked.track.id, liked.track.id])
+        self.assertEqual([item.track.id for item in personalized.items], [liked.track.id, disliked.track.id])
+        self.assertEqual(baseline.items[0].score_ppm, baseline.items[1].score_ppm)
+        self.assertEqual(_component(personalized.items[0], "preference").score_ppm, 1_000_000)
+        self.assertEqual(_component(personalized.items[0], "preference").weight_ppm, 150_000)
+        self.assertEqual(_component(personalized.items[1], "preference").score_ppm, 0)
+        self.assertEqual(_component(personalized.items[1], "preference").effect, "penalty")
+        self.assertTrue(all(component.name != "preference" for item in baseline.items for component in item.components))
+        self.assertEqual(baseline_catalog[1].rating, 1)
+        self.assertEqual(baseline_catalog[1].tags, ("Keep",))
+        self.assertEqual(baseline_catalog[1].note, "Metadata survives baseline stripping")
+        self.assertIsNone(baseline_catalog[1].preference)
+        self.assertIsNotNone(disliked.preference)
+
+    def test_missing_preference_is_absent_while_explicit_negative_evidence_is_a_penalty(self):
+        base = self.roles["compatible_key"]
+        missing = _with_track(
+            base,
+            id="00000000-0000-4000-8000-000000000053",
+            external_id="preference-53",
+            title="Missing",
+        )
+        negative = replace(
+            _with_track(
+                base,
+                id="00000000-0000-4000-8000-000000000054",
+                external_id="preference-54",
+                title="Negative",
+            ),
+            preference=PreferenceEvidence(0, 500_000, 150_000, 5),
+        )
+
+        result = recommend_next_tracks(
+            (self.roles["seed"], missing, negative),
+            SEED_ID,
+            "smooth",
+            limit=20,
+        )
+        by_id = {item.track.id: item for item in result.items}
+
+        self.assertTrue(all(component.name != "preference" for component in by_id[missing.track.id].components))
+        self.assertEqual(_component(by_id[negative.track.id], "preference").score_ppm, 0)
+        self.assertEqual(_component(by_id[negative.track.id], "preference").effect, "penalty")
+
 
 class DiscoveryValidationTests(unittest.TestCase):
     @classmethod
@@ -583,6 +703,12 @@ class DiscoveryValidationTests(unittest.TestCase):
             TrackFilters(energy_min_ppm=700_000, energy_max_ppm=600_000),
             TrackFilters(analysis_state="complete"),
             TrackFilters(availability="offline"),
+            TrackFilters(rating_min=0),
+            TrackFilters(rating_min=6),
+            TrackFilters(rating_min=True),
+            TrackFilters(tag=""),
+            TrackFilters(tag="x" * 41),
+            TrackFilters(tag=" tag "),
         )
         for filters in invalid_filters:
             with self.subTest(filters=filters), self.assertRaises(DiscoveryError) as raised:
@@ -598,6 +724,14 @@ class DiscoveryValidationTests(unittest.TestCase):
             lambda: find_similar_tracks(self.catalog, SEED_ID, limit=True),
             lambda: find_similar_tracks(self.catalog, SEED_ID, truncated=1),
             lambda: recommend_next_tracks(self.catalog, SEED_ID, "unknown"),
+            lambda: filter_evidence(
+                (
+                    replace(
+                        self.roles["seed"],
+                        preference=PreferenceEvidence(1_000_001, 500_000, 15_000, 1),
+                    ),
+                )
+            ),
         )
         for call in invalid_calls:
             with self.subTest(call=call), self.assertRaises(DiscoveryError) as raised:

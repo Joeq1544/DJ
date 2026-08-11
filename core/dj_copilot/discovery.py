@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 from typing import Literal, TypeAlias
 import unicodedata
 
 from .analysis.provider import AnalysisFeatures
 from .models import AnalysisSummary, StoredTrack
+from .personalization import MAX_PREFERENCE_WEIGHT_PPM, PreferenceEvidence
 
 
 PPM = 1_000_000
@@ -73,7 +74,7 @@ _MISSING_REASONS = {
     "timbre": "Local timbre evidence is unavailable for one or both tracks.",
     "vocal": "Vocal evidence is not available in M3.",
     "structure": "Structure evidence is not available in M3.",
-    "preference": "Preference evidence is not available in M3.",
+    "preference": "Preference affinity is unavailable for this track.",
 }
 _COMPONENT_LABELS = {
     "tempo": "Tempo compatibility",
@@ -150,6 +151,8 @@ class TrackFilters:
     energy_max_ppm: int | None = None
     analysis_state: str = "any"
     availability: str = "any"
+    rating_min: int | None = None
+    tag: str | None = None
 
 
 @dataclass(frozen=True)
@@ -157,6 +160,10 @@ class TrackEvidence:
     track: StoredTrack
     analysis: AnalysisSummary | None = None
     playlist_ids: tuple[str, ...] = ()
+    rating: int | None = None
+    tags: tuple[str, ...] = ()
+    note: str | None = None
+    preference: PreferenceEvidence | None = None
 
 
 @dataclass(frozen=True)
@@ -222,6 +229,15 @@ def filter_evidence(
     _validate_catalog(catalog, allow_repeated_track_ids=allow_repeated_track_ids)
     _validate_filters(filters)
     return tuple(evidence for evidence in catalog if _matches_filters(evidence, filters))
+
+
+def strip_preference(catalog: tuple[TrackEvidence, ...]) -> tuple[TrackEvidence, ...]:
+    """Return the exact catalog metadata with learned scorer evidence removed."""
+    _validate_catalog(catalog)
+    return tuple(
+        evidence if evidence.preference is None else replace(evidence, preference=None)
+        for evidence in catalog
+    )
 
 
 def find_similar_tracks(
@@ -363,6 +379,48 @@ def _validate_catalog(
             _invalid("Track playlist IDs must be a tuple.")
         for playlist_id in evidence.playlist_ids:
             _validate_id(playlist_id, "playlist")
+        if evidence.rating is not None and (
+            type(evidence.rating) is not int or not 1 <= evidence.rating <= 5
+        ):
+            _invalid("Track user ratings must be integers from 1 to 5.")
+        if type(evidence.tags) is not tuple or len(evidence.tags) > 20:
+            _invalid("Track user tags must be a tuple with at most 20 items.")
+        seen_tags = set()
+        for tag in evidence.tags:
+            if (
+                not isinstance(tag, str)
+                or not 1 <= len(tag) <= 40
+                or tag != unicodedata.normalize("NFKC", tag).strip()
+            ):
+                _invalid("Track user tags must be normalized text from 1 to 40 characters.")
+            normalized_tag = tag.casefold()
+            if normalized_tag in seen_tags:
+                _invalid("Track user tags must be case-insensitively unique.")
+            seen_tags.add(normalized_tag)
+        if evidence.note is not None and (
+            not isinstance(evidence.note, str)
+            or not 1 <= len(evidence.note) <= 2_000
+            or evidence.note != evidence.note.strip()
+        ):
+            _invalid("Track user notes must be trimmed text of at most 2,000 characters.")
+        if evidence.preference is not None:
+            preference = evidence.preference
+            if not isinstance(preference, PreferenceEvidence):
+                _invalid("Track preference evidence is invalid.")
+            if type(preference.score_ppm) is not int or not 0 <= preference.score_ppm <= PPM:
+                _invalid("Track preference score is outside its bounded range.")
+            if type(preference.quality_ppm) is not int or not 0 <= preference.quality_ppm <= PPM:
+                _invalid("Track preference quality is outside its bounded range.")
+            if (
+                type(preference.weight_ppm) is not int
+                or not 1 <= preference.weight_ppm <= MAX_PREFERENCE_WEIGHT_PPM
+            ):
+                _invalid("Track preference weight is outside its bounded range.")
+            if (
+                type(preference.supporting_evidence_count) is not int
+                or preference.supporting_evidence_count < 1
+            ):
+                _invalid("Track preference evidence count must be positive.")
         if evidence.analysis is not None:
             if not isinstance(evidence.analysis, AnalysisSummary) or evidence.analysis.status not in _ANALYSIS_STATUSES:
                 _invalid("The discovery catalog contains an invalid analysis summary.")
@@ -402,6 +460,13 @@ def _validate_filters(filters: TrackFilters) -> None:
         _invalid("The analysis state is invalid.")
     if filters.availability not in _FILTER_AVAILABILITIES:
         _invalid("The availability filter is invalid.")
+    _validate_optional_integer(filters.rating_min, 1, 5, "minimum rating")
+    if filters.tag is not None and (
+        not isinstance(filters.tag, str)
+        or not 1 <= len(filters.tag) <= 40
+        or filters.tag != unicodedata.normalize("NFKC", filters.tag).strip()
+    ):
+        _invalid("The tag must be normalized text from 1 to 40 characters.")
 
 
 def _validate_optional_text(value: str | None, maximum: int, label: str) -> None:
@@ -433,8 +498,21 @@ def _find_seed(catalog: tuple[TrackEvidence, ...], seed_track_id: str) -> TrackE
 def _matches_filters(evidence: TrackEvidence, filters: TrackFilters) -> bool:
     track = evidence.track
     if filters.text is not None:
-        fields = tuple((value or "").casefold() for value in (track.title, track.artist, track.album, track.genre))
-        if not all(any(token in field for field in fields) for token in filters.text.casefold().split()):
+        fields = tuple(
+            _normalized_search_text(value)
+            for value in (
+                track.title,
+                track.artist,
+                track.album,
+                track.genre,
+                evidence.note,
+                *evidence.tags,
+            )
+        )
+        if not all(
+            any(token in field for field in fields)
+            for token in _normalized_search_text(filters.text).split()
+        ):
             return False
     if filters.playlist_id is not None and filters.playlist_id not in evidence.playlist_ids:
         return False
@@ -478,6 +556,14 @@ def _matches_filters(evidence: TrackEvidence, filters: TrackFilters) -> bool:
         return False
     if filters.availability != "any" and track.availability != filters.availability:
         return False
+    if filters.rating_min is not None and (
+        evidence.rating is None or evidence.rating < filters.rating_min
+    ):
+        return False
+    if filters.tag is not None:
+        wanted_tag = _normalized_search_text(filters.tag)
+        if not any(_normalized_search_text(tag) == wanted_tag for tag in evidence.tags):
+            return False
     return True
 
 
@@ -489,7 +575,10 @@ def _score_candidate(
 ) -> DiscoveryCandidate:
     components = []
     qualities = []
-    for name, weight in weights:
+    effective_weights = weights
+    if intent is not None and candidate.preference is not None:
+        effective_weights = (*weights, ("preference", candidate.preference.weight_ppm))
+    for name, weight in effective_weights:
         score_quality = _component_score(seed, candidate, name, intent)
         if score_quality is None:
             component = ScoreComponent(
@@ -525,9 +614,11 @@ def _score_candidate(
         )
     else:
         score_ppm = 0
-    confidence_ppm = _round_half_up(
-        sum(component.weight_ppm * quality for component, quality in zip(components, qualities)),
-        PPM,
+    confidence_ppm = _clamp_ppm(
+        _round_half_up(
+            sum(component.weight_ppm * quality for component, quality in zip(components, qualities)),
+            PPM,
+        )
     )
     reasons = _main_reasons(tuple(components), intent)
     return DiscoveryCandidate(
@@ -555,6 +646,8 @@ def _component_score(
         return _style_score(seed, candidate, intent)
     if name == "timbre":
         return _timbre_score(seed, candidate, intent)
+    if name == "preference" and candidate.preference is not None:
+        return candidate.preference.score_ppm, candidate.preference.quality_ppm
     return None
 
 
@@ -781,6 +874,10 @@ def _normalized_sort_text(value: str | None) -> str:
     return unicodedata.normalize("NFKC", value or "").strip().casefold()
 
 
+def _normalized_search_text(value: str | None) -> str:
+    return unicodedata.normalize("NFKC", value or "").casefold()
+
+
 def _normalized_genre(value: str | None) -> str | None:
     if value is None:
         return None
@@ -815,4 +912,5 @@ __all__ = (
     "find_similar_tracks",
     "recommend_next_tracks",
     "score_transition",
+    "strip_preference",
 )

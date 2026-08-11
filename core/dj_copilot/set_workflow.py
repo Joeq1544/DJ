@@ -59,7 +59,7 @@ _INTENTS = frozenset(
     )
 )
 _ROLES = frozenset(("warmup", "groove", "build", "peak", "singalong", "reset", "bridge", "closer"))
-_FILTER_WIRE_TO_ATTR = {
+_FILTER_WIRE_TO_ATTR_V3 = {
     "text": "text",
     "playlistId": "playlist_id",
     "bpmMinMilli": "bpm_min_milli",
@@ -72,7 +72,13 @@ _FILTER_WIRE_TO_ATTR = {
     "analysisState": "analysis_state",
     "availability": "availability",
 }
-_FILTER_KEYS = frozenset(_FILTER_WIRE_TO_ATTR)
+_FILTER_WIRE_TO_ATTR = {
+    **_FILTER_WIRE_TO_ATTR_V3,
+    "ratingMin": "rating_min",
+    "tag": "tag",
+}
+_FILTER_KEYS_V3 = frozenset(_FILTER_WIRE_TO_ATTR_V3)
+_FILTER_KEYS_V4 = frozenset(_FILTER_WIRE_TO_ATTR)
 _FILTER_ATTR_KEYS = frozenset(_FILTER_WIRE_TO_ATTR.values())
 _PLAN_KEYS = frozenset(("intent", "targetDurationMs", "maxArtistRepeats", "candidateFilters"))
 _MUTATION_PLAN_KEYS = frozenset(
@@ -231,11 +237,7 @@ def draft_state_from_payload(payload: object) -> DraftState:
     try:
         state_payload = _exact_mapping(payload, _STATE_KEYS, "snapshot")
         plan_payload = _exact_mapping(state_payload["plan"], _PLAN_KEYS, "draft plan")
-        filter_payload = _exact_mapping(
-            plan_payload["candidateFilters"],
-            _FILTER_KEYS,
-            "candidate filters",
-        )
+        filter_payload = _filter_mapping(plan_payload["candidateFilters"])
         plan = DraftPlan(
             intent=plan_payload["intent"],
             target_duration_ms=plan_payload["targetDurationMs"],
@@ -918,6 +920,12 @@ def _validate_optional_integer(
 def _exact_mapping(value: object, keys: frozenset[str], label: str) -> dict[str, object]:
     if type(value) is not dict or frozenset(value) != keys:
         _fail("invalid_snapshot", f"The {label} shape is invalid.")
+    return value
+
+
+def _filter_mapping(value: object) -> dict[str, object]:
+    if type(value) is not dict or frozenset(value) not in {_FILTER_KEYS_V3, _FILTER_KEYS_V4}:
+        _fail("invalid_snapshot", "The candidate filters shape is invalid.")
     return value
 
 
