@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import sys
 import tempfile
 import unittest
@@ -104,6 +105,19 @@ class LibraryDatabaseTests(unittest.TestCase):
         self.assertEqual([(item.title, item.artist) for item in first_page.items], [("Missing", "Elsewhere"), ("Percent%", "Special & Artist")])
         self.assertEqual([(item.title, item.artist) for item in second_page.items], [("Same Title", "Same Artist"), ("Same Title", "Same Artist")])
         self.assertIsNone(second_page.next_cursor)
+
+    def test_imported_source_paths_are_normalized_and_omitted_from_stored_tracks(self):
+        """Leaking private paths through StoredTrack or storing lexical traversal must fail."""
+        self.database.import_library(self.imported)
+        imported_paths = {track.external_id: track.path for track in self.imported.tracks}
+
+        for stored in self.database.list_tracks(limit=100).items:
+            self.assertFalse(hasattr(stored, "source_path"))
+            self.assertFalse(hasattr(stored, "path"))
+            self.assertEqual(
+                self.database.get_track_source_path(stored.id),
+                Path(os.path.normpath(imported_paths[stored.external_id])),
+            )
 
 
 if __name__ == "__main__":

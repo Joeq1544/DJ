@@ -1,6 +1,13 @@
 """Immutable records shared by the local Rekordbox importer and repository."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from .analysis.provider import AnalysisFeatures, ProviderCapabilities
 
 
 @dataclass(frozen=True)
@@ -72,3 +79,26 @@ class PlaylistTreeNode:
 class TrackPage:
     items: tuple[StoredTrack, ...]
     next_cursor: str | None
+
+
+@dataclass(frozen=True)
+class AnalysisSummary:
+    status: str
+    progress_ppm: int
+    attempt_count: int
+    error_code: str | None
+    error_message: str | None
+    features: AnalysisFeatures | None
+
+
+@dataclass(frozen=True)
+class AnalysisQueueStatus:
+    state: str
+    queued: int
+    running: int
+    paused: int
+    succeeded: int
+    failed: int
+    progress_ppm: int
+    capabilities: ProviderCapabilities
+    items: tuple[tuple[str, AnalysisSummary], ...]
