@@ -4,6 +4,21 @@ set -euo pipefail
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repository_root"
 
+bash -n scripts/setup-python.sh scripts/verify-m1.sh scripts/verify-m2.sh scripts/verify-m3.sh
+
+forbidden_tracked="$(git ls-files '*.aiff' '*.db' '*.flac' '*.log' '*.mp3' '*.pyc' '*.sqlite' '*.sqlite3' '*.wav')"
+if [[ -n "$forbidden_tracked" ]]; then
+  printf 'Forbidden generated or personal files are tracked:\n%s\n' "$forbidden_tracked" >&2
+  exit 1
+fi
+
+while IFS= read -r tracked_xml; do
+  if [[ "$tracked_xml" != "fixtures/rekordbox/phase0-library.xml" ]]; then
+    printf 'Unapproved XML fixture is tracked: %s\n' "$tracked_xml" >&2
+    exit 1
+  fi
+done < <(git ls-files '*.xml')
+
 python_executable="${repository_root}/.venv/bin/python"
 if [[ ! -x "$python_executable" ]]; then
   python_executable="python3"
@@ -30,3 +45,4 @@ pnpm --dir app/desktop test
 pnpm typecheck
 pnpm build
 pnpm --dir app/desktop exec playwright test
+git diff --check

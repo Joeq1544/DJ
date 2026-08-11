@@ -69,10 +69,15 @@ def _library() -> RekordboxImport:
         ImportedTrack("bridge", "Genre Bridge", "Otro Artista", "M3", "Disco", 120_000, "8A", 184_000, "/fixtures/bridge.wav", "available"),
         ImportedTrack("failed", "Failed Read", "Fixture Artist", "M3", "House", 120_000, "8B", 185_000, "/fixtures/failed.wav", "available"),
         ImportedTrack("missing", "Missing File", "Fixture Artist", "M3", "House", 120_000, "8B", 186_000, "/fixtures/missing.wav", "missing"),
+        ImportedTrack("unreadable", "Unreadable File", "Fixture Artist", "M3", "House", 120_000, "8B", 187_000, "/fixtures/unreadable.wav", "unreadable"),
+        ImportedTrack("queued", "Queued Track", "Fixture Artist", "M3", "House", 120_000, "8B", 188_000, "/fixtures/queued.wav", "available"),
+        ImportedTrack("running", "Running Track", "Fixture Artist", "M3", "House", 120_000, "8B", 189_000, "/fixtures/running.wav", "available"),
+        ImportedTrack("paused", "Paused Track", "Fixture Artist", "M3", "House", 120_000, "8B", 190_000, "/fixtures/paused.wav", "available"),
     )
     playlists = (
         ImportedPlaylist("playlist:root", None, "Root", "folder", 0, ()),
         ImportedPlaylist("playlist:m3", "playlist:root", "M3 Order", "playlist", 0, ("build", "seed", "smooth", "bridge", "missing")),
+        ImportedPlaylist("playlist:repeats", "playlist:root", "M3 Repeats", "playlist", 1, ("build", "seed", "build")),
     )
     return RekordboxImport("d" * 64, tracks, playlists)
 
@@ -125,6 +130,23 @@ class DiscoveryRepositoryTests(unittest.TestCase):
             provider_version="ffmpeg 8.1.2; ffprobe 8.1.2; numpy 2.4.4",
             pipeline_version="baseline-v1",
         )
+        for external_id, status, progress_ppm in (
+            ("queued", "queued", 0),
+            ("running", "running", 250_000),
+            ("paused", "paused", 500_000),
+        ):
+            self.database.put_analysis_job(
+                self.track_ids[external_id],
+                status=status,
+                progress_ppm=progress_ppm,
+                attempt_count=1,
+                error_code=None,
+                error_message=None,
+                fingerprint=None,
+                provider="ffmpeg-numpy-basic",
+                provider_version="ffmpeg 8.1.2; ffprobe 8.1.2; numpy 2.4.4",
+                pipeline_version="baseline-v1",
+            )
 
     def tearDown(self):
         self.database.close()
@@ -160,9 +182,9 @@ class DiscoveryRepositoryTests(unittest.TestCase):
 
     def test_analysis_and_availability_filter_mapping_is_exhaustive(self):
         expected = {
-            "any": {"seed", "smooth", "build", "bridge", "failed", "missing"},
+            "any": {"seed", "smooth", "build", "bridge", "failed", "missing", "unreadable", "queued", "running", "paused"},
             "analyzed": {"seed", "smooth", "build", "bridge"},
-            "not_analyzed": {"failed", "missing"},
+            "not_analyzed": {"failed", "missing", "unreadable", "queued", "running", "paused"},
             "failed": {"failed"},
         }
         for state, external_ids in expected.items():
@@ -170,12 +192,17 @@ class DiscoveryRepositoryTests(unittest.TestCase):
                 page = self.database.search_track_evidence(TrackFilters(analysis_state=state), limit=100)
                 self.assertEqual({item.track.external_id for item in page.items}, external_ids)
 
-        for availability in ("available", "missing", "unreadable"):
+        expected_availability = {
+            "available": {"seed", "smooth", "build", "bridge", "failed", "queued", "running", "paused"},
+            "missing": {"missing"},
+            "unreadable": {"unreadable"},
+        }
+        for availability, external_ids in expected_availability.items():
             with self.subTest(availability=availability):
                 page = self.database.search_track_evidence(
                     TrackFilters(availability=availability), limit=100
                 )
-                self.assertTrue(all(item.track.availability == availability for item in page.items))
+                self.assertEqual({item.track.external_id for item in page.items}, external_ids)
 
     def test_scan_cap_is_reported_without_schema_change(self):
         with patch.object(database_module, "DISCOVERY_SCAN_LIMIT", 2):
@@ -183,6 +210,27 @@ class DiscoveryRepositoryTests(unittest.TestCase):
         self.assertEqual(len(page.items), 2)
         self.assertTrue(page.truncated)
         self.assertEqual(self.database.connection.execute("PRAGMA user_version").fetchone()[0], 2)
+
+    def test_playlist_search_preserves_repeated_positions_while_discovery_candidates_stay_unique(self):
+        playlist = next(node for node in self.database.get_playlist_tree() if node.name == "M3 Repeats")
+
+        first = self.database.search_track_evidence(
+            TrackFilters(playlist_id=playlist.id),
+            limit=2,
+        )
+        self.assertIsNotNone(first.next_cursor)
+        second = self.database.search_track_evidence(
+            TrackFilters(playlist_id=playlist.id),
+            limit=2,
+            cursor=first.next_cursor,
+        )
+        catalog, truncated = self.database.discovery_catalog(playlist_id=playlist.id)
+
+        self.assertEqual([item.track.external_id for item in first.items], ["build", "seed"])
+        self.assertEqual([item.track.external_id for item in second.items], ["build"])
+        self.assertIsNone(second.next_cursor)
+        self.assertEqual([item.track.external_id for item in catalog], ["build", "seed"])
+        self.assertFalse(truncated)
 
 
 class DiscoveryRequestAndDispatchTests(unittest.TestCase):
@@ -267,6 +315,21 @@ class DiscoveryRequestAndDispatchTests(unittest.TestCase):
                 object(),
             )
         self.assertEqual(raised.exception.code, "not_found")
+
+    def test_list_tracks_wire_preserves_repeated_playlist_positions(self):
+        playlist = next(node for node in self.database.get_playlist_tree() if node.name == "M3 Repeats")
+
+        page = _dispatch(
+            "list_tracks",
+            {"playlistId": playlist.id, "limit": 100},
+            self.database,
+            object(),
+        )
+
+        self.assertEqual(
+            [item["title"] for item in page["items"]],
+            ["Build Lift", "Neón Seed", "Build Lift"],
+        )
 
 
 if __name__ == "__main__":

@@ -44,6 +44,8 @@ The approved personal MVP does not yet have an embedding producer or model. M3 t
 
 A synthetic 10,000-track benchmark is no longer a mandatory milestone gate. Representative use on Joe's library decides whether ordinary bounded search is perceptibly slow; only measured need reopens an embedding-model, vector-storage, or ANN decision. The Phase 0 portable format remains valid evidence for that future option, not an instruction to add unused infrastructure now.
 
+M3 implementation evidence is green at `5a5d59d` and `bb85aaa` plus its review correction: 17 pure ranking tests cover exact integer formulas, half/double tempo, key compatibility, all eight intents, mixed evidence, missing components, stable ties, and bounds; eight repository/service tests cover the single schema-v2 projection, repeated playlist positions, and strict path-free responses; the generated Electron flow exercises playlist-aware filters, Similar, `genre_shift`, explanations, reload, and source immutability. The independent M3 reviewer returned READY after the correction. No embedding table, model, vector dependency, or schema-v3 migration was added.
+
 ## Later implementation verification
 
 If a later approved embedding provider is introduced, that slice records the model/license/provenance choice, production migration and backup, representative latency/memory, stale-model behavior, and packaging evidence. M7 verifies the migrations and packaging that actually exist in the personal build.

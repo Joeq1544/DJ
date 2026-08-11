@@ -15,3 +15,4 @@ Current execution status lives in `TASKS.md`. New milestone evidence should rema
 - `m1-app-shell-library.md` — app shell, XML import/browse, supervision, and generated-fixture desktop flow.
 - `m2-dependency-selection.md` — exact development decoder/DSP selection, source/license evidence, local measurements, and retained M7 packaging work.
 - `m2-local-analysis.md` — provider, durable queue, strict boundary, analysis UI, generated-audio restart/reload flow, and exact aggregate results.
+- `m3-discovery-recommendations.md` — bounded search/ranking, strict discovery boundary, renderer workflow, generated-library Electron flow, and exact aggregate results.

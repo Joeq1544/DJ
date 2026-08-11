@@ -212,8 +212,11 @@ class LibraryDatabase:
                 raise TypeError("filters must be TrackFilters")
             if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 200:
                 raise RekordboxImportError("invalid_limit", "Track list limit must be an integer from 1 to 200.")
-            catalog, truncated = self._track_evidence_catalog(playlist_id=filters.playlist_id)
-            filtered = filter_evidence(catalog, filters)
+            catalog, truncated = self._track_evidence_catalog(
+                playlist_id=filters.playlist_id,
+                preserve_playlist_occurrences=True,
+            )
+            filtered = filter_evidence(catalog, filters, allow_repeated_track_ids=True)
             signature = self._track_filter_signature(filters)
             offset = 0
             if cursor is not None:
@@ -732,6 +735,7 @@ class LibraryDatabase:
         *,
         playlist_id: str | None = None,
         track_id: str | None = None,
+        preserve_playlist_occurrences: bool = False,
     ) -> tuple[tuple[TrackEvidence, ...], bool]:
         if playlist_id is not None:
             if not isinstance(playlist_id, str) or not 1 <= len(playlist_id) <= 128:
@@ -770,9 +774,13 @@ class LibraryDatabase:
             parameters.append(track_id)
         if predicates:
             sql += " WHERE " + " AND ".join(predicates)
-        sql += " GROUP BY tracks.id"
+        if playlist_id is not None and preserve_playlist_occurrences:
+            sql += " GROUP BY tracks.id, selected.position"
+        else:
+            sql += " GROUP BY tracks.id"
         if playlist_id is not None:
-            sql += " ORDER BY selected.position, tracks.id"
+            order_position = "selected.position" if preserve_playlist_occurrences else "MIN(selected.position)"
+            sql += f" ORDER BY {order_position}, tracks.id"
         else:
             sql += " ORDER BY COALESCE(tracks.title, ''), COALESCE(tracks.artist, ''), tracks.id"
         row_limit = 2 if track_id is not None else DISCOVERY_SCAN_LIMIT + 1

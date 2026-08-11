@@ -271,15 +271,15 @@ pnpm typecheck
 
 **Boundary supplied by Task 3:** Consume only `DesktopApi`, `TrackFilters`, `DiscoveryIntent`, and discovery response types from shared contracts. Do not edit shared contracts, IPC, preload, project memory, E2E, or package files.
 
-- [ ] **Step 1: Write renderer behavior tests first**
+- [x] **Step 1: Write renderer behavior tests first**
 
 Cover labeled text/BPM/key/genre/energy/analysis/availability controls; submit by button and Enter; Clear; selected-playlist composition; loading, empty, partial-error, and stale-response suppression; preserving the last successful discovery results on failure; accessible `Explore {title}` seed selection; Similar/Next tabs; all intent choices; ordered candidates; score/confidence; main reasons; and native `<details>` with bonus, penalty, neutral, and missing evidence.
 
-- [ ] **Step 2: Implement the single-screen workflow**
+- [x] **Step 2: Implement the single-screen workflow**
 
 Active filters replace the server-backed track page and remain active for load-more and discovery. Clear restores ordinary playlist browsing. One Explore button per row sets the seed and opens the inline panel. Do not add a route, drag/drop, charts, a full inspector, generated visual assets, or M4/M5/M6 controls.
 
-- [ ] **Step 3: Run renderer tests and production build**
+- [x] **Step 3: Run renderer tests and production build**
 
 ```bash
 pnpm --dir app/desktop test discovery-screen library-screen analysis-screen
@@ -311,11 +311,11 @@ No screenshot or visual QA step is run in M3.
 - Modify: `docs/USER_GUIDE.md`
 - Modify: `docs/adr/0006-embedding-storage-and-search.md`
 
-- [ ] **Step 1: Write the Electron flow before considering M3 complete**
+- [x] **Step 1: Write the Electron flow before considering M3 complete**
 
 Create a temporary XML/library from the M3 fixture and inject deterministic feature rows through an explicit test-only setup path before app launch. Through production UI/IPC/core behavior, import, combine text+BPM+playlist filters, assert exact ordered results, explore a seed, assert a similar candidate, change recommendation intent, and assert deterministic candidate order plus visible bonus, penalty, and missing-evidence reasons. Reload and repeat one query. Hash all source fixtures before/after and remove temporary user data. Do not capture screenshots.
 
-- [ ] **Step 2: Add and run the aggregate gate**
+- [x] **Step 2: Add and run the aggregate gate**
 
 `scripts/verify-m3.sh` runs the complete core suite, complete desktop unit suite, strict typecheck, production build, M1/M2/M3 Electron flows, shell syntax validation, and repository residue checks. Expose it as `pnpm verify:m3`.
 
@@ -325,7 +325,7 @@ git diff --check
 git status --short
 ```
 
-- [ ] **Step 3: Perform one concise read-only milestone review**
+- [x] **Step 3: Perform one concise read-only milestone review**
 
 One independent reviewer checks only normal-workflow correctness, evidence integrity, unexplained scope growth, source immutability/private-path leakage, and whether any High/Medium defect blocks closure. Fix concrete findings with focused regressions; do not create repeated review loops.
 

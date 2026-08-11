@@ -213,9 +213,13 @@ class RecommendationResult:
 def filter_evidence(
     catalog: tuple[TrackEvidence, ...],
     filters: TrackFilters = TrackFilters(),
+    *,
+    allow_repeated_track_ids: bool = False,
 ) -> tuple[TrackEvidence, ...]:
     """Return matching records without changing their input order."""
-    _validate_catalog(catalog)
+    if type(allow_repeated_track_ids) is not bool:
+        _invalid("The repeated-track flag must be a boolean.")
+    _validate_catalog(catalog, allow_repeated_track_ids=allow_repeated_track_ids)
     _validate_filters(filters)
     return tuple(evidence for evidence in catalog if _matches_filters(evidence, filters))
 
@@ -305,7 +309,11 @@ def _validate_discovery_request(
         _invalid("The discovery truncated flag must be a boolean.")
 
 
-def _validate_catalog(catalog: tuple[TrackEvidence, ...]) -> None:
+def _validate_catalog(
+    catalog: tuple[TrackEvidence, ...],
+    *,
+    allow_repeated_track_ids: bool = False,
+) -> None:
     if type(catalog) is not tuple:
         _invalid("The discovery catalog must be a tuple.")
     if len(catalog) > MAX_SCAN_COUNT:
@@ -317,7 +325,7 @@ def _validate_catalog(catalog: tuple[TrackEvidence, ...]) -> None:
         track = evidence.track
         _validate_id(track.id, "track")
         _validate_id(track.external_id, "external track")
-        if track.id in seen_ids:
+        if not allow_repeated_track_ids and track.id in seen_ids:
             _invalid("The discovery catalog contains duplicate track IDs.")
         seen_ids.add(track.id)
         for value in (track.title, track.artist, track.album, track.genre):

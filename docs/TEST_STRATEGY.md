@@ -41,6 +41,7 @@ Exhaustive fuzz/property matrices, cross-language parity for unused representati
 - `pnpm build` emits the Electron main/preload and Vite renderer bundles.
 - `pnpm verify:m1` composes those checks with the Playwright Electron fixture import, playlist browse, and one-core-restart recovery flow.
 - `pnpm verify:m2` adds exact NumPy/FFmpeg prerequisite checks; missing-NumPy library degradation and reimport/late-completion regressions; and the generated-audio selection, pause, forced-core-restart, persisted-resume, success/failure isolation, feature-evidence, source-hash, reload, and runtime-cleanup flow.
+- `pnpm verify:m3` adds deterministic filters/similarity/all-intent ranking, the schema-v2 joined discovery projection, strict Python/Zod/IPC/preload discovery boundaries, renderer search/explanation behavior, and the generated eight-track playlist/filter/Similar/Next/reload/source-hash flow. It also reruns every M1/M2 Electron flow.
 
 The socket-bearing suites need permission to create temporary local Unix sockets. That is an execution-environment prerequisite, not a network dependency.
 

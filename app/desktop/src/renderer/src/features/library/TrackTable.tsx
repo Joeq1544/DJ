@@ -131,7 +131,7 @@ export function TrackTable({
                     : "Import a Rekordbox XML file to start browsing your library."}</span>
                 </td>
               </tr>
-            ) : tracks?.map((track) => {
+            ) : tracks?.map((track, occurrenceIndex) => {
               const state = availability(track);
               const title = trackTitle(track);
               const isSelected = selectedTrackIds.has(track.id);
@@ -139,7 +139,7 @@ export function TrackTable({
               const features = track.analysis?.status === "succeeded" ? track.analysis.features : null;
               const failedMessage = track.analysis?.status === "failed" ? track.analysis.errorMessage : null;
               return (
-                <Fragment key={track.id}>
+                <Fragment key={`${track.id}:${occurrenceIndex}`}>
                   <tr>
                     <td className="selection-column">
                       {track.availability === "available" ? (
