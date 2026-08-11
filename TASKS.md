@@ -1,8 +1,8 @@
 # DJ Copilot Tasks
 
 Last updated: 2026-08-11
-Current milestone: M6 — Codex-assisted slice, green closure checkpoint
-Current state: exact SDK 0.147.0 works with existing ChatGPT auth; all four bounded workflows, explicit status, preview/confirmation, cancellation, mock/real Electron flows, aggregate verification, and the final READY review are green; closure commit/push remains before M7 begins
+Current milestone: M7 — Personal release polish, bounded planning
+Current state: M6 is closed and pushed at `fd0984e`; M7 dependency feasibility is GO for a personal unsigned arm64 app, and the bounded packaging/recovery plan is next; visual QA remains deferred to Joe's final hands-on period
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -73,10 +73,10 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
 | --- | --- | --- | --- | --- | --- | --- |
 | M6-001 | primary + scope/research agents | Current official SDK/auth/model guidance, no-MCP topology, strict workflows, privacy bounds, and nonvisual gates are frozen | done | ADR-0009, bounded plan, refreshed official manual, exact npm/source/license/integrity evidence, one scope monitor | `07b800b`, pushed | The model remains intentionally unset; SDK upgrades require focused maintenance |
-| M6-002 | primary + codex-mcp specialist | Exact SDK dependency, strict public contracts, matching-helper auth, production `CodexProvider`, and `MockAIProvider` pass focused tests/typecheck/build | done | Provider 29/29; strict schemas/type dependency; lazy SDK/helper, auth, environment, stream/retry/timeout/cancel tests; typecheck/build | `38465d3`, pushed; M6 closure checkpoint | Full SDK/native target-tree packaging remains M7 work |
-| M6-003 | primary + desktop boundary implementer | Main coordinator routes bounded context through current core commands, streams/polls/cancels safely, and confirms durable proposals exactly once | done | Post-review context/prompt/coordinator 23/23; one active request, bounded polling, cancellation, exact local routing, no-write proposals, single-use confirmation, honest unchanged/conflict behavior | M6 closure checkpoint | State is intentionally in-memory and expires after ten minutes |
-| M6-004 | macOS UI specialist | Inline Copilot status/search/plan/revise/explain flows expose proposals, evidence, errors, cancellation, and focus semantics | done | Post-review assistant renderer 16/16; explicit status/no mount helper, four modes, last-good errors, proposals, citations, no-op refresh, focus return; aggregate included | M6 closure checkpoint | Visual appearance remains deferred under D-045 |
-| M6-005 | primary | Generated mock Electron flow, complete aggregate, real existing-auth smoke, one review, current docs, and pushed checkpoint close M6 | done | Post-review `pnpm verify:m6`: 151 core + 219 desktop + strict typecheck/build + 7 Electron flows; separate real existing-auth smoke 1/1; reviewer READY | M6 closure checkpoint, push pending | Personal-library relevance/latency and final visual QA remain Joe's final hands-on work |
+| M6-002 | primary + codex-mcp specialist | Exact SDK dependency, strict public contracts, matching-helper auth, production `CodexProvider`, and `MockAIProvider` pass focused tests/typecheck/build | done | Provider 29/29; strict schemas/type dependency; lazy SDK/helper, auth, environment, stream/retry/timeout/cancel tests; typecheck/build | `38465d3`, `fd0984e`, pushed | Full SDK/native target-tree packaging remains M7 work |
+| M6-003 | primary + desktop boundary implementer | Main coordinator routes bounded context through current core commands, streams/polls/cancels safely, and confirms durable proposals exactly once | done | Post-review context/prompt/coordinator 23/23; one active request, bounded polling, cancellation, exact local routing, no-write proposals, single-use confirmation, honest unchanged/conflict behavior | `fd0984e`, pushed | State is intentionally in-memory and expires after ten minutes |
+| M6-004 | macOS UI specialist | Inline Copilot status/search/plan/revise/explain flows expose proposals, evidence, errors, cancellation, and focus semantics | done | Post-review assistant renderer 16/16; explicit status/no mount helper, four modes, last-good errors, proposals, citations, no-op refresh, focus return; aggregate included | `fd0984e`, pushed | Visual appearance remains deferred under D-045 |
+| M6-005 | primary | Generated mock Electron flow, complete aggregate, real existing-auth smoke, one review, current docs, and pushed checkpoint close M6 | done | Post-review `pnpm verify:m6`: 151 core + 219 desktop + strict typecheck/build + 7 Electron flows; separate real existing-auth smoke 1/1; reviewer READY | `fd0984e`, pushed | Personal-library relevance/latency and final visual QA remain Joe's final hands-on work |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
@@ -129,5 +129,5 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | M3 | Discovery and recommendation slice | done | `docs/evidence/m3-discovery-recommendations.md`; green implementation `5a5d59d`/`bb85aaa`; reviewed correction/closure `1e9d347`; independent reviewer READY |
 | M4 | Set workflow slice | done | `docs/evidence/m4-set-workflow-export.md`; green/reviewed closure `10d2511` |
 | M5 | Personalization slice | done | `docs/evidence/m5-personalization-library-metadata.md`; implementation `b5cbee6`; post-review gate 151 core/137 desktop/6 Electron flows |
-| M6 | Codex-assisted slice | done | `docs/evidence/m6-codex-assistance.md`; post-review 151 core/219 desktop/7 mock Electron flows; real existing-auth smoke 1/1; reviewer READY; closure push pending |
+| M6 | Codex-assisted slice | done | `docs/evidence/m6-codex-assistance.md`; post-review 151 core/219 desktop/7 mock Electron flows; real existing-auth smoke 1/1; reviewer READY; `fd0984e`, pushed |
 | M7 | Personal release polish | not-started | Separate plan after M6 |

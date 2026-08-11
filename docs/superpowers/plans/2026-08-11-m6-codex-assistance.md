@@ -208,7 +208,7 @@ Task 4 begins after Task 1's public API is stable and may run alongside Tasks 2â
 - [x] Add one generated nonvisual Electron flow using `MockAIProvider`: import, status, filters/Similar/Next, plan preview/no-write/confirm, one revision preview/no-write/confirm, grounded explanation, cancellation, local-workflow preservation, restart, source hashes, and runtime cleanup.
 - [x] Add an explicit opt-in real Electron smoke using the production 0.147.0 provider and current ChatGPT login. Use generated IDs/metadata only. Prove status, streamed event consumption, strict natural-language search, strict small set plan, exact thread ID/resume, and actual AbortSignal cancellation. Redact response text and record only bounded booleans/categories/counts.
 - [x] Add `pnpm verify:m6`: prerequisites/residue, complete core/desktop suites, strict typecheck/build, all mock Electron flows, and diff checks. Real smoke remains a separate explicit command but must run successfully once before M6 closes.
-- [ ] Perform one concise read-only normal-workflow review, fix concrete High/Medium findings with focused regressions, synchronize docs/evidence, inspect staged payload, commit, and push.
+- [x] Perform one concise read-only normal-workflow review, fix concrete High/Medium findings with focused regressions, synchronize docs/evidence, inspect staged payload, commit, and push.
 
 ## M6 completion gate
 

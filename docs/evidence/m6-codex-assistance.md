@@ -1,7 +1,7 @@
 # M6 Codex Assistance Evidence
 
 - Date: 2026-08-11
-- Status: implementation, post-review aggregate, and real existing-auth evidence are complete; closure commit/push remains
+- Status: complete and pushed at `fd0984e`
 - Plan: `docs/superpowers/plans/2026-08-11-m6-codex-assistance.md`
 - ADR: `docs/adr/0009-codex-assistance-orchestration.md`
 
@@ -32,6 +32,8 @@
 - Final post-review `pnpm verify:m6` passes 151/151 core tests, 219/219 desktop tests, strict TypeScript, the production build, and all seven deterministic Electron flows; the real smoke is intentionally separate and was rerun after the explicit-status correction. The reviewer returned READY with no unresolved High/Medium normal-workflow defect.
 
 No personal library, audio, credential content, authenticated response text, screenshot, or visual QA has been used or claimed. Joe explicitly deferred visual QA until the completed M1–M7 app.
+
+Closure checkpoint `fd0984e` is pushed to `origin/main`.
 
 ## Shared-contract checkpoint
 
