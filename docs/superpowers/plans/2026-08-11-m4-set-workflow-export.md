@@ -304,9 +304,9 @@ All set payloads and responses are strict Zod objects. Set operations use a 30-s
 - Create: `core/tests/test_set_workflow.py`
 - Create: `fixtures/sets/m4-set.json`
 
-- [ ] Write red tests for strict snapshot validation, generated creation including a duration/count request reachable only by violating the artist cap, all edit/track-pin/position-pin/ban/goal operations, repeated tracks, unknown/missing evidence, alternative ranking, exact M3 score reuse, optimizer pin-safety/non-worsening/idempotence, analyzer thresholds/warnings, organization groups, per-suggestion IDs, and input/output truncation metadata.
-- [ ] Implement immutable pure records/functions only. Do not import SQLite, service, Electron, filesystem, XML, Codex, or preferences.
-- [ ] Run `python3 -B -m unittest core.tests.test_discovery core.tests.test_set_workflow -v`.
+- [x] Write red tests for strict snapshot validation, generated creation including a duration/count request reachable only by violating the artist cap, all edit/track-pin/position-pin/ban/goal operations, repeated tracks, unknown/missing evidence, alternative ranking, exact M3 score reuse, optimizer pin-safety/non-worsening/idempotence, analyzer thresholds/warnings, organization groups, per-suggestion IDs, and input/output truncation metadata.
+- [x] Implement immutable pure records/functions only. Do not import SQLite, service, Electron, filesystem, XML, Codex, or preferences.
+- [x] Run `python3 -B -m unittest core.tests.test_discovery core.tests.test_set_workflow -v` (32/32 passed).
 
 ### Task 2: Official parser compatibility and deterministic XML writer
 
@@ -318,10 +318,10 @@ All set payloads and responses are strict Zod objects. Set operations use a 30-s
 - Modify: `core/tests/test_rekordbox_xml.py`
 - Create: `core/tests/test_rekordbox_export.py`
 
-- [ ] First reproduce the official numeric-KeyType failure and write red writer/finalization tests.
-- [ ] Add only the frozen numeric/text compatibility and one-leaf deterministic writer/independent semantic reparse/finalize path. Accept already-resolved private export snapshots; do not edit the database/service or read personal files.
-- [ ] Cover Unicode/escaping/URI round-trip, repeated playlist entries, byte determinism, source alias, overwrite, symlink, stale/unavailable entries, injected failures, temp cleanup, and unchanged source/destination hashes.
-- [ ] Run `python3 -B -m unittest core.tests.test_rekordbox_xml core.tests.test_rekordbox_export -v`.
+- [x] First reproduce the official numeric-KeyType failure and write red writer/finalization tests.
+- [x] Add only the frozen numeric/text compatibility and one-leaf deterministic writer/independent semantic reparse/finalize path. Accept already-resolved private export snapshots; do not edit the database/service or read personal files.
+- [x] Cover Unicode/escaping/URI round-trip, repeated playlist entries, byte determinism, source alias, overwrite, symlink, stale/unavailable entries, injected failures, temp cleanup, and unchanged source/destination hashes.
+- [x] Run `python3 -B -m unittest core.tests.test_rekordbox_xml core.tests.test_rekordbox_export -v` (19/19 passed).
 
 Tasks 1 and 2 are independent and may run in parallel.
 
@@ -336,9 +336,9 @@ Tasks 1 and 2 are independent and may run in parallel.
 - Create: `core/tests/test_set_service.py`
 - Modify: relevant migration/service regression tests
 
-- [ ] Write red tests for backup-before-DDL, v1/v2/v3 startup paths, source-path persistence, atomic revisions/conflicts, undo/redo branching, live/current versus historical/content revisions, view-concurrent-edit-restore conflict, version restore, reimport stale resolution, create variants, all strict commands, path-free responses, private export snapshots, and failure preservation.
-- [ ] Implement the three tables and eight fixed commands using Task 1/2 pure functions. Keep the Python core the sole SQLite owner; transactions append/advance state atomically.
-- [ ] Run focused migration/repository/service suites, then `python3 -B -m unittest discover -s core/tests -v` outside the outer sandbox when Unix sockets require permission.
+- [x] Write red tests for backup-before-DDL, v1/v2/v3 startup paths, source-path persistence, atomic revisions/conflicts, undo/redo branching, live/current versus historical/content revisions, view-concurrent-edit-restore conflict, version restore, reimport stale resolution, create variants, all strict commands, path-free responses, private export snapshots, and failure preservation.
+- [x] Implement the three tables and eight fixed commands using Task 1/2 pure functions. Keep the Python core the sole SQLite owner; transactions append/advance state atomically.
+- [x] Run focused migration/repository/service suites, then `python3 -B -m unittest discover -s core/tests -v` outside the outer sandbox when Unix sockets require permission (11/11 focused and 117/117 complete core passed).
 
 ### Task 4: Strict desktop boundary and confirmation state
 
@@ -354,9 +354,9 @@ Tasks 1 and 2 are independent and may run in parallel.
 - Modify: `app/desktop/tests/preload-contract.test.ts`
 - Modify: `app/desktop/tests/core-client.test.ts` only if the bounded timeout needs coverage
 
-- [ ] Write red strict schemas and IPC tests for every enum/bound/union, unknown-field rejection, path/external-ID omission, trusted sender, native picker cancel/new/overwrite, absent-file race, symlink/non-regular rejection, source alias, token binding/reuse/expiry/revision substitution, known core errors, and unknown destination state on replace/transport uncertainty.
-- [ ] Add only the fixed six sets and two export methods. Keep pending confirmations in Electron main memory and clear them on use/expiry/shutdown.
-- [ ] Run `pnpm --dir app/desktop test set-contracts main-security preload-contract core-client` and `pnpm typecheck`.
+- [x] Write red strict schemas and IPC tests for every enum/bound/union, unknown-field rejection, path/external-ID omission, trusted sender, native picker cancel/new/overwrite, absent-file race, symlink/non-regular rejection, source alias, token binding/reuse/expiry/revision substitution, known core errors, and unknown destination state on replace/transport uncertainty.
+- [x] Add only the fixed six sets and two export methods. Keep pending confirmations in Electron main memory and clear them on use/expiry/shutdown.
+- [x] Run `pnpm --dir app/desktop test set-contracts main-security preload-contract core-client` and `pnpm typecheck` (32/32 focused; 114/114 complete desktop; typecheck passed).
 
 Tasks 3 and 4 begin only after Task 1/2 domain/wire shapes are stable. Their file ownership is disjoint and they may then run in parallel; the primary integrates their shared assumptions.
 
@@ -377,10 +377,10 @@ Tasks 3 and 4 begin only after Task 1/2 domain/wire shapes are stable. Their fil
 - Create: `app/desktop/tests/set-workspace.test.tsx`
 - Modify: historical renderer mocks/tests for the required DesktopApi surface
 
-- [ ] Write behavior tests first for selected/playlist/seed/constraint creation; saved-set loading; ordered move controls; track pin, position pin, ban/remove, insert, replace, role/energy goal, plan edits, optimize, undo/redo plus macOS shortcuts, version save/view/restore, stale-response suppression, focus/live announcements, analyzer/progression/transition details, advisory organization, and every export state.
-- [ ] Implement one inline workspace without a router, pointer-drag dependency, chart package, renderer scoring, or filesystem access. Use native ordered lists, buttons, inputs, tables/figures with text equivalents, details, and inline confirmation. Preserve the Library screen's state when returning.
-- [ ] Keep editor state usable after inspection/export failures and preserve the last good snapshot/inspection while refreshing.
-- [ ] Run `pnpm --dir app/desktop test set-workspace discovery-screen library-screen analysis-screen`, `pnpm typecheck`, and `pnpm --dir app/desktop build`. No screenshots.
+- [x] Write behavior tests first for selected/playlist/seed/constraint creation; saved-set loading; ordered move controls; track pin, position pin, ban/remove, insert, replace, role/energy goal, plan edits, optimize, undo/redo plus macOS shortcuts, version save/view/restore, stale-response suppression, focus/live announcements, analyzer/progression/transition details, advisory organization, and every export state.
+- [x] Implement one inline workspace without a router, pointer-drag dependency, chart package, renderer scoring, or filesystem access. Use native ordered lists, buttons, inputs, tables/figures with text equivalents, details, and inline confirmation. Preserve the Library screen's state when returning.
+- [x] Keep editor state usable after inspection/export failures and preserve the last good snapshot/inspection while refreshing.
+- [x] Run `pnpm --dir app/desktop test set-workspace discovery-screen library-screen analysis-screen`, `pnpm typecheck`, and `pnpm --dir app/desktop build` (34/34 focused; 114/114 complete desktop; typecheck and build passed). No screenshots.
 
 ### Task 6: Generated import-to-export flow, aggregate, review, and project memory
 
