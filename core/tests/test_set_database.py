@@ -6,7 +6,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from dj_copilot.database import LibraryDatabase
+from dj_copilot.database import FeedbackWrite, LibraryDatabase
 from dj_copilot.discovery import TrackFilters
 from dj_copilot.models import ImportedTrack, RekordboxImport
 from dj_copilot.set_workflow import DraftPlan, apply_draft_mutation, create_draft
@@ -54,7 +54,7 @@ class SetDatabaseMigrationTests(unittest.TestCase):
     def tearDown(self):
         self.temporary_directory.cleanup()
 
-    def test_v2_upgrade_backs_up_before_v3_ddl_and_creates_exact_draft_tables(self):
+    def test_v2_upgrade_backs_up_before_draft_ddl_and_reaches_current_v4_schema(self):
         path = self.root / "dj-copilot.sqlite3"
         create_v2_database(path)
         reserved = self.root / "dj-copilot.pre-m4.sqlite3"
@@ -64,7 +64,7 @@ class SetDatabaseMigrationTests(unittest.TestCase):
         try:
             backup_path = self.root / "dj-copilot.pre-m4-2.sqlite3"
             self.assertEqual(database.migration_backup_path, backup_path)
-            self.assertEqual(database.connection.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(database.connection.execute("PRAGMA user_version").fetchone()[0], 4)
             self.assertEqual(
                 {
                     row[0]
@@ -88,7 +88,7 @@ class SetDatabaseMigrationTests(unittest.TestCase):
         finally:
             backup.close()
 
-    def test_v3_reopen_never_creates_another_backup_and_versions_above_v3_fail_closed(self):
+    def test_v4_reopen_never_creates_another_backup_and_versions_above_v4_fail_closed(self):
         path = self.root / "dj-copilot.sqlite3"
         create_v2_database(path)
         first = LibraryDatabase(path)
@@ -103,9 +103,9 @@ class SetDatabaseMigrationTests(unittest.TestCase):
             reopened.close()
 
         connection = sqlite3.connect(path)
-        connection.execute("PRAGMA user_version = 4")
+        connection.execute("PRAGMA user_version = 5")
         connection.close()
-        with self.assertRaisesRegex(RuntimeError, "newer than supported version 3"):
+        with self.assertRaisesRegex(RuntimeError, "newer than supported version 4"):
             LibraryDatabase(path)
         self.assertEqual(list(self.root.glob("dj-copilot.pre-m4*.sqlite3")), backups)
 
@@ -204,6 +204,93 @@ class SetDraftHistoryRepositoryTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "100 saved versions"):
             self.database.save_set_draft_version(created.id, 1, "Version 101")
         self.assertEqual(len(self.database.list_set_draft_versions(created.id)), 100)
+
+    def test_revision_feedback_is_atomic_and_absent_for_conflicts_and_no_ops(self):
+        created = self.database.create_set_draft(self.state)
+        moved = apply_draft_mutation(
+            self.state,
+            {
+                "type": "move_entry",
+                "entry_id": self.state.entries[0].id,
+                "to_index": 1,
+            },
+            self.catalog,
+        )
+        feedback = FeedbackWrite(
+            "manual_reorder",
+            self.state.entries[0].track_id,
+            draft_id=created.id,
+            old_index=0,
+            new_index=1,
+        )
+
+        updated = self.database.append_set_draft_revision(
+            created.id,
+            1,
+            moved,
+            "move_entry",
+            feedback=(feedback,),
+        )
+        conflict = self.database.append_set_draft_revision(
+            created.id,
+            1,
+            moved,
+            "move_entry",
+            feedback=(feedback,),
+        )
+        no_op = self.database.append_set_draft_revision(
+            created.id,
+            2,
+            moved,
+            "move_entry",
+            feedback=(feedback,),
+        )
+
+        self.assertEqual((updated.current_revision, no_op.current_revision), (2, 2))
+        self.assertIsNone(conflict)
+        self.assertEqual(
+            self.database.connection.execute(
+                "SELECT COUNT(*) FROM user_feedback"
+            ).fetchone()[0],
+            1,
+        )
+
+        renamed = apply_draft_mutation(
+            moved,
+            {"type": "rename", "title": "Must roll back"},
+            self.catalog,
+        )
+        with self.assertRaises(Exception):
+            self.database.append_set_draft_revision(
+                created.id,
+                2,
+                renamed,
+                "rename",
+                feedback=(
+                    FeedbackWrite(
+                        "manual_reorder",
+                        "removed-track",
+                        draft_id=created.id,
+                        old_index=0,
+                        new_index=1,
+                    ),
+                ),
+            )
+        head = self.database.get_set_draft(created.id)
+        self.assertEqual((head.current_revision, head.state), (2, moved))
+        self.assertEqual(
+            self.database.connection.execute(
+                "SELECT COUNT(*) FROM set_draft_revisions WHERE draft_id = ?",
+                (created.id,),
+            ).fetchone()[0],
+            2,
+        )
+        self.assertEqual(
+            self.database.connection.execute(
+                "SELECT COUNT(*) FROM user_feedback"
+            ).fetchone()[0],
+            1,
+        )
 
 
 

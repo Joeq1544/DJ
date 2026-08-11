@@ -9,17 +9,55 @@ from pathlib import Path
 import sqlite3
 import threading
 import time
+import unicodedata
 import uuid
 
 from .analysis.provider import AnalysisFeatures
-from .discovery import TrackEvidence, TrackFilters, filter_evidence
+from .discovery import DiscoveryError, TrackEvidence, TrackFilters, filter_evidence
 from .models import AnalysisSummary, ImportSummary, PlaylistTreeNode, RekordboxImport, StoredTrack, TrackPage
+from .personalization import (
+    PreferenceEvent,
+    PreferenceModel,
+    PreferenceProfile,
+    PreferenceRating,
+    PreferenceTrack,
+    build_preference_model,
+    candidate_preference,
+)
 from .rekordbox_xml import RekordboxImportError, parse_rekordbox_xml
 from .set_workflow import DraftError, DraftState, draft_state_from_payload, draft_state_to_payload
 
 
 _ANALYSIS_STATUSES = frozenset(("queued", "running", "paused", "succeeded", "failed"))
+_DISCOVERY_INTENTS = frozenset(
+    (
+        "smooth",
+        "build",
+        "peak",
+        "reset",
+        "genre_shift",
+        "adventurous",
+        "singalong_continuation",
+        "closer",
+    )
+)
+_FEEDBACK_EVENT_TYPES = frozenset(
+    (
+        "liked",
+        "disliked",
+        "accepted",
+        "rejected",
+        "skipped",
+        "manual_replacement",
+        "manual_reorder",
+        "pinned",
+        "removed",
+        "banned",
+    )
+)
 DISCOVERY_SCAN_LIMIT = 25_000
+CURRENT_SCHEMA_VERSION = 4
+_EMPTY_METADATA_TIMESTAMP = "00000000000000000000"
 
 
 @dataclass(frozen=True)
@@ -43,6 +81,50 @@ class SetDraftVersion:
     version: int
     revision: int
     label: str
+
+
+@dataclass(frozen=True)
+class TrackUserMetadata:
+    track_id: str
+    rating: int | None
+    tags: tuple[str, ...]
+    note: str | None
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class SavedFilterRecord:
+    id: str
+    name: str
+    filters: TrackFilters
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class FeedbackWrite:
+    event_type: str
+    track_id: str
+    related_track_id: str | None = None
+    seed_track_id: str | None = None
+    intent: str | None = None
+    draft_id: str | None = None
+    old_index: int | None = None
+    new_index: int | None = None
+
+
+@dataclass(frozen=True)
+class PreferenceResetRecord:
+    cleared_feedback_count: int
+    cleared_rating_count: int
+    profile: PreferenceProfile
+
+
+@dataclass(frozen=True)
+class PreferenceExportRecord:
+    format: str
+    profile: PreferenceProfile
+    rating_count: int
 
 
 class LibraryDatabase:
@@ -165,6 +247,9 @@ class LibraryDatabase:
                     )
                 self.connection.execute("DELETE FROM analysis_jobs WHERE track_id NOT IN (SELECT id FROM tracks)")
                 self.connection.execute("DELETE FROM track_features WHERE track_id NOT IN (SELECT id FROM tracks)")
+                self.connection.execute(
+                    "DELETE FROM track_user_metadata WHERE track_id NOT IN (SELECT id FROM tracks)"
+                )
                 self.connection.execute(
                     """
                     INSERT INTO library_state (singleton, revision, source_sha256, source_path)
@@ -295,6 +380,340 @@ class LibraryDatabase:
             evidence, _ = self._track_evidence_catalog(track_id=track_id)
             return evidence[0] if evidence else None
 
+    def get_track_metadata(self, track_id: str) -> TrackUserMetadata:
+        """Return current app-owned metadata, including a stable empty value."""
+        with self._lock:
+            if not self._track_exists(track_id):
+                raise RekordboxImportError("not_found", "The requested track was not found.")
+            row = self.connection.execute(
+                "SELECT rating, note, tags_json, updated_at FROM track_user_metadata WHERE track_id = ?",
+                (track_id,),
+            ).fetchone()
+            if row is None:
+                return TrackUserMetadata(track_id, None, (), None, _EMPTY_METADATA_TIMESTAMP)
+            return TrackUserMetadata(
+                track_id,
+                row["rating"],
+                _decode_user_tags(row["tags_json"]),
+                row["note"],
+                row["updated_at"],
+            )
+
+    def update_track_metadata(
+        self,
+        track_id: str,
+        *,
+        rating: int | None,
+        tags: tuple[str, ...],
+        note: str | None,
+    ) -> TrackUserMetadata:
+        """Normalize and atomically replace one current track's user metadata."""
+        normalized_rating, normalized_tags, normalized_note = _normalize_user_metadata(
+            rating,
+            tags,
+            note,
+        )
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                if not self._track_exists(track_id):
+                    raise RekordboxImportError("not_found", "The requested track was not found.")
+                if normalized_rating is None and not normalized_tags and normalized_note is None:
+                    self.connection.execute(
+                        "DELETE FROM track_user_metadata WHERE track_id = ?",
+                        (track_id,),
+                    )
+                    self.connection.commit()
+                    return TrackUserMetadata(
+                        track_id,
+                        None,
+                        (),
+                        None,
+                        _EMPTY_METADATA_TIMESTAMP,
+                    )
+                timestamp = self._timestamp()
+                self.connection.execute(
+                    """
+                    INSERT INTO track_user_metadata (track_id, rating, note, tags_json, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(track_id) DO UPDATE SET
+                        rating = excluded.rating,
+                        note = excluded.note,
+                        tags_json = excluded.tags_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        track_id,
+                        normalized_rating,
+                        normalized_note,
+                        _encode_user_tags(normalized_tags),
+                        timestamp,
+                    ),
+                )
+                self.connection.commit()
+                return TrackUserMetadata(
+                    track_id,
+                    normalized_rating,
+                    normalized_tags,
+                    normalized_note,
+                    timestamp,
+                )
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def list_saved_filters(self) -> tuple[SavedFilterRecord, ...]:
+        with self._lock:
+            return tuple(
+                _saved_filter_from_row(row)
+                for row in self.connection.execute(
+                    """
+                    SELECT id, name, filter_json, created_at, updated_at
+                    FROM saved_filters
+                    ORDER BY name COLLATE NOCASE, id
+                    """
+                )
+            )
+
+    def save_saved_filter(
+        self,
+        filter_id: str | None,
+        name: str,
+        filters: TrackFilters,
+    ) -> SavedFilterRecord:
+        normalized_name = _normalize_saved_filter_name(name)
+        encoded_filters = _encode_saved_filters(filters)
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                if filters.playlist_id is not None and not self.connection.execute(
+                    "SELECT 1 FROM playlists WHERE id = ?",
+                    (filters.playlist_id,),
+                ).fetchone():
+                    raise RekordboxImportError(
+                        "not_found",
+                        "The saved filter playlist was not found.",
+                    )
+                timestamp = self._timestamp()
+                if filter_id is None:
+                    count = self.connection.execute(
+                        "SELECT COUNT(*) FROM saved_filters"
+                    ).fetchone()[0]
+                    if count >= 50:
+                        raise RekordboxImportError(
+                            "saved_filter_limit",
+                            "At most 50 saved filters are supported.",
+                        )
+                    record_id = str(uuid.uuid4())
+                    created_at = timestamp
+                    self.connection.execute(
+                        """
+                        INSERT INTO saved_filters (id, name, filter_json, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (record_id, normalized_name, encoded_filters, created_at, timestamp),
+                    )
+                else:
+                    record_id = _canonical_uuid(filter_id, "saved filter")
+                    existing = self.connection.execute(
+                        "SELECT created_at FROM saved_filters WHERE id = ?",
+                        (record_id,),
+                    ).fetchone()
+                    if existing is None:
+                        raise RekordboxImportError(
+                            "not_found",
+                            "The saved filter was not found.",
+                        )
+                    created_at = existing["created_at"]
+                    self.connection.execute(
+                        """
+                        UPDATE saved_filters
+                        SET name = ?, filter_json = ?, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (normalized_name, encoded_filters, timestamp, record_id),
+                    )
+                self.connection.commit()
+                return SavedFilterRecord(
+                    record_id,
+                    normalized_name,
+                    filters,
+                    created_at,
+                    timestamp,
+                )
+            except sqlite3.IntegrityError as error:
+                self.connection.rollback()
+                raise RekordboxImportError(
+                    "duplicate_saved_filter",
+                    "Saved filter names must be unique ignoring case.",
+                ) from error
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def delete_saved_filter(self, filter_id: str) -> None:
+        record_id = _canonical_uuid(filter_id, "saved filter")
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                deleted = self.connection.execute(
+                    "DELETE FROM saved_filters WHERE id = ?",
+                    (record_id,),
+                )
+                if deleted.rowcount != 1:
+                    raise RekordboxImportError(
+                        "not_found",
+                        "The saved filter was not found.",
+                    )
+                self.connection.commit()
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def record_feedback(self, write: FeedbackWrite) -> PreferenceProfile:
+        """Persist one validated current-library signal and return its projection."""
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                self._insert_feedback(write)
+                profile = self._preference_model().profile
+                self.connection.commit()
+                return profile
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def get_preference_model(self) -> PreferenceModel:
+        with self._lock:
+            return self._preference_model()
+
+    def get_preference_profile(self) -> PreferenceProfile:
+        return self.get_preference_model().profile
+
+    def reset_preferences(self) -> PreferenceResetRecord:
+        """Clear feedback and ratings while retaining all other app-owned state."""
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                feedback_count = self.connection.execute(
+                    "SELECT COUNT(*) FROM user_feedback"
+                ).fetchone()[0]
+                rating_count = self.connection.execute(
+                    "SELECT COUNT(*) FROM track_user_metadata WHERE rating IS NOT NULL"
+                ).fetchone()[0]
+                self.connection.execute("DELETE FROM user_feedback")
+                if rating_count:
+                    self.connection.execute(
+                        """
+                        UPDATE track_user_metadata
+                        SET rating = NULL, updated_at = ?
+                        WHERE rating IS NOT NULL
+                        """,
+                        (self._timestamp(),),
+                    )
+                    self.connection.execute(
+                        """
+                        DELETE FROM track_user_metadata
+                        WHERE rating IS NULL AND note IS NULL AND tags_json = '[]'
+                        """
+                    )
+                profile = self._preference_model().profile
+                self.connection.commit()
+                return PreferenceResetRecord(feedback_count, rating_count, profile)
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def get_preference_export(self) -> PreferenceExportRecord:
+        with self._lock:
+            model = self._preference_model()
+            rating_count = self.connection.execute(
+                "SELECT COUNT(*) FROM track_user_metadata WHERE rating IS NOT NULL"
+            ).fetchone()[0]
+            return PreferenceExportRecord(
+                "dj-copilot-preferences-v1",
+                model.profile,
+                rating_count,
+            )
+
+    def preference_track_display(
+        self,
+        track_id: str,
+    ) -> tuple[str | None, str | None] | None:
+        """Resolve bounded display metadata for a current profile affinity."""
+        with self._lock:
+            row = self.connection.execute(
+                "SELECT title, artist FROM tracks WHERE id = ?",
+                (track_id,),
+            ).fetchone()
+            return (row["title"], row["artist"]) if row is not None else None
+
+    def _insert_feedback(self, write: FeedbackWrite) -> None:
+        _validate_feedback_write(write)
+        referenced_ids = tuple(
+            value
+            for value in (write.track_id, write.related_track_id, write.seed_track_id)
+            if value is not None
+        )
+        if any(not self._track_exists(track_id) for track_id in referenced_ids):
+            raise RekordboxImportError(
+                "not_found",
+                "A referenced feedback track was not found.",
+            )
+        self.connection.execute(
+            """
+            INSERT INTO user_feedback (
+                event_type, track_id, related_track_id, seed_track_id, intent,
+                draft_id, old_index, new_index, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                write.event_type,
+                write.track_id,
+                write.related_track_id,
+                write.seed_track_id,
+                write.intent,
+                write.draft_id,
+                write.old_index,
+                write.new_index,
+                self._timestamp(),
+            ),
+        )
+
+    def _preference_model(self) -> PreferenceModel:
+        current_tracks = tuple(
+            PreferenceTrack(row["id"], row["genre"])
+            for row in self.connection.execute(
+                "SELECT id, genre FROM tracks ORDER BY id"
+            )
+        )
+        events = tuple(
+            PreferenceEvent(
+                row["event_type"],
+                row["track_id"],
+                row["related_track_id"],
+            )
+            for row in self.connection.execute(
+                """
+                SELECT event_type, track_id, related_track_id
+                FROM user_feedback
+                ORDER BY id
+                """
+            )
+        )
+        ratings = tuple(
+            PreferenceRating(row["track_id"], row["rating"])
+            for row in self.connection.execute(
+                """
+                SELECT track_id, rating
+                FROM track_user_metadata
+                WHERE rating IS NOT NULL
+                ORDER BY track_id
+                """
+            )
+        )
+        return build_preference_model(current_tracks, events, ratings)
+
     def get_track_source_path(self, track_id: str) -> Path | None:
         """Return the service-private local source for one stable application track ID."""
         with self._lock:
@@ -411,6 +830,7 @@ class LibraryDatabase:
         operation: str,
         *,
         force_append: bool = False,
+        feedback: tuple[FeedbackWrite, ...] = (),
     ) -> SetDraftRecord | None:
         """Append one child revision, or return ``None`` for an optimistic conflict."""
         snapshot_json = _encode_draft_snapshot(state)
@@ -418,6 +838,8 @@ class LibraryDatabase:
             raise ValueError("invalid set draft operation")
         if type(force_append) is not bool:
             raise ValueError("invalid force-append flag")
+        if type(feedback) is not tuple:
+            raise ValueError("invalid draft feedback")
         with self._lock:
             try:
                 self.connection.execute("BEGIN IMMEDIATE")
@@ -451,6 +873,8 @@ class LibraryDatabase:
                     """,
                     (revision, revision + 1, timestamp, draft_id),
                 )
+                for write in feedback:
+                    self._insert_feedback(write)
                 self.connection.commit()
                 return SetDraftRecord(draft_id, revision, revision, None, state)
             except Exception:
@@ -1108,10 +1532,14 @@ class LibraryDatabase:
                    track_features.provider AS feature_provider,
                    track_features.provider_version AS feature_provider_version,
                    track_features.pipeline_version AS feature_pipeline_version,
+                   track_user_metadata.rating AS user_rating,
+                   track_user_metadata.note AS user_note,
+                   track_user_metadata.tags_json AS user_tags_json,
                    GROUP_CONCAT(DISTINCT memberships.playlist_id) AS playlist_ids
             FROM tracks
             LEFT JOIN analysis_jobs ON analysis_jobs.track_id = tracks.id
             LEFT JOIN track_features ON track_features.track_id = tracks.id
+            LEFT JOIN track_user_metadata ON track_user_metadata.track_id = tracks.id
             LEFT JOIN playlist_tracks AS memberships ON memberships.track_id = tracks.id
         """
         parameters: list[object] = []
@@ -1140,6 +1568,7 @@ class LibraryDatabase:
         rows = list(self.connection.execute(sql, parameters))
         truncated = track_id is None and len(rows) > DISCOVERY_SCAN_LIMIT
         visible_rows = rows[:DISCOVERY_SCAN_LIMIT]
+        preference_model = self._preference_model()
         evidence: list[TrackEvidence] = []
         for row in visible_rows:
             track = StoredTrack(
@@ -1158,7 +1587,23 @@ class LibraryDatabase:
             playlist_ids = tuple(
                 sorted(value for value in (row["playlist_ids"] or "").split(",") if value)
             )
-            evidence.append(TrackEvidence(track, analysis, playlist_ids))
+            evidence.append(
+                TrackEvidence(
+                    track,
+                    analysis,
+                    playlist_ids,
+                    row["user_rating"],
+                    _decode_user_tags(row["user_tags_json"])
+                    if row["user_tags_json"] is not None
+                    else (),
+                    row["user_note"],
+                    candidate_preference(
+                        preference_model,
+                        row["id"],
+                        row["genre"],
+                    ),
+                )
+            )
         return tuple(evidence), truncated
 
     def _track_filter_signature(self, filters: TrackFilters) -> str:
@@ -1167,10 +1612,29 @@ class LibraryDatabase:
         ).fetchone()
         revision = revision_row["revision"] if revision_row is not None else 0
         encoded = json.dumps(
-            {"revision": revision, "filters": asdict(filters)},
+            {
+                "revision": revision,
+                "metadata": self._metadata_signature(),
+                "filters": asdict(filters),
+            },
             ensure_ascii=True,
             separators=(",", ":"),
             sort_keys=True,
+        ).encode("ascii")
+        return hashlib.sha256(encoded).hexdigest()[:24]
+
+    def _metadata_signature(self) -> str:
+        rows = self.connection.execute(
+            """
+            SELECT track_id, rating, note, tags_json, updated_at
+            FROM track_user_metadata
+            ORDER BY track_id
+            """
+        )
+        encoded = json.dumps(
+            [tuple(row) for row in rows],
+            ensure_ascii=True,
+            separators=(",", ":"),
         ).encode("ascii")
         return hashlib.sha256(encoded).hexdigest()[:24]
 
@@ -1190,8 +1654,10 @@ class LibraryDatabase:
     def _create_schema(self) -> None:
         with self._lock:
             version = self.connection.execute("PRAGMA user_version").fetchone()[0]
-            if version > 3:
-                raise RuntimeError(f"database schema version {version} is newer than supported version 3")
+            if version > CURRENT_SCHEMA_VERSION:
+                raise RuntimeError(
+                    f"database schema version {version} is newer than supported version {CURRENT_SCHEMA_VERSION}"
+                )
             track_columns = {
                 row["name"] for row in self.connection.execute("PRAGMA table_info(tracks)")
             }
@@ -1199,6 +1665,8 @@ class LibraryDatabase:
                 self.migration_backup_path = self._backup_before_m2()
             elif version == 2:
                 self.migration_backup_path = self._backup_before_m4()
+            elif version == 3:
+                self.migration_backup_path = self._backup_before_m5()
             try:
                 self.connection.execute("BEGIN IMMEDIATE")
                 self.connection.execute(
@@ -1344,12 +1812,57 @@ class LibraryDatabase:
                     """
                 )
                 self.connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS track_user_metadata (
+                        track_id TEXT PRIMARY KEY,
+                        rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
+                        note TEXT,
+                        tags_json TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+                self.connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS saved_filters (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                        filter_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+                self.connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS user_feedback (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        event_type TEXT NOT NULL CHECK (
+                            event_type IN (
+                                'liked','disliked','accepted','rejected','skipped',
+                                'manual_replacement','manual_reorder','pinned','removed','banned'
+                            )
+                        ),
+                        track_id TEXT NOT NULL,
+                        related_track_id TEXT,
+                        seed_track_id TEXT,
+                        intent TEXT,
+                        draft_id TEXT,
+                        old_index INTEGER,
+                        new_index INTEGER,
+                        created_at TEXT NOT NULL
+                    )
+                    """
+                )
+                self.connection.execute(
                     "INSERT OR IGNORE INTO analysis_control (singleton, paused) VALUES (1, 0)"
                 )
                 self.connection.execute(
                     "UPDATE analysis_jobs SET status = 'queued' WHERE status = 'running'"
                 )
-                self.connection.execute("PRAGMA user_version = 3")
+                self.connection.execute(
+                    f"PRAGMA user_version = {CURRENT_SCHEMA_VERSION}"
+                )
                 self.connection.commit()
             except Exception:
                 self.connection.rollback()
@@ -1384,6 +1897,261 @@ class LibraryDatabase:
         finally:
             destination.close()
         return candidate
+
+    def _backup_before_m5(self) -> Path:
+        suffix = 1
+        while True:
+            numbered = "" if suffix == 1 else f"-{suffix}"
+            candidate = self.path.with_name(
+                f"{self.path.stem}.pre-m5{numbered}.sqlite3"
+            )
+            if not candidate.exists():
+                break
+            suffix += 1
+        destination = sqlite3.connect(candidate)
+        try:
+            self.connection.backup(destination)
+        finally:
+            destination.close()
+        return candidate
+
+
+def _normalize_user_metadata(
+    rating: int | None,
+    tags: tuple[str, ...],
+    note: str | None,
+) -> tuple[int | None, tuple[str, ...], str | None]:
+    if rating is not None and (type(rating) is not int or not 1 <= rating <= 5):
+        raise RekordboxImportError(
+            "invalid_metadata",
+            "A track rating must be an integer from 1 to 5.",
+        )
+    if type(tags) is not tuple or len(tags) > 20:
+        raise RekordboxImportError(
+            "invalid_metadata",
+            "Track tags must contain at most 20 values.",
+        )
+    normalized_tags: list[str] = []
+    seen = set()
+    for tag in tags:
+        if not isinstance(tag, str):
+            raise RekordboxImportError(
+                "invalid_metadata",
+                "Track tags must be text.",
+            )
+        normalized = unicodedata.normalize("NFKC", tag).strip()
+        if not 1 <= len(normalized) <= 40:
+            raise RekordboxImportError(
+                "invalid_metadata",
+                "Each track tag must contain 1 to 40 characters.",
+            )
+        key = normalized.casefold()
+        if key not in seen:
+            normalized_tags.append(normalized)
+            seen.add(key)
+    if note is not None:
+        if not isinstance(note, str):
+            raise RekordboxImportError(
+                "invalid_metadata",
+                "A track note must be text.",
+            )
+        note = note.strip()
+        if not note:
+            note = None
+        elif len(note) > 2_000:
+            raise RekordboxImportError(
+                "invalid_metadata",
+                "A track note may contain at most 2,000 characters.",
+            )
+    return rating, tuple(normalized_tags), note
+
+
+def _validate_feedback_write(write: FeedbackWrite) -> None:
+    if not isinstance(write, FeedbackWrite):
+        raise RekordboxImportError(
+            "invalid_request",
+            "Feedback must use the expected record shape.",
+        )
+    if write.event_type not in _FEEDBACK_EVENT_TYPES:
+        raise RekordboxImportError(
+            "invalid_request",
+            "The feedback type is invalid.",
+        )
+    _validate_feedback_id(write.track_id, "track")
+    if write.related_track_id is not None:
+        _validate_feedback_id(write.related_track_id, "related track")
+    if write.seed_track_id is not None:
+        _validate_feedback_id(write.seed_track_id, "seed track")
+    if write.draft_id is not None:
+        _validate_feedback_id(write.draft_id, "draft")
+    for value in (write.old_index, write.new_index):
+        if value is not None and (
+            type(value) is not int or not 0 <= value <= 99
+        ):
+            raise RekordboxImportError(
+                "invalid_request",
+                "A feedback set index is invalid.",
+            )
+
+    optional_shape = (
+        write.related_track_id,
+        write.seed_track_id,
+        write.intent,
+        write.draft_id,
+        write.old_index,
+        write.new_index,
+    )
+    if write.event_type in {"liked", "disliked"}:
+        valid = optional_shape == (None, None, None, None, None, None)
+    elif write.event_type in {"accepted", "rejected", "skipped"}:
+        valid = (
+            write.related_track_id is None
+            and write.seed_track_id is not None
+            and write.intent in _DISCOVERY_INTENTS
+            and write.draft_id is None
+            and write.old_index is None
+            and write.new_index is None
+        )
+    elif write.event_type == "manual_replacement":
+        valid = (
+            write.related_track_id is not None
+            and write.seed_track_id is None
+            and write.intent is None
+            and write.draft_id is not None
+            and write.old_index is not None
+            and write.new_index is not None
+        )
+    elif write.event_type == "manual_reorder":
+        valid = (
+            write.related_track_id is None
+            and write.seed_track_id is None
+            and write.intent is None
+            and write.draft_id is not None
+            and write.old_index is not None
+            and write.new_index is not None
+        )
+    elif write.event_type == "pinned":
+        valid = (
+            write.related_track_id is None
+            and write.seed_track_id is None
+            and write.intent is None
+            and write.draft_id is not None
+            and write.old_index is None
+            and write.new_index is not None
+        )
+    else:
+        valid = (
+            write.related_track_id is None
+            and write.seed_track_id is None
+            and write.intent is None
+            and write.draft_id is not None
+            and write.old_index is not None
+            and write.new_index is None
+        )
+    if not valid:
+        raise RekordboxImportError(
+            "invalid_request",
+            "The feedback fields do not match the feedback type.",
+        )
+
+
+def _validate_feedback_id(value: object, label: str) -> None:
+    if not isinstance(value, str) or not 1 <= len(value) <= 128:
+        raise RekordboxImportError(
+            "invalid_request",
+            f"The feedback {label} ID is invalid.",
+        )
+
+
+def _encode_user_tags(tags: tuple[str, ...]) -> str:
+    return json.dumps(tags, ensure_ascii=False, separators=(",", ":"))
+
+
+def _decode_user_tags(encoded: str) -> tuple[str, ...]:
+    try:
+        payload = json.loads(encoded)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise ValueError("stored user tags are invalid") from error
+    if not isinstance(payload, list):
+        raise ValueError("stored user tags are invalid")
+    _, normalized, _ = _normalize_user_metadata(None, tuple(payload), None)
+    if list(normalized) != payload:
+        raise ValueError("stored user tags are not canonical")
+    return normalized
+
+
+def _normalize_saved_filter_name(name: str) -> str:
+    if not isinstance(name, str):
+        raise RekordboxImportError(
+            "invalid_saved_filter",
+            "A saved filter name must be text.",
+        )
+    normalized = name.strip()
+    if not 1 <= len(normalized) <= 80:
+        raise RekordboxImportError(
+            "invalid_saved_filter",
+            "A saved filter name must contain 1 to 80 characters.",
+        )
+    return normalized
+
+
+def _canonical_uuid(value: object, label: str) -> str:
+    if not isinstance(value, str):
+        raise RekordboxImportError("invalid_request", f"The {label} ID is invalid.")
+    try:
+        parsed = uuid.UUID(value)
+    except (ValueError, AttributeError) as error:
+        raise RekordboxImportError(
+            "invalid_request",
+            f"The {label} ID is invalid.",
+        ) from error
+    if str(parsed) != value:
+        raise RekordboxImportError("invalid_request", f"The {label} ID is invalid.")
+    return value
+
+
+def _encode_saved_filters(filters: TrackFilters) -> str:
+    if not isinstance(filters, TrackFilters):
+        raise RekordboxImportError(
+            "invalid_saved_filter",
+            "Saved filters must use TrackFilters.",
+        )
+    try:
+        filter_evidence((), filters)
+    except DiscoveryError as error:
+        raise RekordboxImportError("invalid_saved_filter", error.message) from error
+    return json.dumps(
+        asdict(filters),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _decode_saved_filters(encoded: str) -> TrackFilters:
+    try:
+        payload = json.loads(encoded)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise ValueError("stored saved filters are invalid") from error
+    expected = {field.name for field in fields(TrackFilters)}
+    if type(payload) is not dict or set(payload) != expected:
+        raise ValueError("stored saved filters have an invalid shape")
+    try:
+        filters = TrackFilters(**payload)
+        filter_evidence((), filters)
+    except (TypeError, DiscoveryError) as error:
+        raise ValueError("stored saved filters are invalid") from error
+    return filters
+
+
+def _saved_filter_from_row(row: sqlite3.Row) -> SavedFilterRecord:
+    return SavedFilterRecord(
+        row["id"],
+        row["name"],
+        _decode_saved_filters(row["filter_json"]),
+        row["created_at"],
+        row["updated_at"],
+    )
 
 
 def _page_from_rows(rows: list[sqlite3.Row], limit: int, cursor_tuple) -> TrackPage:

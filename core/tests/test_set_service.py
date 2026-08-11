@@ -263,6 +263,206 @@ class SetServiceDispatchTests(unittest.TestCase):
         self.assertEqual(historical["viewingVersion"], 1)
         self.assertEqual(conflict, {"status": "conflict", "currentRevision": 3})
 
+    def test_successful_non_noop_set_edits_record_exactly_one_atomic_feedback_signal(self):
+        manager = object()
+
+        reordered = _dispatch(
+            "create_set_draft",
+            {
+                "title": "Reorder and pin",
+                "plan": PLAN,
+                "source": {"kind": "tracks", "trackIds": self.track_ids},
+            },
+            self.database,
+            manager,
+        )
+        reorder_draft = reordered["draftId"]
+        moved_entry = reordered["entries"][0]
+        moved = _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": reorder_draft,
+                "expectedRevision": 1,
+                "mutation": {
+                    "type": "move_entry",
+                    "entryId": moved_entry["id"],
+                    "toIndex": 1,
+                },
+            },
+            self.database,
+            manager,
+        )["snapshot"]
+        moved_slot_entry_id = moved["entries"][1]["id"]
+        no_op_move = _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": reorder_draft,
+                "expectedRevision": 2,
+                "mutation": {
+                    "type": "move_entry",
+                    "entryId": moved_slot_entry_id,
+                    "toIndex": 1,
+                },
+            },
+            self.database,
+            manager,
+        )
+        stale = _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": reorder_draft,
+                "expectedRevision": 1,
+                "mutation": {
+                    "type": "set_track_pin",
+                    "entryId": moved_slot_entry_id,
+                    "pinned": True,
+                },
+            },
+            self.database,
+            manager,
+        )
+        track_pinned = _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": reorder_draft,
+                "expectedRevision": 2,
+                "mutation": {
+                    "type": "set_track_pin",
+                    "entryId": moved_slot_entry_id,
+                    "pinned": True,
+                },
+            },
+            self.database,
+            manager,
+        )["snapshot"]
+        repeated_pin = _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": reorder_draft,
+                "expectedRevision": 3,
+                "mutation": {
+                    "type": "set_track_pin",
+                    "entryId": moved_slot_entry_id,
+                    "pinned": True,
+                },
+            },
+            self.database,
+            manager,
+        )
+        unpinned = _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": reorder_draft,
+                "expectedRevision": 3,
+                "mutation": {
+                    "type": "set_track_pin",
+                    "entryId": moved_slot_entry_id,
+                    "pinned": False,
+                },
+            },
+            self.database,
+            manager,
+        )["snapshot"]
+        position_pinned = _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": reorder_draft,
+                "expectedRevision": 4,
+                "mutation": {
+                    "type": "set_position_pin",
+                    "entryId": moved_slot_entry_id,
+                    "pinned": True,
+                },
+            },
+            self.database,
+            manager,
+        )["snapshot"]
+
+        replacement = _dispatch(
+            "create_set_draft",
+            {
+                "title": "Replace and remove",
+                "plan": PLAN,
+                "source": {"kind": "tracks", "trackIds": [self.track_ids[0]]},
+            },
+            self.database,
+            manager,
+        )
+        replaced = _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": replacement["draftId"],
+                "expectedRevision": 1,
+                "mutation": {
+                    "type": "replace_entry",
+                    "entryId": replacement["entries"][0]["id"],
+                    "replacementTrackId": self.track_ids[1],
+                },
+            },
+            self.database,
+            manager,
+        )["snapshot"]
+        _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": replacement["draftId"],
+                "expectedRevision": 2,
+                "mutation": {
+                    "type": "remove_entry",
+                    "entryId": replaced["entries"][0]["id"],
+                },
+            },
+            self.database,
+            manager,
+        )
+
+        banned = _dispatch(
+            "create_set_draft",
+            {
+                "title": "Ban",
+                "plan": PLAN,
+                "source": {"kind": "tracks", "trackIds": [self.track_ids[0]]},
+            },
+            self.database,
+            manager,
+        )
+        _dispatch(
+            "mutate_set_draft",
+            {
+                "draftId": banned["draftId"],
+                "expectedRevision": 1,
+                "mutation": {
+                    "type": "ban_entry",
+                    "entryId": banned["entries"][0]["id"],
+                },
+            },
+            self.database,
+            manager,
+        )
+
+        rows = self.database.connection.execute(
+            """
+            SELECT event_type, track_id, related_track_id, draft_id,
+                   old_index, new_index
+            FROM user_feedback ORDER BY id
+            """
+        ).fetchall()
+        self.assertEqual(
+            [tuple(row) for row in rows],
+            [
+                ("manual_reorder", moved_entry["trackId"], None, reorder_draft, 0, 1),
+                ("pinned", moved_entry["trackId"], None, reorder_draft, None, 1),
+                ("pinned", moved_entry["trackId"], None, reorder_draft, None, 1),
+                ("manual_replacement", self.track_ids[0], self.track_ids[1], replacement["draftId"], 0, 0),
+                ("removed", self.track_ids[1], None, replacement["draftId"], 0, None),
+                ("banned", self.track_ids[0], None, banned["draftId"], 0, None),
+            ],
+        )
+        self.assertEqual((moved["currentRevision"], no_op_move["snapshot"]["currentRevision"]), (2, 2))
+        self.assertEqual(stale, {"status": "conflict", "currentRevision": 2})
+        self.assertEqual((track_pinned["currentRevision"], repeated_pin["snapshot"]["currentRevision"]), (3, 3))
+        self.assertEqual((unpinned["currentRevision"], position_pinned["currentRevision"]), (4, 5))
+
 
 if __name__ == "__main__":
     unittest.main()

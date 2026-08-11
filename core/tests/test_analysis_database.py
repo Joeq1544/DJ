@@ -161,7 +161,7 @@ class AnalysisDatabaseMigrationTests(unittest.TestCase):
         try:
             self.assertEqual(database.migration_backup_path, expected_backup)
             self.assertEqual(reserved.read_bytes(), b"reserved")
-            self.assertEqual(database.connection.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(database.connection.execute("PRAGMA user_version").fetchone()[0], 4)
             self.assertEqual(database.list_tracks(limit=10).items[0].id, "stable-track-id")
         finally:
             database.close()
@@ -182,14 +182,14 @@ class AnalysisDatabaseMigrationTests(unittest.TestCase):
         finally:
             backup.close()
 
-    def test_new_empty_database_starts_at_v3_without_a_backup(self):
+    def test_new_empty_database_starts_at_current_v4_without_a_backup(self):
         """Creating a recovery copy for a database with no M1 data must fail."""
         path = self.root / "new.sqlite3"
 
         database = LibraryDatabase(path)
         try:
             self.assertIsNone(database.migration_backup_path)
-            self.assertEqual(database.connection.execute("PRAGMA user_version").fetchone()[0], 3)
+            self.assertEqual(database.connection.execute("PRAGMA user_version").fetchone()[0], 4)
             self.assertEqual(list(self.root.glob("new.pre-m2*.sqlite3")), [])
         finally:
             database.close()

@@ -79,9 +79,14 @@ class CoreServiceTests(unittest.TestCase):
                 "durationMs",
                 "availability",
                 "analysis",
+                "userMetadata",
             },
         )
         self.assertIsNone(tracks["result"]["items"][0]["analysis"])
+        self.assertEqual(
+            tracks["result"]["items"][0]["userMetadata"],
+            {"rating": None, "tags": [], "note": None},
+        )
 
     def test_malformed_and_unknown_requests_have_bounded_error_envelopes(self):
         malformed = self.raw_request(b"{not json}\n")

@@ -209,7 +209,7 @@ class DiscoveryRepositoryTests(unittest.TestCase):
             page = self.database.search_track_evidence(TrackFilters(), limit=100)
         self.assertEqual(len(page.items), 2)
         self.assertTrue(page.truncated)
-        self.assertEqual(self.database.connection.execute("PRAGMA user_version").fetchone()[0], 3)
+        self.assertEqual(self.database.connection.execute("PRAGMA user_version").fetchone()[0], 4)
 
     def test_playlist_search_preserves_repeated_positions_while_discovery_candidates_stay_unique(self):
         playlist = next(node for node in self.database.get_playlist_tree() if node.name == "M3 Repeats")
