@@ -1,7 +1,7 @@
 # M2 Audio Dependency Selection
 
 - Date: 2026-08-11
-- Status: implemented and verified for the M2 development runtime; distribution evidence pending M7
+- Status: implemented and verified for M2 development; M7 personal-package follow-up complete
 - Decision: D-046; ADR-0005
 
 ## Selected baseline
@@ -18,7 +18,7 @@ The provider is sufficient to implement bounded file/container/stream metadata, 
 - [FFmpeg legal and license guidance](https://www.ffmpeg.org/legal.html), plus tagged [GPLv3](https://raw.githubusercontent.com/FFmpeg/FFmpeg/n8.1.2/COPYING.GPLv3) and [LGPL-2.1](https://raw.githubusercontent.com/FFmpeg/FFmpeg/n8.1.2/COPYING.LGPLv2.1) texts.
 - [NumPy 2.4.4 package metadata and arm64 wheels](https://pypi.org/project/numpy/2.4.4/), [2.4.4 release notes](https://numpy.org/doc/stable/release/2.4.4-notes.html), and [versioned license](https://raw.githubusercontent.com/numpy/numpy/v2.4.4/LICENSE.txt).
 
-NumPy 2.4.4 declares Python `>=3.11`, documents support through Python 3.14, and publishes native macOS arm64 wheels for CPython 3.12 and 3.14. Its declared SPDX expression is `BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0`; M7 still includes its complete notice inventory.
+NumPy 2.4.4 declares Python `>=3.11`, documents support through Python 3.14, and publishes native macOS arm64 wheels for CPython 3.12 and 3.14. Its declared SPDX expression is `BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0`; M7 includes it in the generated component/notice inventory.
 
 ## Local measurements
 
@@ -38,9 +38,8 @@ The FFmpeg build configuration includes `--enable-gpl`, `libx264`, and `libx265`
 
 Post-review checkpoint `a66e0d6` and `docs/evidence/m2-local-analysis.md` verify the selected versions through the real Python provider and built Electron app. The final aggregate passed 56 core tests, 62 desktop tests, strict TypeScript, production builds, and three generated-fixture Electron flows. A real no-site-packages subprocess also proves missing NumPy degrades only analysis while the core/library stay usable. Decode stayed local and streamed; the four source hashes remained exact; no decoded PCM or dependency binary was committed. This closes the development selection only and does not convert the installed GPL-configured FFmpeg into a release candidate.
 
-## M7 packaging work retained
+## M7 packaging closure
 
-- Select/build a reproducible arm64 decoder with exact source/hash/configuration and complete external-library inventory.
-- Exclude GPL/nonfree components unless Joe explicitly chooses and satisfies that distribution path; otherwise fulfill FFmpeg's LGPL checklist and notices.
-- Prove bundled CPython 3.12 plus NumPy resource discovery, signing, launch, codec behavior, and clean setup.
-- Measure actual codec coverage, corrupt-file isolation, performance, thermal cost, and real-music quality during Joe's final test period.
+- M7 source-built arm64 FFmpeg/ffprobe 8.1.2 from the official archive hash with GPL/nonfree/network/devices/autodetection/external codecs disabled and only system dynamic dependencies.
+- The personal app bundles CPython 3.14.3 plus NumPy 2.4.4 under D-052, verifies resource discovery/signing/launch, and passes generated good/corrupt codec behavior without ambient fallback.
+- Exact composition, inventory, package results, and the remaining real-music/codec/performance/thermal limitations are recorded in `m7-personal-release.md`.

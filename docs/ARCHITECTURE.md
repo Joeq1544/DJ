@@ -11,7 +11,7 @@ Rekordbox XML + user-selected local audio
                     v
           Python DJ core + SQLite
              ^               ^
-             |               | narrow app commands / optional MCP
+             |               | narrow app commands
              |               |
 Electron main + preload -----+----- official Codex SDK
              ^
@@ -33,7 +33,7 @@ DJ Copilot is a local-first companion. Rekordbox remains authoritative, while th
 
 Use Electron's ordinary renderer sandbox and context isolation. The preload exposes fixed named operations rather than general message forwarding. The Python core remains the sole app-database owner; later milestones introduce only the protocol messages they actually use.
 
-## Implemented M1–M6 slices
+## Implemented M1–M7 slices
 
 Electron 43.3.0 starts a sandboxed React 19 renderer and supervises a Python core over a mode-`0600` Unix socket in a mode-`0700` temporary runtime directory. The main process owns the XML picker. M1 exposed service status, selected-XML import, playlist tree, and paged tracks; M2 added queue, selected-status, pause, and resume analysis operations; M3 extends track paging with strict filters and adds only fixed find-similar and recommend-next operations. Requests and responses use strict runtime schemas and one JSON line capped at 1 MiB. Ordinary calls time out after five seconds; the bounded XML import has an explicit 120-second budget.
 
@@ -49,13 +49,15 @@ M4 upgrades schema-v2 databases to schema version 3 only after creating the firs
 
 The M4 desktop boundary adds six fixed set operations and two export operations. The renderer can create from empty/selected/playlist/generated sources, edit constraints and entry goals, move/pin/ban/remove/insert/replace, optimize, undo/redo, save/view/restore versions, inspect a draft or imported playlist, and view advisory organization output. Electron main alone owns the save dialog and a single-use confirmation bound to the draft revision, canonical destination, and expected absent/regular-file state; the renderer sees only the destination basename. The core resolves current IDs and private paths, emits one deterministic official numeric-KeyType XML collection plus playlist, preserves repeated playlist references, writes a mode-`0600` temporary sibling, flushes/fsyncs, reparses with the production importer, compares exact semantics, rechecks the destination, and atomically replaces it. Rekordbox databases and imported XML/audio remain untouched.
 
-The production build currently bundles the Electron main, isolated preload, and renderer only. A bundled CPython 3.12 runtime and packaged resource discovery remain M7 work; development success is not packaging evidence.
+The M7 personal build is a non-ASAR arm64 Electron app with fixed resources under `Contents/Resources`: the production app tree, a PyInstaller one-directory CPython 3.14.3/NumPy 2.4.4 core, locally source-built LGPL FFmpeg/ffprobe 8.1.2, and release metadata. Packaged main resolves only these locations and never falls back to host Python, `PATH` FFmpeg, a development virtual environment, or a cwd-discovered Codex SDK. Internal pnpm links are normalized to contained relative resource links; dangling, escaped, wrong-version, or wrong-architecture dependencies fail composition or package verification.
 
 M5 upgrades schema-v3 databases to schema version 4 only after creating the first free `*.pre-m5.sqlite3` sibling backup. It adds exactly three app-owned tables for track metadata, saved filters, and strict feedback, without cascading foreign keys to the replace-on-import track projection. Retained stable IDs keep ratings/tags/notes across reimport; removed-track metadata is cleaned. Draft decoding accepts exact schema-v3 or schema-v4 filter shapes, and new drafts emit v4.
 
 The pure deterministic `preference-linear-v1` projection activates only after five effective signals, ramps the existing optional preference component to a maximum 150,000-ppm weight, and exposes bounded track/genre affinities plus event counts. Standard recommendations and M4 set scoring receive the active evidence; comparison rescoring uses one baseline-selected candidate universe. Successful non-no-op replace/move/positive-pin/remove/ban edits append feedback in the same transaction as the draft revision, while conflicts, failures, no-ops, undo, and redo append none. Tags/notes remain searchable authored metadata, not learned sentiment.
 
 The renderer exposes inline ratings/tags/notes, exact tag/rating/text filters, saved views, direct and recommendation feedback, learning/active status, rank deltas, profile inspection, export, and disclosed reset. Reset deletes feedback and clears ratings while preserving tags, notes, saved filters, drafts, analysis, and library data. Electron main owns the preference JSON destination, single-use revision-bound confirmation, mode-`0600` temporary write, strict reparse, destination recheck, and atomic replace; the bounded export contains no paths, authored metadata, display metadata, raw events, audio, or credentials.
+
+M7 keeps schema version 4 and adds recovery commands rather than another database. Selected-analysis rebuild clears only the selected app-owned jobs/features and requeues current eligible tracks. Python's sole live SQLite owner performs online backup to a temporary sibling, validates integrity and schema, syncs it, and atomically replaces the user-selected destination; restore remains an offline documented operation. A path-free diagnostics snapshot/export reports bounded app/core/analysis/package versions and unavailable stages without credentials, auth state, audio, paths, notes, unrestricted metadata, logs, or Codex response text. Electron main owns the save choices and explicit data-folder action.
 
 ## Data ownership and source immutability
 
@@ -91,14 +93,18 @@ Practical safeguards remain: renderer isolation, fixed IPC, bounded schemas, val
 - Codex auth/network/schema failures preserve local workflows and current drafts.
 - Unknown/stale IDs fail before recommendation, mutation, or export.
 - Migrations back up app-owned data first; export replacement follows successful reparse.
+- Online database backup is integrity-checked and atomic; an offline restore preserves the displaced current database as a safety copy.
+- A missing packaged helper degrades the affected capability without ambient fallback or disabling the unaffected library/core.
 - Errors are useful to Joe while credentials and unnecessary private data stay out of logs.
 
 ## Historical Phase 0 evidence
 
 The detailed research, process-protocol proofs, hostile XML/audio fixtures, Codex experiments, and old commercial gate remain under `docs/evidence/phase-0/` and the ADRs. That evidence informs implementation but no longer blocks feature work on P0-016, exhaustive sentinels, ambient-configuration perfection, or complete process-tree containment. Missing historical evidence remains missing; it is not relabeled as passed.
 
-## M6 selected Codex topology
+## Selected Codex topology
 
 ADR-0009 keeps AI in Electron main behind `AIProvider`. A bounded in-memory coordinator exposes only status/login/start/poll/cancel/confirm. `CodexProvider` uses exact official SDK 0.147.0 and existing ChatGPT authentication; `MockAIProvider` supplies deterministic tests. Codex receives one concise task plus bounded path-free current DTOs and returns a strict interpreted proposal or grounded explanation.
 
-There is no production MCP server in M6. Main invokes the already-fixed core commands for filters, Similar, Next, set creation, replacement lookup, mutation, and inspection. Search and explanation are read-only. A plan or one draft mutation gets a single-use main-owned confirmation bound to its request and current revision before the core may write; a valid already-satisfied mutation returns an honest unchanged snapshot. Request/event state is capped and expires in memory; no AI transcript schema is added. Status and provider work are lazy explicit actions, so ordinary local app launch initializes no Codex helper. Strict output adapts Zod's draft schema to the live root-object/required/nullable/typed-constant contract, then revalidates every response. The SDK/runtime remains outside the CJS bundle/ASAR for native resolution, with complete packaging verification owned by M7.
+There is no production MCP server. Main invokes the already-fixed core commands for filters, Similar, Next, set creation, replacement lookup, mutation, and inspection. Search and explanation are read-only. A plan or one draft mutation gets a single-use main-owned confirmation bound to its request and current revision before the core may write; a valid already-satisfied mutation returns an honest unchanged snapshot. Request/event state is capped and expires in memory; no AI transcript schema is added. Status and provider work are lazy explicit actions, so ordinary local app launch initializes no Codex helper. Strict output adapts Zod's draft schema to the live root-object/required/nullable/typed-constant contract, then revalidates every response.
+
+The official SDK/runtime stays outside the CJS bundle and ASAR so its native Darwin-arm64 helper can resolve normally. M7 packages and validates the exact SDK, generic CLI, canonical Darwin-arm64 package, and native executable at version 0.147.0. The final package's generated mock workflow and separate redacted existing-auth smoke prove this topology from the bundled executable; no API-key path or response-text evidence exists.

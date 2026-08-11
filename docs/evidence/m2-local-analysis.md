@@ -67,5 +67,5 @@ Two low notes are non-blocking and recorded in `KNOWN_ISSUES.md`: renderer DTO `
 
 - The tempo/key implementation is transparent heuristic evidence, not a Rekordbox beat grid or real-music accuracy claim. Joe's personal music and codec mix remain untested until the final hands-on period.
 - Structure, semantic classification, and embeddings are explicit unavailable stages in M2.
-- The installed Homebrew FFmpeg is GPL-configured and is an external personal-development prerequisite only. It is not bundled; M7 must select and verify a distributable decoder/runtime composition.
+- The installed Homebrew FFmpeg is GPL-configured and remains an external personal-development prerequisite only. It is not bundled; M7 later closed the personal package with a separately source-built LGPL decoder/runtime composition recorded in `m7-personal-release.md`.
 - Visual, light/dark, narrow-layout, and native-picker QA remain unperformed under D-045. Automation does not relabel them as passed.

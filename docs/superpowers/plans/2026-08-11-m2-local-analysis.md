@@ -13,7 +13,7 @@
 - Rekordbox remains authoritative; never write its database, XML input, or source audio.
 - Raw audio stays local and no analysis command accepts a renderer-supplied path.
 - Pin `numpy==2.4.4`; require and record external FFmpeg/ffprobe 8.1.2 for M2 evidence.
-- Do not bundle the installed Homebrew FFmpeg because its measured build is GPL-configured; M7 owns a separately reviewed distributable decoder.
+- Do not bundle the installed Homebrew FFmpeg because its measured build is GPL-configured; M7 later delivered a separately reviewed source-built LGPL decoder.
 - Baseline BPM, beat, key/mode, loudness, energy, rhythm, and timbre outputs are heuristic evidence with provider/version/confidence. Low-information audio returns unknown values rather than invented certainty.
 - Structure, semantic classifiers, and embeddings remain unavailable capabilities in M2; no model, weights, or implicit download is introduced.
 - Persist integers across the core/desktop boundary: milliseconds, milli-BPM, milli-dB, and unit-interval parts per million. No `NaN`, infinity, or raw NumPy scalar crosses storage or JSON.

@@ -1,6 +1,6 @@
 # ADR-0010: Personal arm64 Release Composition
 
-- Status: Accepted for M7 implementation
+- Status: Accepted and implemented in M7
 - Date: 2026-08-11
 - Owners: primary, packaging, audio/core, desktop, and UI implementers
 - Supersedes: ADR-0007's Developer ID/public-release gate and ADR-0001's unimplemented CPython 3.12 package target for the personal MVP only
@@ -19,6 +19,6 @@ Add compact diagnostics, selected-analysis rebuild, an online SQLite backup thro
 
 ## Consequences
 
-The fastest package uses the exact runtime already tested rather than building the historical CPython 3.12 target. The app is larger because Electron, Codex, Python/NumPy, and FFmpeg are intentionally self-contained and inspectable. ASAR, installers, auto-update, Developer ID, notarization, universal binaries, public redistribution, and multi-Mac assurance remain deferred.
+The package uses the exact runtime already tested rather than building the historical CPython 3.12 target. The resulting app is approximately 630 MB because Electron, Codex, Python/NumPy, and FFmpeg are intentionally self-contained and inspectable. Internal pnpm links are preserved as contained relative links so the exact native Codex target remains available without duplicating it. ASAR, installers, auto-update, Developer ID, notarization, universal binaries, public redistribution, and multi-Mac assurance remain deferred.
 
-M7 evidence must come from the packaged executable with ambient helper paths removed. Development success, a generated directory, or UI presence alone is insufficient.
+The final packaged executable passed the generated end-to-end workflow with a minimal `PATH`, missing-bundled-helper degradation without ambient fallback, exact manifest/SBOM/notices/signature checks, and a redacted real existing-auth Codex smoke. Development success, a generated directory, or UI presence alone was not treated as package evidence. Visual/native-picker and private-library/subjective checks remain explicitly deferred under D-045.

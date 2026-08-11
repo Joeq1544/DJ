@@ -5,7 +5,7 @@ Authoritative design: `superpowers/specs/2026-08-10-personal-full-feature-mvp-de
 
 Each milestone receives a separate bounded implementation plan. A milestone closes when Joe's normal workflow works, focused checks are green, in-scope defects are resolved or honestly recorded, project memory is current, and the green checkpoint is pushed.
 
-Delivery note (2026-08-11): Joe explicitly deferred all visual QA until the full M1–M7 feature set is implemented. Intermediate milestones close on focused automated and non-visual integration evidence; deferred visual and native-interaction checks remain recorded for the final hands-on pass.
+Delivery note (2026-08-11): Joe explicitly deferred all visual QA through implementation and then asked to skip it until after the complete app is handed over. Milestones close on focused automated and nonvisual integration evidence; deferred visual and native-interaction checks remain recorded for a later hands-on pass and are not marked as passed.
 
 | Milestone | Integrated outcome | Completion evidence |
 | --- | --- | --- |
@@ -16,9 +16,9 @@ Delivery note (2026-08-11): Joe explicitly deferred all visual QA until the full
 | M4 — Set workflow slice | Editable/versioned drafts, pins/bans, analyzer, organization suggestions, and valid XML export | Complete desktop import-to-export fixture flow |
 | M5 — Personalization slice | Feedback changes visible recommendation preferences with export/reset | Baseline-versus-adjusted fixture test and reset check |
 | M6 — Codex-assisted slice | Existing-auth natural-language search, set planning/revision, explanations, and only necessary MCP tools | Mock integration plus one real existing-auth smoke flow |
-| M7 — Personal release polish | Recovery, migrations, setup/limitations, accessibility pass, and runnable personal macOS build | Clean setup/build/manual workflow on Joe's Mac |
+| M7 — Personal release polish | Recovery, migrations, setup/limitations, accessibility semantics, and runnable personal macOS build | Exact package composition/inspection, generated packaged workflow, missing-helper degradation, redacted packaged real-Codex smoke, and deferred visual/private-library checklist |
 
-Progress on 2026-08-11: M0–M6 are closed and pushed through `fd0984e`. M6 post-review verification passed 151 core tests, 219 desktop tests, strict typecheck/build, seven generated Electron flows, and one separate real existing-auth Codex smoke; the reviewer returned READY. M7 packaging/recovery planning begins next. Visual, native-picker appearance, real Rekordbox import, personal-library relevance, and subjective audio/set checks stay deferred under D-045.
+Progress on 2026-08-11: M0–M7 are complete. M7 implementation/package work is green and pushed through `61eac56`; the final nonvisual gate passed 161 core tests, 248 desktop tests, strict typecheck/build, nine tests across eight isolated Electron spec invocations, exact verification of the 630 MB arm64 app, and one separate packaged existing-auth Codex smoke. Project memory is synchronized, and the bounded final reviewer found no blocking High/Medium normal-workflow defect. Visual/native-picker appearance, real Rekordbox 7.2.14 import, personal-library relevance, and subjective audio/set checks stay deferred under D-045/KI-079.
 
 ## M1 scaffold contract
 

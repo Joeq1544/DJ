@@ -1,8 +1,20 @@
 # Changelog
 
-All notable project changes are recorded here. The project has not yet produced a release.
+All notable project changes are recorded here. The repository now produces one local personal build; no public release has been published.
 
 ## Unreleased
+
+### 2026-08-11 — M7 personal arm64 release
+
+- Added selected-analysis rebuild, exact FFmpeg version-token validation, path-free diagnostics, app-data-folder access, and an online SQLite backup that validates integrity/schema and atomically replaces only the chosen destination.
+- Added packaged-only resource resolution for the PyInstaller core, FFmpeg/ffprobe, and Codex runtime. Packaged mode fails honestly when a bundled helper is missing and never falls back to host Python, `PATH` FFmpeg, a development virtual environment, or a cwd-discovered SDK.
+- Added the compact **Diagnostics & recovery** region through strict IPC/preload contracts while preserving source XML/audio immutability, renderer isolation, local operation without Codex, and explicit user actions.
+- Built a self-contained 630 MB Apple-silicon `.app` with Electron 43.3.0, CPython 3.14.3, NumPy 2.4.4, PyInstaller 6.21.0, source-built LGPL FFmpeg/ffprobe 8.1.2, and the complete official Codex 0.147.0 target tree.
+- Preserved the pnpm Codex target topology as contained relative links, generated a resource hash manifest, CycloneDX component inventory, and third-party notices from the composed package, then ad-hoc signed and verified the nested arm64 executables and final bundle.
+- Added a packaged generated workflow covering import, good/corrupt analysis isolation, discovery, personalization, mock Copilot confirmation, set export, diagnostics/backup, relaunch persistence, immutable sources, and cleanup; a copied-package test separately proves missing-helper degradation without ambient fallback.
+- Final `bash scripts/verify-m7.sh` passes 161 core tests, 248 desktop tests, strict typecheck/build, all eight isolated nonvisual Electron spec files, and exact package verification. A separate packaged existing-ChatGPT-auth smoke passes search, a second bounded plan request, cancellation, and cleanup without recording response text.
+- The one bounded final reviewer independently passed package verification, 5/5 recovery checks, and 14/14 diagnostics/runtime/preload checks and found no blocking High/Medium normal-workflow, packaging, recovery, or documentation defect.
+- Visual appearance, native-picker appearance, personal Rekordbox/audio compatibility, and subjective MIR/recommendation/set quality remain explicitly deferred at Joe's request. The build is ad-hoc signed for personal use, not Developer-ID signed, notarized, universal, or public-distribution-ready.
 
 ### 2026-08-11 — M6 Codex assistance planning
 

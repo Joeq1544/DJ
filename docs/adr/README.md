@@ -13,7 +13,7 @@ ADRs are immutable decision history once accepted. A change creates a supersedin
 | [0007](0007-packaging-strategy.md) | macOS packaging | Accepted |
 | [0008](0008-personalization-and-user-metadata.md) | Interpretable personalization and user metadata | Accepted |
 | [0009](0009-codex-assistance-orchestration.md) | Bounded Codex assistance without production MCP | Accepted and implemented in M6 |
-| [0010](0010-personal-arm64-release-composition.md) | Personal arm64 release composition | Accepted for M7 implementation |
+| [0010](0010-personal-arm64-release-composition.md) | Personal arm64 release composition | Accepted and implemented in M7 |
 
 Statuses are `Proposed`, `Accepted`, `Rejected`, `Superseded`, or `Deprecated`. Acceptance records an architectural choice, not completion of its implementation. ADR-0002 is accepted for the 2026-08-10 personal-use trust model; its basis intentionally differs from the original commercial Phase 0 evidence gate, whose missing results remain historical limitations.
 

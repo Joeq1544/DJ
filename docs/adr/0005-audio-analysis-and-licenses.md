@@ -58,11 +58,15 @@ Phase 3 proves resumable staged jobs, supported codecs, concurrency/thermal beha
 
 On 2026-08-11 M2 selected an external FFmpeg/ffprobe 8.1.2 executable plus `numpy==2.4.4` for the first production baseline. FFprobe supplies bounded machine-readable container/audio-stream metadata; FFmpeg decodes one local audio stream to chunked mono PCM; NumPy implements transparent feature calculations without a model or downloaded dataset. Tempo/beat and key/mode are heuristic evidence with confidence and explicit limitations, not accuracy claims. Structure, classifier, and embedding stages remain unavailable capabilities.
 
-The measured `/opt/homebrew/bin/ffmpeg` build enables GPL components and reports GPL terms. It may be invoked as Joe's external development prerequisite but is not copied or bundled. M7 must select and verify a reproducible distributable decoder—such as a non-GPL FFmpeg configuration with the required LGPL source/configuration/notices—before packaging. Exact sources, local versions, wheel metadata, and unresolved packaging work are recorded in `../evidence/m2-dependency-selection.md`.
+The measured `/opt/homebrew/bin/ffmpeg` build enables GPL components and reports GPL terms. It may be invoked as Joe's external development prerequisite but is not copied or bundled. M7 later selected and verified a separately source-built LGPL FFmpeg configuration with exact source/configuration/inventory evidence. Exact M2 sources, local versions, wheel metadata, and historical packaging requirements are recorded in `../evidence/m2-dependency-selection.md`.
 
 ## M2 implementation verification
 
 Post-review green checkpoint `a66e0d6` implements `ffmpeg-numpy-basic` / `baseline-v1` with streamed mono `f32le` decode, exact result provenance, heuristic confidence, no decoded-media artifact, and explicit unavailable structure/embedding stages. The final aggregate run passed 56 core tests, 62 desktop tests, strict TypeScript, production builds, and three Electron flows. The integrated generated-audio flow proved 120-BPM click evidence, C-major harmonic evidence, honest silence unknowns, isolated corrupt-file failure, pause across core restart, reload persistence, unchanged source hashes, and cleanup. Missing NumPy now degrades the provider rather than core/library startup, and reimport cannot attach stale or orphan analysis. These are engineering/plumbing results only; exact evidence and limitations are in `../evidence/m2-local-analysis.md`.
+
+## M7 package verification
+
+M7 builds FFmpeg/ffprobe 8.1.2 from the official source archive SHA-256 `464beb5e7bf0c311e68b45ae2f04e9cc2af88851abb4082231742a74d97b524c` with GPL, nonfree, network, devices, autodetection, external codecs, and shared libraries disabled. Both arm64 executables have only macOS system dynamic dependencies. The personal app bundles those tools with CPython 3.14.3/NumPy 2.4.4, validates exact versions/hashes/signatures, passes generated good/corrupt analysis from the packaged executable, and degrades only analysis when a copied package lacks ffprobe. Exact evidence and retained subjective/codec limitations are in `../evidence/m7-personal-release.md`.
 
 ## Consequences
 

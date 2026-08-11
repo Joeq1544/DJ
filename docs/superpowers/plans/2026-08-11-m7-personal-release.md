@@ -49,53 +49,53 @@ diagnostics.showDataFolder()
 
 **Owner:** primary
 
-- [ ] Add strict DTOs and preload methods for analysis rebuild and diagnostics/backup results.
-- [ ] Pin Packager 20.0.0 and exact Python build requirements; add clean `package:mac`, `verify:m7`, and opt-in packaged Codex smoke commands.
-- [ ] Add ADR-0010 and dependency/license/source evidence, then push this planning/contracts checkpoint.
+- [x] Add strict DTOs and preload methods for analysis rebuild and diagnostics/backup results.
+- [x] Pin Packager 20.0.0 and exact Python build requirements; add clean `package:mac`, `verify:m7`, and opt-in packaged Codex smoke commands.
+- [x] Add ADR-0010 and dependency/license/source evidence, then push this planning/contracts checkpoint.
 
 ### Task 2 — Core recovery and rebuild
 
 **Owner:** audio/core implementer
 
-- [ ] Add focused RED tests for exact FFmpeg version-token validation, selected-track rebuild, SQLite online backup, integrity validation, atomic replacement, path policy, and failure cleanup.
-- [ ] Implement strict private core commands for rebuild and backup. Keep source audio/XML immutable and wire results path-free.
-- [ ] Run focused Python tests and the complete core suite when the database/service boundary is stable.
+- [x] Add focused RED tests for exact FFmpeg version-token validation, selected-track rebuild, SQLite online backup, integrity validation, atomic replacement, path policy, and failure cleanup.
+- [x] Implement strict private core commands for rebuild and backup. Keep source audio/XML immutable and wire results path-free.
+- [x] Run focused Python tests and the complete core suite when the database/service boundary is stable.
 
 ### Task 3 — Packaged desktop boundary and diagnostics UI
 
 **Owner:** desktop boundary and renderer implementers on disjoint files
 
-- [ ] Add RED tests for packaged-only core/FFmpeg/Codex paths, direct PyInstaller launch, no ambient fallback, diagnostics IPC, native cancel/write behavior, and bundle redaction.
-- [ ] Add one compact **Diagnostics & recovery** region to the existing Library screen: resource/status summary, explicit selected-analysis rebuild, database backup, diagnostics export, data-folder action, privacy/limitations, and actionable errors.
-- [ ] Preserve fixed IPC, renderer sandboxing, keyboard semantics, focus return, local operation without Codex, and no visual QA.
+- [x] Add RED tests for packaged-only core/FFmpeg/Codex paths, direct PyInstaller launch, no ambient fallback, diagnostics IPC, native cancel/write behavior, and bundle redaction.
+- [x] Add one compact **Diagnostics & recovery** region to the existing Library screen: resource/status summary, explicit selected-analysis rebuild, database backup, diagnostics export, data-folder action, privacy/limitations, and actionable errors.
+- [x] Preserve fixed IPC, renderer sandboxing, keyboard semantics, focus return, local operation without Codex, and no visual QA.
 
 ### Task 4 — Build and compose the personal app
 
 **Owner:** packaging implementer; primary integrates manifests and dependency changes
 
-- [ ] Build FFmpeg 8.1.2 from the official source hash with GPL/nonfree/network/devices disabled and no external codecs; retain the exact configuration and license.
-- [ ] Build the core with PyInstaller 6.21.0 `--onedir --target-arch arm64 --noupx --clean` from exact CPython 3.14.3 and NumPy 2.4.4.
-- [ ] Create a clean production pnpm stage, package arm64 with ASAR disabled and no makers, copy only fixed resources, generate package-derived hashes/SBOM/notices, and ad-hoc sign the final tree.
-- [ ] Validate versions, architecture, escaped symlinks, licenses, resource hashes, and actual bundle size. Optimize only if a concrete launch/size problem appears.
+- [x] Build FFmpeg 8.1.2 from the official source hash with GPL/nonfree/network/devices disabled and no external codecs; retain the exact configuration and license.
+- [x] Build the core with PyInstaller 6.21.0 `--onedir --target-arch arm64 --noupx --clean` from exact CPython 3.14.3 and NumPy 2.4.4.
+- [x] Create a clean production pnpm stage, package arm64 with ASAR disabled and no makers, copy only fixed resources, generate package-derived hashes/SBOM/notices, and ad-hoc sign the final tree.
+- [x] Validate versions, architecture, escaped symlinks, licenses, resource hashes, and actual bundle size. Optimize only if a concrete launch/size problem appears.
 
 ### Task 5 — Nonvisual package gate
 
 **Owner:** primary
 
-- [ ] Launch the copied `.app` from a temporary path containing spaces with a temporary user-data directory, a minimal system `PATH`, and no Python/FFmpeg override variables.
-- [ ] Through the packaged production boundary exercise generated XML import; good/corrupt local analysis isolation; discovery; set creation/export; personalization persistence; mock Copilot proposal confirmation; diagnostics export; database backup; quit/relaunch persistence; source hashes; and runtime cleanup.
-- [ ] Prove the package degrades honestly when a copied test package is missing one bundled helper, without ambient fallback.
-- [ ] Run one separate redacted packaged real-Codex smoke with existing ChatGPT auth and no response text capture.
-- [ ] Re-run migration/backup focused checks, strict typecheck/build, and one final aggregate appropriate to changed shared boundaries.
+- [x] Launch the copied `.app` from a temporary path containing spaces with a temporary user-data directory, a minimal system `PATH`, and no Python/FFmpeg override variables.
+- [x] Through the packaged production boundary exercise generated XML import; good/corrupt local analysis isolation; discovery; set creation/export; personalization persistence; mock Copilot proposal confirmation; diagnostics export; database backup; quit/relaunch persistence; source hashes; and runtime cleanup.
+- [x] Prove the package degrades honestly when a copied test package is missing one bundled helper, without ambient fallback.
+- [x] Run one separate redacted packaged real-Codex smoke with existing ChatGPT auth and no response text capture.
+- [x] Re-run migration/backup focused checks, strict typecheck/build, and one final aggregate appropriate to changed shared boundaries.
 
 ### Task 6 — Close the personal MVP
 
 **Owner:** primary
 
-- [ ] Perform one bounded normal-workflow release review. Fix only concrete in-scope High/Medium defects with focused regressions.
-- [ ] Synchronize `TASKS.md`, decisions, known issues, ADRs, architecture, privacy, recovery, licensing, evaluation, test evidence, README, and user guide.
-- [ ] Inspect the staged payload, commit, and push the green package checkpoint.
-- [ ] Hand Joe the `.app` path plus one concise final hands-on checklist. Do not claim the deferred visual/real-library/subjective checks passed.
+- [x] Perform one bounded normal-workflow release review. Fix only concrete in-scope High/Medium defects with focused regressions.
+- [x] Synchronize `TASKS.md`, decisions, known issues, ADRs, architecture, privacy, recovery, licensing, evaluation, test evidence, README, and user guide.
+- [x] Inspect the staged payload, commit, and push the green package checkpoint.
+- [x] Hand Joe the `.app` path plus one concise final hands-on checklist. Do not claim the deferred visual/real-library/subjective checks passed.
 
 ## M7 completion gate
 
