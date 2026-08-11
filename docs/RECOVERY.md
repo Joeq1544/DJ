@@ -1,7 +1,7 @@
 # Recovery Guide
 
-Status: M1 implementation checkpoint green; milestone verification in progress
-Last updated: 2026-08-10
+Status: M1 complete at pushed checkpoint `dec0698`; M2 planning in progress
+Last updated: 2026-08-11
 
 ## M0 green checkpoint
 
@@ -13,7 +13,7 @@ Before recovery, run `git status --short --branch` and identify tracked, project
 
 ## M1 implementation checkpoint
 
-Checkpoint `16512c2` on `main` contains the exact workspace lock, production XML/SQLite core, supervised Electron boundary, preload API, and accessible library renderer. It passed 22 core tests, 36 desktop tests, strict TypeScript, and the production build before being pushed to `origin/main`. The final M1 Electron/evidence checkpoint follows separately.
+Checkpoint `16512c2` on `main` contains the exact workspace lock, production XML/SQLite core, supervised Electron boundary, preload API, and accessible library renderer. Final M1 checkpoint `dec0698` adds direct-file Electron coverage, restart/reload persistence, dialog cancel/select integration, cursor pagination, live status, graceful worker/runtime cleanup, documentation, and the aggregate gate. It passed 23 core tests, 47 desktop tests, strict TypeScript, production builds, and two Electron flows before being pushed to `origin/main`. Visual QA remains explicitly deferred to the completed app under D-045.
 
 ## Safe Git recovery
 

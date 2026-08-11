@@ -1,7 +1,7 @@
 # DJ Copilot Test Strategy
 
 Status: Personal full-feature MVP
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ## Completion evidence
 
@@ -45,7 +45,9 @@ The socket-bearing suites need permission to create temporary local Unix sockets
 
 ## Manual checks
 
-Manual evidence records date, target Mac/app build, input provenance without private contents, steps, outcome, and limitation. Personal XML/audio never enters Git. Real Codex checks are explicit, use existing auth, and record redacted outcomes without claiming behavior not observed.
+Joe has explicitly deferred visual QA until every M1–M7 feature is implemented. During implementation, milestones still require focused automated behavior and non-visual integration coverage; deferred native UI and screenshot checks remain documented rather than inferred or marked passed. The final hands-on period records the target Mac/app build, input provenance without private contents, steps, outcomes, and limitations.
+
+Personal XML/audio never enters Git. Real Codex checks are explicit, use existing auth, and record redacted outcomes without claiming behavior not observed.
 
 ## Historical Phase 0 suite
 

@@ -1,9 +1,9 @@
 # M1 App Shell and Library Evidence
 
-- Date: 2026-08-10
-- Status: automated M1 gate and independent code review green; required native-picker manual check pending
+- Date: 2026-08-11
+- Status: complete; automated/integration gate and independent code review green, visual QA explicitly deferred to the completed app
 - Plan: `docs/superpowers/plans/2026-08-10-m1-app-shell-library.md`
-- Implementation checkpoint: `16512c2` (pushed to `origin/main`)
+- Implementation checkpoints: `16512c2` and `dec0698` (pushed to `origin/main`)
 
 ## Scope exercised
 
@@ -34,15 +34,15 @@ The fixture parser test verifies four tracks, deterministic source SHA-256 `7806
 - Renderer tests prove two-second live status refresh, accessible cursor pagination beyond the first 100 rows, mouse and keyboard folder expansion, nested visual indentation, exact playlist selection, and supported degraded recovery copy.
 - The first aggregate rerun exposed a one-event-loop-tick assumption in the supervisor test after stale-socket cleanup became asynchronous. The test now uses a bounded state wait; the supervisor suite passed 40 consecutive runs (200 tests) before the complete gate passed.
 
-## Manual development launch
+## Development launch and deferred visual QA
 
 `pnpm dev` was launched twice against the normal Electron user-data directory. The first launch exposed Vite's React-refresh preamble being blocked by the CSP; development now permits only the exact inline/loopback Vite needs while the packaged policy retains `script-src 'self'` and `connect-src 'self'`. The second launch kept Vite, the bundle watcher, Electron 43.3.0, the Python service, and a renderer process with `--enable-sandbox` running without the prior console error until intentionally stopped with Ctrl-C. The fixture hash after both launches remained `780618d…176`. A populated direct-file screenshot produced by the Electron flow was visually inspected: the cue-sheet layout, nested playlist indentation, success/status copy, four table rows, and non-color missing markers rendered legibly.
 
-Native picker clicking/cancelling was not visually observed because this runner could not capture the display or obtain a macOS accessibility tree. Dialog ownership/cancel behavior is covered by the guarded-IPC regression, and the real Electron flow covers fixture import through the test-only fixture selector. This is an honest manual-QA limitation, not recorded as a visual pass.
+Native picker clicking/cancelling was not visually observed because this runner could not capture the display or obtain a macOS accessibility tree. Dialog ownership/cancel behavior is covered by the guarded-IPC regression, and the real Electron flow covers fixture import through the test-only fixture selector. On 2026-08-11 Joe explicitly deferred all visual QA until the complete M1–M7 app is ready. This check remains deferred and is not recorded as a pass.
 
 ## Independent review
 
-Read-only reviewer `/root/m1_final_review` independently reproduced 23/23 core tests, 47/47 desktop tests, typecheck, and diff hygiene, and accepted the direct-file loading, atomic import preservation, restart/current-client behavior, sandboxed IPC, pagination, playlist interaction/order, and runtime cleanup with no High/Medium code defect. The reviewer correctly kept M1 open because the approved plan requires the real native-picker cancel/select check above rather than inferring it from automation.
+Read-only reviewer `/root/m1_final_review` independently reproduced 23/23 core tests, 47/47 desktop tests, typecheck, and diff hygiene, and accepted the direct-file loading, atomic import preservation, restart/current-client behavior, sandboxed IPC, pagination, playlist interaction/order, and runtime cleanup with no High/Medium code defect. Its only completion finding was the unperformed visual native-picker check; D-045 resolves that process finding by deferring it to the final hands-on app pass without relabeling it as passed.
 
 ## Personal Rekordbox XML
 

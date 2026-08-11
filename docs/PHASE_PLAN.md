@@ -5,6 +5,8 @@ Authoritative design: `superpowers/specs/2026-08-10-personal-full-feature-mvp-de
 
 Each milestone receives a separate bounded implementation plan. A milestone closes when Joe's normal workflow works, focused checks are green, in-scope defects are resolved or honestly recorded, project memory is current, and the green checkpoint is pushed.
 
+Delivery note (2026-08-11): Joe explicitly deferred all visual QA until the full M1–M7 feature set is implemented. Intermediate milestones close on focused automated and non-visual integration evidence; deferred visual and native-interaction checks remain recorded for the final hands-on pass.
+
 | Milestone | Integrated outcome | Completion evidence |
 | --- | --- | --- |
 | M0 — Scope reset and green foundation | Approved personal scope, historical evidence preserved, interrupted P0-016 removed, green baseline pushed | Direct documentation/ignore checks, Codex/MCP 52-test package, one aggregate baseline run, clean pushed checkpoint |

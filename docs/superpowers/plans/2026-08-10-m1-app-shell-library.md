@@ -374,7 +374,7 @@ Expected: renderer tests pass and typecheck exits 0.
 - Consumes: all M1 components.
 - Produces: an automated Electron fixture flow, reproducible M1 verification command, current project memory, launch instructions, and an honest real-library/manual status.
 
-- [ ] **Step 1: Write the Electron fixture flow**
+- [x] **Step 1: Write the Electron fixture flow**
 
 Build the app, launch Electron with a temporary user-data directory plus `DJ_COPILOT_TEST_MODE=1` and the canonical fixture path, click “Import Rekordbox XML,” and assert:
 
@@ -389,13 +389,13 @@ await expect(page.getByText(/4 tracks imported/i)).toBeVisible();
 
 The database integration test remains the exact order proof because the historical fixture intentionally gives both Opening members the same title and artist. Also force one core exit through a non-enumerable main-process global hook installed only under `DJ_COPILOT_TEST_MODE=1`; Playwright calls it with `electronApp.evaluate`, then asserts the status becomes retrying and ready after one restart with the imported library still visible. The hook is never exposed through preload.
 
-- [ ] **Step 2: Add the focused verification script**
+- [x] **Step 2: Add the focused verification script**
 
 `scripts/verify-m1.sh` uses `set -euo pipefail` and runs, in order: core tests, desktop Vitest tests, TypeScript typecheck, production build, and Playwright Electron flow. It fails if a command or required directory is missing.
 
 Root `pnpm verify:m1` invokes this script rather than duplicating its commands.
 
-- [ ] **Step 3: Run the complete M1 gate**
+- [x] **Step 3: Run the complete M1 gate**
 
 Run: `pnpm verify:m1`
 
@@ -405,21 +405,23 @@ Run: `git diff --check`
 
 Expected: exit 0.
 
-- [ ] **Step 4: Perform one bounded manual development launch**
+- [x] **Step 4: Defer visual interaction to the completed app by explicit user direction**
 
 Run: `pnpm dev` and verify that the window launches, the import button opens the native XML picker, cancel is harmless, selecting `fixtures/rekordbox/phase0-library.xml` imports four tracks, Opening and Closer preserve order, and the source hash remains unchanged. Record the actual result; do not infer it from the automated test.
 
 If no personal Rekordbox export is explicitly selected, record the real-library check as `not run — personal input not supplied`, not passed. Do not copy personal XML, paths, or track metadata into Git.
 
-- [ ] **Step 5: Update durable records**
+Actual disposition (2026-08-11): development launch behavior was exercised and recorded, while native-picker visual interaction was not. Joe explicitly deferred all visual QA until every feature is implemented. The native-picker check remains deferred, not passed, and no longer blocks M1.
+
+- [x] **Step 5: Update durable records**
 
 Add M1 task rows with linked commands/outcomes and checkpoint. Record the Electron/runtime pin and development-Python decision in `DECISIONS.md`; record any reproducible in-scope defect in `KNOWN_ISSUES.md`. Update architecture, testing, user guide, README, changelog, and evidence with implemented behavior and honest limitations.
 
-- [ ] **Step 6: One final scope/quality review**
+- [x] **Step 6: One final scope/quality review**
 
 Use one read-only reviewer for the complete M1 diff. Resolve High/Medium or normal-workflow findings; record rare theoretical limitations rather than starting repeated review loops. Re-run only the focused checks affected by fixes plus `pnpm verify:m1` when a shared boundary changes.
 
-- [ ] **Step 7: Commit and push M1**
+- [x] **Step 7: Commit and push M1**
 
 The primary inspects `git status`, staged manifest, diff, credential/media/database patterns, and `git diff --cached --check`; commits `feat: deliver M1 library desktop slice`; pushes `main`; records both M1 commit hashes and verifies `origin/main...main` is `0 0` with a clean status.
 

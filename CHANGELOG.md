@@ -12,6 +12,7 @@ All notable project changes are recorded here. The project has not yet produced 
 - Added the accessible cue-sheet library workstation with empty, loading, live ready/degraded, success, retained-error, paged tracks, mouse/keyboard nested-tree, and missing-track states.
 - Added graceful worker/runtime cleanup, a practical long-import timeout, and service survival when a requesting client disconnects.
 - Added focused core/desktop verification and the generated-fixture Electron gate; personal XML validation remains opt-in and local.
+- Closed M1 at pushed checkpoint `dec0698`; visual QA is explicitly deferred to the completed M1–M7 app rather than inferred from automation.
 
 ### 2026-08-10 — Personal full-feature MVP scope
 

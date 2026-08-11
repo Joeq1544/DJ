@@ -1,8 +1,8 @@
 # DJ Copilot Tasks
 
-Last updated: 2026-08-10
-Current milestone: M1 — App shell and real library slice
-Current state: M1 automated gate and independent code review are green; the bounded native-picker manual check remains open
+Last updated: 2026-08-11
+Current milestone: M2 — Local analysis slice
+Current state: M1 is complete at pushed checkpoint `dec0698`; M2 planning is in progress and visual QA is deferred until all features are implemented
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -22,11 +22,11 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 
 | ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
 | --- | --- | --- | --- | --- | --- | --- |
-| M1-001 | primary | Root workspace, exact dependency pins, strict build/test commands, and shared DTO/runtime schemas exist | review | 6/6 contract tests; `pnpm typecheck`; `pnpm build` | `16512c2`, pushed | Host Python is 3.14.3; bundled CPython remains M7 work |
-| M1-002 | core implementer | Fixture and selected XML parse into an atomic app-owned SQLite revision with stable app IDs and ordered playlists | review | 23/23 focused Python parser/database/service tests | `16512c2`, pushed | Real Rekordbox variant compatibility remains opt-in evidence |
-| M1-003 | desktop implementer | Electron supervises the core and exposes only guarded typed preload operations | review | 25/25 focused main/preload/security/supervision tests; restart uses the replacement client | `16512c2`, pushed | Development paths must not become packaged-path claims |
-| M1-004 | UI implementer | Library and playlists are usable through accessible loading, empty, ready, degraded, and error states | review | 16/16 renderer behavior and keyboard tests; production renderer build | `16512c2`, pushed | Large-library virtualization waits for measured need |
-| M1-005 | primary | Production build and Electron fixture import/browse/restart flow pass; docs/evidence are current and checkpoint is pushed | in-progress | `pnpm verify:m1`: 23 core + 47 desktop + 2 Electron flows; independent review found no code defect; native-picker manual check pending | pending | Personal XML evidence is not passed unless explicitly selected |
+| M1-001 | primary | Root workspace, exact dependency pins, strict build/test commands, and shared DTO/runtime schemas exist | done | 6/6 contract tests; `pnpm typecheck`; `pnpm build` | `16512c2`, `dec0698`, pushed | Host Python is 3.14.3; bundled CPython remains M7 work |
+| M1-002 | core implementer | Fixture and selected XML parse into an atomic app-owned SQLite revision with stable app IDs and ordered playlists | done | 23/23 focused Python parser/database/service tests | `16512c2`, `dec0698`, pushed | Real Rekordbox variant compatibility remains opt-in evidence |
+| M1-003 | desktop implementer | Electron supervises the core and exposes only guarded typed preload operations | done | 25/25 focused main/preload/security/supervision tests; restart uses the replacement client | `16512c2`, `dec0698`, pushed | Development paths must not become packaged-path claims |
+| M1-004 | UI implementer | Library and playlists are usable through accessible loading, empty, ready, degraded, and error states | done | 16/16 renderer behavior and keyboard tests; production renderer build | `16512c2`, `dec0698`, pushed | Large-library virtualization waits for measured need |
+| M1-005 | primary | Production build and Electron fixture import/browse/restart flow pass; docs/evidence are current and checkpoint is pushed | done | `pnpm verify:m1`: 23 core + 47 desktop + 2 Electron flows; independent review found no code defect; visual QA explicitly deferred by Joe to the completed app | `dec0698`, pushed | Personal XML evidence is not passed unless explicitly selected |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
@@ -74,8 +74,8 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | ID | Milestone | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Scope reset and green foundation | done | Green checkpoint `1f1157054a59`; M0 evidence and recovery record |
-| M1 | App shell and real library slice | in-progress | `docs/superpowers/plans/2026-08-10-m1-app-shell-library.md` |
-| M2 | Local analysis slice | not-started | Separate plan after M1 |
+| M1 | App shell and real library slice | done | Green checkpoint `dec0698`; `docs/evidence/m1-app-shell-library.md` |
+| M2 | Local analysis slice | in-progress | Bounded plan being written after M1 closure |
 | M3 | Discovery and recommendation slice | not-started | Separate plan after M2 |
 | M4 | Set workflow slice | not-started | Separate plan after M3 |
 | M5 | Personalization slice | not-started | Separate plan after M4 |

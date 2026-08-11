@@ -50,6 +50,7 @@ This file is the concise index of settled project decisions. Detailed architectu
 | D-042 | 2026-08-10 | accepted workflow | Push substantial self-contained green slices and every completed milestone to `origin`; never push broken code merely for cadence or include personal library/audio/app data | Approved design GitHub checkpoint cadence |
 | D-043 | 2026-08-10 | accepted for M1 implementation | Pin the desktop workspace to Electron 43.3.0, React 19.2.8, TypeScript 7.0.2, Vite 8.2.1, Zod 4.4.3, and pnpm 11.16.0 under one committed lockfile | M1 production build plus contract, boundary, renderer, and Electron-flow evidence; ADR-0001 implementation update |
 | D-044 | 2026-08-10 | accepted development boundary | Run the M1 Python core with `DJ_COPILOT_PYTHON` or host `python3` compatible with Python 3.12+, while keeping the self-contained CPython 3.12 arm64 runtime as an M7 packaging deliverable | M1 is exercised on host CPython 3.14.3; development success does not claim a bundled runtime |
+| D-045 | 2026-08-11 | accepted delivery workflow | Defer all visual QA, including native macOS picker interaction and screenshot-based review, until every M1–M7 feature is implemented; milestones may close on focused automated and non-visual integration evidence when no in-scope code defect is known | Joe explicitly requested one final hands-on test period instead of visual gates during implementation; deferred checks remain visible and are not recorded as passes |
 
 ## Current decision state
 
