@@ -60,6 +60,10 @@ On 2026-08-11 M2 selected an external FFmpeg/ffprobe 8.1.2 executable plus `nump
 
 The measured `/opt/homebrew/bin/ffmpeg` build enables GPL components and reports GPL terms. It may be invoked as Joe's external development prerequisite but is not copied or bundled. M7 must select and verify a reproducible distributable decoder—such as a non-GPL FFmpeg configuration with the required LGPL source/configuration/notices—before packaging. Exact sources, local versions, wheel metadata, and unresolved packaging work are recorded in `../evidence/m2-dependency-selection.md`.
 
+## M2 implementation verification
+
+Post-review green checkpoint `a66e0d6` implements `ffmpeg-numpy-basic` / `baseline-v1` with streamed mono `f32le` decode, exact result provenance, heuristic confidence, no decoded-media artifact, and explicit unavailable structure/embedding stages. The final aggregate run passed 56 core tests, 62 desktop tests, strict TypeScript, production builds, and three Electron flows. The integrated generated-audio flow proved 120-BPM click evidence, C-major harmonic evidence, honest silence unknowns, isolated corrupt-file failure, pause across core restart, reload persistence, unchanged source hashes, and cleanup. Missing NumPy now degrades the provider rather than core/library startup, and reimport cannot attach stale or orphan analysis. These are engineering/plumbing results only; exact evidence and limitations are in `../evidence/m2-local-analysis.md`.
+
 ## Consequences
 
 Every feature stores provider/model/pipeline version, confidence, and provenance. Stages retry/cache independently and never overwrite source audio or explicit Rekordbox/user evidence.

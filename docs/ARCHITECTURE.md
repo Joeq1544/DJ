@@ -1,7 +1,7 @@
 # DJ Copilot Architecture
 
 Status: Approved personal full-feature MVP architecture
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 ## System context
 
@@ -33,11 +33,15 @@ DJ Copilot is a local-first companion. Rekordbox remains authoritative, while th
 
 Use Electron's ordinary renderer sandbox and context isolation. The preload exposes fixed named operations rather than general message forwarding. The Python core remains the sole app-database owner; later milestones introduce only the protocol messages they actually use.
 
-## Implemented M1 slice
+## Implemented M1–M2 slices
 
-Electron 43.3.0 starts a sandboxed React 19 renderer and supervises a Python core over a mode-`0600` Unix socket in a mode-`0700` temporary runtime directory. The main process owns the XML picker and exposes exactly four preload operations: service status, selected-XML import, playlist tree, and paged tracks. Requests and responses use strict runtime schemas and one JSON line capped at 1 MiB. Ordinary calls time out after five seconds; the bounded XML import has an explicit 120-second budget.
+Electron 43.3.0 starts a sandboxed React 19 renderer and supervises a Python core over a mode-`0600` Unix socket in a mode-`0700` temporary runtime directory. The main process owns the XML picker. M1 exposed service status, selected-XML import, playlist tree, and paged tracks; M2 adds only queue, selected-status, pause, and resume analysis operations. Requests and responses use strict runtime schemas and one JSON line capped at 1 MiB. Ordinary calls time out after five seconds; the bounded XML import has an explicit 120-second budget.
 
-The development core runs with the selected `DJ_COPILOT_PYTHON` executable or `python3`, owns `dj-copilot.sqlite3` under Electron's user-data directory, and parses the XML completely before beginning its replacement transaction. Reimport preserves app IDs where the Rekordbox IDs/structural playlist keys match. A failed import rolls back and leaves the previous revision browsable. One unexpected core exit in a 30-second window is restarted; a second produces a visible degraded state through the renderer's two-second status refresh. The client is looked up per IPC operation so recovery uses the replacement connection. Graceful quit waits for the worker and removes only the supervisor-created runtime directory.
+The development core runs with the selected `DJ_COPILOT_PYTHON` executable or `python3`, owns `dj-copilot.sqlite3` under Electron's user-data directory, and parses the XML completely before beginning its replacement transaction. Reimport preserves app IDs where the Rekordbox IDs/structural playlist keys match. Analysis is retained only for an unchanged normalized source path and availability; changed source identity invalidates its job/features, and transactional completion requires the existing track's matching running fingerprint so a late worker cannot attach stale or orphan evidence. A failed import rolls back and leaves the previous revision browsable. One unexpected core exit in a 30-second window is restarted; a second produces a visible degraded state through the renderer's two-second status refresh. The client is looked up per IPC operation so recovery uses the replacement connection. Graceful quit waits for the worker and removes only the supervisor-created runtime directory.
+
+M2 upgrades an existing M1 database to schema version 2 only after creating a unique sibling `*.pre-m2.sqlite3` backup. Private normalized media paths remain core-only. One daemon analysis worker processes deterministic queued order, stores bounded progress and stable per-track failures, pauses cooperatively, requeues interrupted running work after stop/restart, and reuses results only when source fingerprint plus provider/version/pipeline match. The baseline provider invokes external FFmpeg/ffprobe 8.1.2, streams mono `f32le` PCM into pinned NumPy 2.4.4, writes no decoded PCM, and stores transparent heuristic evidence with confidence and limitations. Structure and embeddings remain explicit unavailable capabilities.
+
+The renderer polls analysis once per second without overlap and requests at most 200 visible/selected track IDs while retaining global queue counts. Imported and local BPM/key remain distinct. Feature evidence includes codec/duration, loudness/energy, rhythm/timbre proxies, provenance, and a semantic sixteen-bucket energy profile. Missing NumPy, FFmpeg, or ffprobe disables analysis without disabling core health or library browsing.
 
 The production build currently bundles the Electron main, isolated preload, and renderer only. A bundled CPython 3.12 runtime and packaged resource discovery remain M7 work; development success is not packaging evidence.
 

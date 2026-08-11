@@ -95,7 +95,7 @@ class AnalysisProvider(Protocol):
 
 The selected concrete provider is `FfmpegNumpyProvider`. Its identity is `ffmpeg-numpy-basic`, its pipeline is `baseline-v1`, it requires `numpy.__version__ == "2.4.4"`, and both executable version lines must begin with `ffmpeg version 8.1.2` / `ffprobe version 8.1.2`.
 
-- [ ] **Step 1: Write provider and generator tests first**
+- [x] **Step 1: Write provider and generator tests first**
 
 Add literal generated-fixture expectations covering:
 
@@ -112,7 +112,7 @@ self.assertEqual((silence.musical_key, silence.mode), (None, None))
 
 Also prove source hashes are unchanged, `progress` is monotonic from 0 through 1,000,000, corrupt/missing/no-audio inputs raise stable `AnalysisProviderError` codes, a stop callback raises `AnalysisInterrupted`, executable/version mismatch yields unavailable capabilities, and no decoded PCM file appears on disk. Extend the generator with `harmonic.wav`: a bounded 16-second mono PCM signal containing C-major chord tones plus 120-BPM percussive pulses and a quieter first half. Preserve the historical `clicks.wav` hash and spike assertions.
 
-- [ ] **Step 2: Run the tests and confirm the missing provider/harmonic fixture is the failure**
+- [x] **Step 2: Run the tests and confirm the missing provider/harmonic fixture is the failure**
 
 Run:
 
@@ -123,7 +123,7 @@ PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s spikes/audio_analysis/
 
 Expected red result: the production analysis package and `harmonic.wav` generator output do not exist; the historical spike remains green after generator compatibility is preserved.
 
-- [ ] **Step 3: Add the exact dependency and provider implementation**
+- [x] **Step 3: Add the exact dependency and provider implementation**
 
 Write `core/requirements.txt` as:
 
@@ -140,7 +140,7 @@ Provider behavior:
 5. Convert every result to bounded Python `int`, `str`, or tuple before constructing `AnalysisFeatures`. Include the limitation strings `"Heuristic tempo and beat evidence; not a Rekordbox beat grid."` and `"Heuristic key/mode evidence; verify low-confidence results by ear."`.
 6. Compute the fast fingerprint as SHA-256 over a domain separator, file size, nanosecond mtime, and the first/last 64 KiB; return size and mtime alongside it.
 
-- [ ] **Step 4: Run focused provider and historical spike checks green**
+- [x] **Step 4: Run focused provider and historical spike checks green**
 
 Run the two Step 2 commands. Expected: all provider tests and all seven historical spike tests pass with no child process or generated file left behind.
 
@@ -192,7 +192,7 @@ class AnalysisManager:
     def status(self, track_ids: tuple[str, ...] | None = None) -> AnalysisQueueStatus: ...
 ```
 
-- [ ] **Step 1: Write failing repository tests**
+- [x] **Step 1: Write failing repository tests**
 
 Tests must prove an existing M1 database is copied to a unique sibling `*.pre-m2.sqlite3` backup before the first schema change and remains readable after upgrade; a brand-new empty database requires no backup; the additive schema stores private `source_path` but omits it from `StoredTrack`; preserves features for a stable ID across reimport; removes orphaned job/features for a removed track; stores exactly one latest job and one latest feature row per track; clamps progress to 0–1,000,000; preserves provider/pipeline/confidence; and converts persisted `running` to `queued` at startup while leaving `paused` unchanged.
 
@@ -204,7 +204,7 @@ python3 -B -m unittest core.tests.test_database core.tests.test_analysis_databas
 
 Expected red result: analysis tables/methods and stored source paths do not exist.
 
-- [ ] **Step 2: Add the additive schema and thread-safe repository methods**
+- [x] **Step 2: Add the additive schema and thread-safe repository methods**
 
 Open SQLite with `check_same_thread=False` and serialize every public repository operation with one `threading.RLock`. Use `PRAGMA user_version = 2` as the M2 schema marker. When a version-0 database already contains the M1 `tracks` table without `source_path`, use SQLite's online backup API to create the first non-existing sibling named `<stem>.pre-m2.sqlite3`, `<stem>.pre-m2-2.sqlite3`, and so on before executing DDL; expose the chosen path for recovery evidence. A new empty database creates version 2 directly without a backup. Add `source_path TEXT NOT NULL DEFAULT ''` to `tracks` through an idempotent column check. Add:
 
@@ -239,7 +239,7 @@ CREATE TABLE IF NOT EXISTS track_features (
 
 The JSON column contains only the strict `AnalysisFeatures` fields and is decoded through explicit validation, not `pickle`. Import stores each normalized private path, keeps analysis for retained stable IDs, and removes rows whose IDs no longer exist before commit.
 
-- [ ] **Step 3: Write failing manager tests with a controllable fake provider**
+- [x] **Step 3: Write failing manager tests with a controllable fake provider**
 
 The fake provider records analyzed IDs, emits literal progress `[100_000, 500_000, 1_000_000]`, blocks on an event for pause/restart tests, returns one `AnalysisFeatures`, and raises stable errors for one path. Tests prove:
 
@@ -259,7 +259,7 @@ python3 -B -m unittest core.tests.test_analysis_jobs -v
 
 Expected red result: `AnalysisManager` does not exist.
 
-- [ ] **Step 4: Implement the single-thread manager and rerun repository/manager tests**
+- [x] **Step 4: Implement the single-thread manager and rerun repository/manager tests**
 
 Use one daemon thread plus `threading.Condition`. The manager checks the persisted pause flag before claiming the next queued row, changes one job to `running`, increments attempts, computes the fingerprint, reuses an exact cache match, or calls the provider. Progress callbacks persist only monotonic bounded values. `pause()` sets the control flag and interruption event; `resume()` changes paused rows to queued and notifies; `stop()` interrupts, joins for at most five seconds, and leaves unfinished work queued. Stable error codes are `missing_file`, `unsupported_audio`, `decode_failed`, `analysis_timeout`, `provider_unavailable`, and `analysis_failed`; messages are capped at 500 characters and contain no source path.
 
@@ -296,7 +296,7 @@ analysis: {
 
 `AnalysisQueueStatus` is a strict object with `state: "idle" | "running" | "paused"`, five nonnegative counts, `progressPpm`, strict capabilities, and at most 200 strict item objects. Each item contains `trackId`, status/progress/attempt/error fields, and a nullable strict feature object matching Task 1. `TrackListItem` gains `analysis: AnalysisSummary | null`; it still rejects paths and unknown fields. `get_analysis_status` accepts `{}` or `{ trackIds: [...] }`; when IDs are supplied, the response includes exactly those known IDs in request order while aggregate counts remain global.
 
-- [ ] **Step 1: Write failing Python service tests**
+- [x] **Step 1: Write failing Python service tests**
 
 Start the real service with generated XML/audio and injected exact executables. Verify `queue_analysis`, `get_analysis_status`, `pause_analysis`, and `resume_analysis`; reject empty, duplicate, unknown, malformed, or more than 200 IDs; accept only an optional strict `trackIds` list on status; reject payloads on pause/resume; prove responses contain no path; and prove SIGTERM stops the manager before closing SQLite/socket. A provider-unavailable process must keep health/library commands ready and report unavailable capabilities.
 
@@ -308,11 +308,11 @@ python3 -B -m unittest core.tests.test_service core.tests.test_analysis_service 
 
 Expected red result: analysis commands are outside the allowlist.
 
-- [ ] **Step 2: Wire manager lifecycle and strict Python commands**
+- [x] **Step 2: Wire manager lifecycle and strict Python commands**
 
 Construct the provider and manager once in `serve`, call `manager.start()` after database recovery, dispatch quick queue/control/status calls, and call `manager.stop()` in `finally` before `database.close()`. Add only `queue_analysis`, `get_analysis_status`, `pause_analysis`, and `resume_analysis`; all DSP remains off the request thread.
 
-- [ ] **Step 3: Write failing Zod, IPC, and preload tests**
+- [x] **Step 3: Write failing Zod, IPC, and preload tests**
 
 Use hand-written literal DTOs to prove scaled bounds, nullable low-confidence fields, exact provider/provenance strings, path/unknown-field rejection, max 200 IDs, trusted-sender enforcement, current-client lookup after restart, and exact frozen preload keys. Invoke each fixed channel and assert its returned validated result rather than asserting only that a mock was called.
 
@@ -324,11 +324,11 @@ pnpm --dir app/desktop test -- analysis-contracts main-security preload-contract
 
 Expected red result: analysis schemas/API/channels do not exist.
 
-- [ ] **Step 4: Extend shared schemas, guarded IPC, preload, and development Python selection**
+- [x] **Step 4: Extend shared schemas, guarded IPC, preload, and development Python selection**
 
 Add the four core request variants and analysis schemas. `registerIpcHandlers` parses every payload and core result. `createDesktopApi` exposes only `system`, `library`, and `analysis`. The supervisor selects `DJ_COPILOT_PYTHON`, then `<repositoryRoot>/.venv/bin/python` when executable, then `python3`; tests cover the order without touching the real filesystem.
 
-- [ ] **Step 5: Run the full boundary checks**
+- [x] **Step 5: Run the full boundary checks**
 
 Run both Step 1 and Step 3 commands plus:
 
@@ -357,7 +357,7 @@ Expected: Python service tests, desktop boundary tests, and strict TypeScript al
 
 **Design direction:** Preserve the existing cue-sheet workstation. Add one quiet “analysis transport” rail beneath service status; its single signature element is a sixteen-cell energy strip derived from actual stored buckets, echoing a deck waveform without pretending to be one. Existing navy, mist, amber, teal, and rust tokens remain; no new decorative gradient, animation, or generic card grid is introduced.
 
-- [ ] **Step 1: Write failing renderer behavior tests**
+- [x] **Step 1: Write failing renderer behavior tests**
 
 Tests must prove:
 
@@ -378,11 +378,11 @@ pnpm --dir app/desktop test -- analysis-screen library-screen
 
 Expected red result: the controls, selection, evidence, and API do not exist.
 
-- [ ] **Step 2: Implement the bounded UI state and components**
+- [x] **Step 2: Implement the bounded UI state and components**
 
 `LibraryScreen` owns `selectedTrackIds`, queue status, one non-overlapping poll ref, and merge-by-ID behavior. `TrackTable` emits selection events and renders imported versus local BPM/key distinctly. `AnalysisControls` names actions by outcome (`Analyze 2 selected`, `Pause analysis`, `Resume analysis`). `FeatureEvidence` formats confidence as whole percentages, milli-dB as one decimal dBFS, and unknown values as `Not enough evidence`; it renders energy buckets as semantic text plus an `aria-hidden` strip.
 
-- [ ] **Step 3: Apply the cue-sheet token extension and rerun UI/type checks**
+- [x] **Step 3: Apply the cue-sheet token extension and rerun UI/type checks**
 
 Add visible focus for checkboxes/analysis buttons, minimum 44px controls where practical, narrow-screen horizontal table behavior, dark-theme tokens, and reduced-motion compatibility. Run:
 
@@ -423,9 +423,9 @@ Expected: focused UI tests, strict typecheck, and renderer build pass. No screen
 - Consumes: the complete M2 slice.
 - Produces: `pnpm verify:m2`, reproducible setup, dependency/license evidence, generated-audio Electron recovery evidence, and a pushed M2 checkpoint.
 
-- [ ] **Step 1: Write the Electron flow before adding test-only timing support**
+- [x] **Step 1: Write the Electron flow before adding test-only timing support**
 
-Generate a temporary M2 XML whose four tracks resolve to `clicks.wav`, `harmonic.wav`, `silence.wav`, and `corrupt.wav`. Launch the production build with an isolated user-data directory, exact provider paths, `DJ_COPILOT_TEST_MODE=1`, and `DJ_COPILOT_ANALYSIS_TEST_DELAY_MS=75`. Import, select all, start analysis, wait for visible nonzero progress, pause, force one core exit through the existing main-only hook, wait for ready, prove the queue is still paused, resume, and assert three successes plus one corrupt-file failure. Assert 120.0 local BPM for clicks, C major for harmonic, unknown BPM/key for silence, provider/pipeline/confidence text, persistence after page reload, unchanged audio hashes, and runtime-directory cleanup after quit.
+Generate a temporary M2 XML whose four tracks resolve to `clicks.wav`, `harmonic.wav`, `silence.wav`, and `corrupt.wav`. Launch the production build with an isolated user-data directory, exact provider paths, `DJ_COPILOT_TEST_MODE=1`, and `DJ_COPILOT_ANALYSIS_TEST_DELAY_MS=75`. Import, select all, start analysis, wait for visible nonzero progress, pause, force one core exit through the existing main-only hook, wait for ready, prove the queue is still paused, resume, and assert three successes plus one corrupt-file failure. Assert 120 local BPM for clicks, C major for harmonic, unknown BPM/key for silence, provider/pipeline/confidence text, persistence after page reload, unchanged audio hashes, and runtime-directory cleanup after quit.
 
 Run:
 
@@ -435,11 +435,11 @@ pnpm --dir app/desktop exec playwright test e2e/analysis-flow.spec.ts
 
 Expected red result: the M2 flow and test-only delay injection do not exist.
 
-- [ ] **Step 2: Add only the bounded integration support needed by the red flow**
+- [x] **Step 2: Add only the bounded integration support needed by the red flow**
 
 Allow `DJ_COPILOT_ANALYSIS_TEST_DELAY_MS` only when `DJ_COPILOT_TEST_MODE=1`, parse an integer from 0–250, and inject it between provider chunks. Do not expose timing controls through preload or normal production requests. Add `scripts/setup-python.sh` with `set -euo pipefail`; run `python3 -m venv .venv`, `.venv/bin/python -m pip install -r core/requirements.txt`, exact NumPy import/version validation, and FFmpeg/ffprobe version validation. Root `pnpm setup` invokes it before Electron installation.
 
-- [ ] **Step 3: Add the focused M2 gate and run it**
+- [x] **Step 3: Add the focused M2 gate and run it**
 
 `scripts/verify-m2.sh` uses `set -euo pipefail`, checks NumPy and FFmpeg/ffprobe prerequisites, then runs:
 
@@ -453,11 +453,11 @@ pnpm --dir app/desktop exec playwright test
 
 Root `pnpm verify:m2` invokes the script. Run it, then run `git diff --check`. Expected: every M1 and M2 Python/desktop test, strict typecheck/build, two M1 Electron flows, and the M2 analysis flow pass.
 
-- [ ] **Step 4: Update durable records with measured, non-visual evidence**
+- [x] **Step 4: Update durable records with measured, non-visual evidence**
 
 Record exact host/runtime/provider versions, fixture hashes, feature outputs/tolerances, queue/restart outcomes, per-file failure, unsupported-provider behavior, elapsed time, and the D-045 visual deferral. Record FFmpeg 8.1.2 external-development use, NumPy 2.4.4 licensing/wheel evidence, the GPL Homebrew non-bundling constraint, and the M7 LGPL-build decision. Do not claim real-music accuracy, common-codec breadth beyond measured fixtures, or a visual pass.
 
-- [ ] **Step 5: Perform one final read-only M2 scope/quality review**
+- [x] **Step 5: Perform one final read-only M2 scope/quality review**
 
 The reviewer checks the complete M2 diff against this plan and the approved personal-MVP design. Resolve any High/Medium normal-workflow defect with one bounded fix wave and affected tests; do not start repeated security or screenshot review loops.
 

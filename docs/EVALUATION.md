@@ -1,7 +1,7 @@
 # DJ Copilot Evaluation
 
-Status: deterministic mock Codex-suitability harness executed; authenticated Codex suitability not executed
-Last updated: 2026-08-09
+Status: deterministic generated-audio and mock Codex engineering evaluations executed; real-music and authenticated Codex suitability not executed
+Last updated: 2026-08-11
 
 ## Reporting rules
 
@@ -38,6 +38,7 @@ Any weak reasoning task moves into deterministic code; Codex remains only for in
 | --- | --- | --- | --- | --- |
 | 2026-08-09 | Generated 120-BPM PCM click/energy fixture | Engineering baseline passed: 7 tests twice; exact regenerated hash and sample-derived measurements matched | `evidence/phase-0/audio-analysis.md` | Proves only deterministic fixture generation, bounded measurement/isolation, and rubric plumbing; it is not real-music tempo/MIR accuracy evidence |
 | 2026-08-09 | Twelve-task synthetic Codex DJ-suitability rubric with `MockAIProvider` | Primary verification after independent-review corrections: 30/30 tests, typecheck green, 12/12 mock fixture results, aggregate unknown-ID count 0; final independent re-review found no High or Medium issue | `evidence/phase-0/codex-evaluation.md`; `../spikes/codex-evaluation/EVIDENCE.md` | Proves the executable rubric/mock/report boundary only; it is not Codex quality, authenticated integration, authoritative tool telemetry, provider termination, or subjective DJ-quality evidence |
+| 2026-08-11 | M2 generated clicks/harmonic/silence/corrupt desktop flow | Post-review aggregate passed 56/56 core and 62/62 desktop tests plus 3/3 Electron flows; 120-BPM clicks and C-major harmonic evidence displayed, silence stayed unknown, corrupt input failed alone, pause survived restart, results survived reload, and all four source hashes stayed exact | `evidence/m2-local-analysis.md` | Proves the development provider, queue, boundary, reimport integrity, dependency degradation, and UI plumbing on generated fixtures; it is not real-music tempo/key accuracy, broad codec, thermal, structure, embedding, or packaged-runtime evidence |
 
 The authenticated Codex run, real-music MIR quality, search relevance,
 transition acceptance, and set-quality evaluations remain unexecuted and cannot

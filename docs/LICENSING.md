@@ -1,6 +1,6 @@
 # Licensing and Distribution Strategy
 
-Status: Phase 0 evidence collection in progress
+Status: M2 development inventory current; M7 distribution inventory pending
 Project license: MIT (`../LICENSE`)
 
 ## Default-build policy
@@ -21,6 +21,8 @@ Project license: MIT (`../LICENSE`)
 | Python MCP SDK | Local bounded tool transport | MIT at `mcp==2.0.0` / commit `6f69a3758ebf2ee55ce050f58b470ce11af71133`; isolated `spikes/codex-mcp/python_mcp/requirements.lock` records the exact 29-package environment inventory | Not applicable | Independently reviewed for the local Phase 0 adapter; production hashes, bundled-runtime and notices verification remain required before distribution |
 | Electron | Accepted desktop framework | MIT; npm 43.2.0 observed, with exact supported patch deferred to Phase 1 | Not applicable | ADR-0001 accepts the framework/Node 24 major line; exact artifact integrity, transitive inventory, notices, and non-ASAR nested-resource signing remain mandatory |
 | CPython | Bundled DJ-core runtime | Python Software Foundation License; ADR-0001 selects the 3.12 major line, with an exact current security patch/build deferred to Phase 1 | Not applicable | Reproducible arm64 runtime bundle, standard-library/native inventory, notices, integrity, and signing must be verified before distribution; never depend on system Python |
+| NumPy 2.4.4 | M2 transparent DSP calculations | PyPI/versioned source declares `BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0`; exact pin is `core/requirements.txt` | No model, weights, or dataset selected | Allowed in development; M7 must include the complete bundled-component notice inventory and verify the selected CPython 3.12 arm64 wheel/package |
+| External FFmpeg/ffprobe 8.1.2 | M2 local metadata and streamed audio decode | FFmpeg is LGPL-2.1-or-later by default, but the measured Homebrew build enables GPL components and reports GPL terms | Not applicable | Joe's existing executable may be invoked for personal development only; it is not copied or bundled. M7 must select a reproducible distributable configuration and satisfy its exact source/configuration/notices obligations |
 | Rekordbox XML specification | Interchange format | Official developer format document; no source library is copied | User-selected metadata remains user data | Allowed baseline subject to Rekordbox developer terms and strict parser implementation |
 | `pyrekordbox` | Later optional snapshot-only reference | MIT at inspected `f695541` | No model assets | Reference only; license is permissive but mutation/version/security behavior is not approved |
 | `all-in-one` | Optional structure provider | MIT at inspected `18e7890` | Checkpoint card says MIT; Harmonix annotations MIT, but downloadable audio/spectrogram terms are separate/incompletely surfaced | Not approved for default distribution; experimental adapter only after complete provenance/safe-loading review |
@@ -40,7 +42,7 @@ Project license: MIT (`../LICENSE`)
 - No semantic or audio/text embedding model is approved for the default package.
 - Essentia code and model terms are incompatible or unresolved for default proprietary-style distribution.
 - CLAP/all-in-one/PANNs asset provenance, integrity and executable-deserialization paths need explicit resolution.
-- Exact transitive/native binary and codec inventories are deferred until a production baseline runtime is selected.
+- A distributable FFmpeg/decoder configuration, exact transitive/native codec inventory, and clean signed CPython/NumPy composition remain M7 work; the GPL-configured Homebrew binary is not a release artifact.
 - Codex SDK source licensing is known, but ChatGPT/Codex service terms, login UX, ambient-config isolation, exact artifact integrity, transitive packages, and signed helper redistribution remain blockers to default distribution.
 
 Research outcomes and rejected candidates are synchronized with `REPO_RESEARCH.md` and the audio-analysis ADR.

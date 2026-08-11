@@ -10,8 +10,8 @@ Delivery note (2026-08-11): Joe explicitly deferred all visual QA until the full
 | Milestone | Integrated outcome | Completion evidence |
 | --- | --- | --- |
 | M0 — Scope reset and green foundation | Approved personal scope, historical evidence preserved, interrupted P0-016 removed, green baseline pushed | Direct documentation/ignore checks, Codex/MCP 52-test package, one aggregate baseline run, clean pushed checkpoint |
-| M1 — App shell and real library slice | Electron/React + Python/SQLite launch; XML fixture and selected library browse in UI | Focused contracts, fixture desktop flow, selected-XML manual check |
-| M2 — Local analysis slice | Resumable selected-track analysis with progress, results, and isolated failures | Generated audio integration, restart/resume manual flow |
+| M1 — App shell and real library slice | Electron/React + Python/SQLite launch; XML fixture and selected library browse in UI | Focused contracts and fixture desktop flow; native-picker visual check deferred under D-045 |
+| M2 — Local analysis slice | Resumable selected-track analysis with progress, results, and isolated failures | Generated-audio desktop pause/restart/resume flow; visual check deferred under D-045 |
 | M3 — Discovery and recommendation slice | Text/structured search, similarity, next-track ranking, reasons, and filters | Deterministic ranking tests and representative-library manual tuning |
 | M4 — Set workflow slice | Editable/versioned drafts, pins/bans, analyzer, organization suggestions, and valid XML export | Complete desktop import-to-export fixture flow |
 | M5 — Personalization slice | Feedback changes visible recommendation preferences with export/reset | Baseline-versus-adjusted fixture test and reset check |

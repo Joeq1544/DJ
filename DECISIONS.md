@@ -1,6 +1,6 @@
 # DJ Copilot Decision Log
 
-Last updated: 2026-08-10
+Last updated: 2026-08-11
 
 This file is the concise index of settled project decisions. Detailed architectural choices live in `docs/adr/`. A settled decision is reopened only when new measured or primary-source evidence is recorded.
 
@@ -52,6 +52,7 @@ This file is the concise index of settled project decisions. Detailed architectu
 | D-044 | 2026-08-10 | accepted development boundary | Run the M1 Python core with `DJ_COPILOT_PYTHON` or host `python3` compatible with Python 3.12+, while keeping the self-contained CPython 3.12 arm64 runtime as an M7 packaging deliverable | M1 is exercised on host CPython 3.14.3; development success does not claim a bundled runtime |
 | D-045 | 2026-08-11 | accepted delivery workflow | Defer all visual QA, including native macOS picker interaction and screenshot-based review, until every M1–M7 feature is implemented; milestones may close on focused automated and non-visual integration evidence when no in-scope code defect is known | Joe explicitly requested one final hands-on test period instead of visual gates during implementation; deferred checks remain visible and are not recorded as passes |
 | D-046 | 2026-08-11 | accepted for M2 development | Use external FFmpeg/ffprobe 8.1.2 plus pinned NumPy 2.4.4 for a transparent local baseline provider; expose heuristic confidence/limitations, keep optional structure/embedding stages unavailable, and do not bundle the measured GPL-configured Homebrew FFmpeg | Official release/license/package metadata plus local arm64 measurements in `docs/evidence/m2-dependency-selection.md`; M7 owns a separately reviewed distributable decoder |
+| D-047 | 2026-08-11 | accepted for M2 implementation | Persist one latest versioned analysis job and feature result per stable track in schema-v2 app SQLite, use one resumable local worker, preserve queued/paused work across core restarts, invalidate analysis when imported source path/availability changes, and return only explicitly requested status items plus global counts | M2 repository/manager/service/renderer tests; pre-DDL M1 database backup; exact running fingerprint completion; provider/pipeline cache keys; path-free typed renderer boundary |
 
 ## Current decision state
 

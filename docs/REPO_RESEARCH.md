@@ -1,11 +1,17 @@
 # Phase 0 Repository Research
 
-Status: mandatory primary-source research complete; executable feasibility gates remain open
-Inspection date: 2026-08-09
+Status: mandatory Phase 0 research complete; M2 local-analysis dependency selection implemented
+Inspection dates: 2026-08-09 and M2 update 2026-08-11
 
 ## Method
 
 Use official documentation first, then inspect each source repository at an exact commit or release. Treat README compatibility, quality, and performance claims as hypotheses until a source inspection or local spike confirms them. Record code licenses separately from model-weight/data licenses. A missing or ambiguous license blocks default distribution until resolved.
+
+## M2 local-analysis selection update
+
+M2 selected external FFmpeg/ffprobe 8.1.2 plus pinned `numpy==2.4.4` for the transparent development provider `ffmpeg-numpy-basic` / `baseline-v1`. Official FFmpeg release, ffprobe/format, and legal pages plus NumPy 2.4.4 package/release/license metadata are linked in `evidence/m2-dependency-selection.md`. Local arm64 measurement confirmed CPython 3.14.3, NumPy 2.4.4, raw `f32le` support, and the exact executables. Generated fixtures establish deterministic local decode and heuristic feature plumbing only; they do not establish real-music accuracy or broad codec coverage.
+
+The installed Homebrew FFmpeg configuration enables GPL components. M2 invokes it only as Joe's external personal-development prerequisite and does not copy or bundle it. M7 must select/build and verify a reproducible distributable arm64 decoder, exact source/configuration/transitive inventory, notices, signing, codec behavior, and clean setup. No model, weights, downloaded dataset, or executable deserialization was selected.
 
 ## Comparison schema
 

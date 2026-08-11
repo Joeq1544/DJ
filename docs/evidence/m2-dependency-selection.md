@@ -1,7 +1,7 @@
 # M2 Audio Dependency Selection
 
 - Date: 2026-08-11
-- Status: accepted for development implementation; product evidence pending
+- Status: implemented and verified for the M2 development runtime; distribution evidence pending M7
 - Decision: D-046; ADR-0005
 
 ## Selected baseline
@@ -33,6 +33,10 @@ installed NumPy payload approximately 31.4 MB across 1,295 files
 ```
 
 The FFmpeg build configuration includes `--enable-gpl`, `libx264`, and `libx265`; `ffmpeg -L` reports GPL. Invoking Joe's already-installed executable is accepted for this personal development slice. The binary is not a redistributable M7 artifact by default, and subprocess separation is not treated as a licensing conclusion.
+
+## M2 implementation result
+
+Post-review checkpoint `a66e0d6` and `docs/evidence/m2-local-analysis.md` verify the selected versions through the real Python provider and built Electron app. The final aggregate passed 56 core tests, 62 desktop tests, strict TypeScript, production builds, and three generated-fixture Electron flows. A real no-site-packages subprocess also proves missing NumPy degrades only analysis while the core/library stay usable. Decode stayed local and streamed; the four source hashes remained exact; no decoded PCM or dependency binary was committed. This closes the development selection only and does not convert the installed GPL-configured FFmpeg into a release candidate.
 
 ## M7 packaging work retained
 

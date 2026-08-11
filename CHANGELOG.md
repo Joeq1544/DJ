@@ -4,6 +4,16 @@ All notable project changes are recorded here. The project has not yet produced 
 
 ## Unreleased
 
+### 2026-08-11 — M2 local analysis slice
+
+- Added a transparent `ffmpeg-numpy-basic` local provider with exact provenance, streamed in-memory decode, bounded metadata/basic features, heuristic tempo/key confidence, honest silence unknowns, and stable per-file errors.
+- Added schema-v2 analysis jobs/results with pre-DDL M1 backup, deterministic single-worker ordering, pause/resume, restart requeue, exact cache invalidation, reimport retention, and path-free renderer records.
+- Added four strict analysis operations across the Python service, Electron main, isolated preload, and React renderer while preserving library use when the provider is unavailable.
+- Added capped track selection, queue/retry controls, progress and failure counts, imported-versus-local evidence, limitations, provenance, and a sixteen-part energy profile.
+- Added exact setup/verification scripts and a generated-audio desktop flow proving pause across a forced core restart, three successes plus one isolated corrupt-file failure, reload persistence, immutable source hashes, and runtime cleanup.
+- Fixed the final-review findings: reimport now invalidates changed source identities and rejects stale/orphan completion; missing NumPy degrades only analysis while health/library remain usable; recovery names the exact pre-M2 backup.
+- Closed M2 at pushed post-review implementation checkpoint `a66e0d6` after the independent reviewer returned READY with no unresolved High/Medium finding. Visual QA remains deferred under D-045.
+
 ### 2026-08-10 — M1 app shell and library slice
 
 - Added the exact pnpm/Electron/React/TypeScript workspace and production main, preload, and renderer builds.
