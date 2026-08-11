@@ -8,6 +8,9 @@ All notable project changes are recorded here. The project has not yet produced 
 
 - Accepted ADR-0008 and a bounded three-table M5 plan for ratings/tags/notes, saved filters, explicit feedback, deterministic visible preference effects, baseline comparison, confirmed export, and reset.
 - Kept the slice on the existing SQLite/ranking/Library-screen architecture with no ML service, embeddings, FTS, background learner, event framework, or visual QA gate.
+- Added and pushed deterministic `preference-linear-v1`, metadata-aware filtering, the existing scorer's optional preference component, and exact schema-v3/v4 draft-filter compatibility at `3ada231`; its focused pure aggregate passes 47/47.
+- Added and pushed strict desktop contracts, fixed trusted IPC/preload operations, bounded revision-bound atomic JSON export, and accessible inline metadata/filter/feedback/comparison/profile/reset controls at `035e1ba`.
+- The desktop implementation passes 34/34 focused boundary tests, 41/41 focused renderer tests, the complete 136/136 desktop aggregate, strict typecheck, and the production build. Visual QA remains skipped under D-045.
 
 ### 2026-08-11 — M4 set workflow and Rekordbox export slice
 

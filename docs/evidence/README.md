@@ -16,3 +16,5 @@ Current execution status lives in `TASKS.md`. New milestone evidence should rema
 - `m2-dependency-selection.md` — exact development decoder/DSP selection, source/license evidence, local measurements, and retained M7 packaging work.
 - `m2-local-analysis.md` — provider, durable queue, strict boundary, analysis UI, generated-audio restart/reload flow, and exact aggregate results.
 - `m3-discovery-recommendations.md` — bounded search/ranking, strict discovery boundary, renderer workflow, generated-library Electron flow, and exact aggregate results.
+- `m4-set-workflow-export.md` — versioned set workflow, official XML writer, confirmed export, integrated generated flow, review corrections, and exact aggregate results.
+- `m5-personalization-library-metadata.md` — in-progress deterministic preference, persistence, desktop/UI, generated-flow, and aggregate evidence.
