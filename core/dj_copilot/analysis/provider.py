@@ -212,6 +212,7 @@ class FfmpegNumpyProvider:
     def __init__(self, *, ffmpeg_path: str | Path | None = None, ffprobe_path: str | Path | None = None):
         self.ffmpeg_path = self._resolve_executable(ffmpeg_path, "DJ_COPILOT_FFMPEG", "ffmpeg")
         self.ffprobe_path = self._resolve_executable(ffprobe_path, "DJ_COPILOT_FFPROBE", "ffprobe")
+        self._analysis_test_delay_seconds = _analysis_test_delay_seconds()
 
     @staticmethod
     def _resolve_executable(value: str | Path | None, env_name: str, command: str) -> str | None:
@@ -450,6 +451,8 @@ class FfmpegNumpyProvider:
                     remainder = data[aligned:]
                     decoded_fraction = accumulator.sample_count / max(1.0, duration_seconds * DECODE_SAMPLE_RATE)
                     report(75_000 + round(min(1.0, decoded_fraction) * 850_000))
+                    if self._analysis_test_delay_seconds > 0.0:
+                        time.sleep(self._analysis_test_delay_seconds)
             returncode = process.wait(timeout=1.0)
         except BaseException:
             _terminate(process)
@@ -533,6 +536,18 @@ class FfmpegNumpyProvider:
             pipeline_version=PIPELINE_VERSION,
             limitations=LIMITATIONS,
         )
+
+
+def _analysis_test_delay_seconds() -> float:
+    if os.environ.get("DJ_COPILOT_TEST_MODE") != "1":
+        return 0.0
+    raw_value = os.environ.get("DJ_COPILOT_ANALYSIS_TEST_DELAY_MS")
+    if not raw_value or any(character not in "0123456789" for character in raw_value):
+        return 0.0
+    delay_ms = int(raw_value)
+    if raw_value != str(delay_ms) or not 0 <= delay_ms <= 250:
+        return 0.0
+    return delay_ms / 1_000.0
 
 
 def _bounded_capture(

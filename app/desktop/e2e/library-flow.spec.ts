@@ -44,7 +44,7 @@ test.beforeAll(async () => {
   await execFileAsync("pnpm", ["build"], { cwd: desktopDirectory });
 });
 
-test("imports the fixture and recovers the browsable library after one core restart", async ({}, testInfo) => {
+test("imports the fixture and recovers the browsable library after one core restart", async () => {
   const userDataPath = await mkdtemp(join(tmpdir(), "dj-copilot-e2e-"));
   const pythonExecutable = await compatiblePython();
   let application: ElectronApplication | undefined;
@@ -64,8 +64,6 @@ test("imports the fixture and recovers the browsable library after one core rest
     await page.getByRole("button", { name: "Import Rekordbox XML" }).click();
     await expect(page.getByText("4 tracks imported and 4 playlists.")).toBeVisible();
     await expect(page.locator("tbody tr")).toHaveCount(4);
-    await page.screenshot({ path: testInfo.outputPath("library-after-import.png") });
-
     const recoveryState = await application.evaluate(async () => {
       const descriptor = Object.getOwnPropertyDescriptor(globalThis, "__DJ_COPILOT_TEST_HOOK__");
       if (!descriptor || descriptor.enumerable || typeof descriptor.value?.forceCoreExit !== "function") {

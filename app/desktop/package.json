@@ -15,6 +15,7 @@
     "build:renderer": "vite build",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:e2e:m2": "playwright test e2e/analysis-flow.spec.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

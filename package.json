@@ -7,13 +7,14 @@
     "node": ">=24 <26"
   },
   "scripts": {
-    "setup": "pnpm install && pnpm --dir app/desktop install:electron",
+    "setup": "bash scripts/setup-python.sh && pnpm install && pnpm --dir app/desktop install:electron",
     "dev": "pnpm --dir app/desktop dev",
     "build": "pnpm --dir app/desktop build",
     "test": "pnpm test:core && pnpm test:desktop",
     "test:core": "python3 -B -m unittest discover -s core/tests -v",
     "test:desktop": "pnpm --dir app/desktop test",
     "typecheck": "pnpm --dir app/desktop typecheck",
-    "verify:m1": "bash scripts/verify-m1.sh"
+    "verify:m1": "bash scripts/verify-m1.sh",
+    "verify:m2": "bash scripts/verify-m2.sh"
   }
 }

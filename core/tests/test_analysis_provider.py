@@ -1,10 +1,12 @@
 import hashlib
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -63,6 +65,20 @@ class AnalysisProviderTests(unittest.TestCase):
             ffmpeg_path=kwargs.get("ffmpeg_path", self.ffmpeg),
             ffprobe_path=kwargs.get("ffprobe_path", self.ffprobe),
         )
+
+    def decode_delays(self, *, test_mode, delay_ms, source=None):
+        environment = {
+            "DJ_COPILOT_TEST_MODE": test_mode,
+            "DJ_COPILOT_ANALYSIS_TEST_DELAY_MS": delay_ms,
+        }
+        with patch.dict(os.environ, environment, clear=False):
+            with patch("core.dj_copilot.analysis.provider.time.sleep") as sleeper:
+                self.provider().analyze(
+                    source or self.silence,
+                    progress=lambda _value: None,
+                    should_stop=lambda: False,
+                )
+        return [call.args[0] for call in sleeper.call_args_list]
 
     def test_capabilities_record_exact_local_pipeline_provenance(self):
         """Wrong executable, NumPy, provider, or pipeline versions must disable analysis."""
@@ -182,6 +198,40 @@ class AnalysisProviderTests(unittest.TestCase):
                 should_stop=lambda: True,
             )
         self.assertEqual(raised.exception.code, "interrupted")
+
+    def test_test_mode_delay_is_injected_between_local_provider_chunks(self):
+        """Ignoring a valid test-only delay must make the restart flow too fast to pause."""
+        delays = self.decode_delays(test_mode="1", delay_ms="75", source=self.harmonic)
+
+        self.assertGreater(len(delays), 1)
+        self.assertEqual(set(delays), {0.075})
+
+    def test_test_mode_delay_accepts_the_inclusive_integer_boundaries(self):
+        """Rejecting 250ms or sleeping for the zero boundary must fail the bounded contract."""
+        self.assertEqual(self.decode_delays(test_mode="1", delay_ms="0"), [])
+        upper_bound_delays = self.decode_delays(test_mode="1", delay_ms="250")
+        self.assertGreater(len(upper_bound_delays), 0)
+        self.assertEqual(set(upper_bound_delays), {0.25})
+
+    def test_test_mode_delay_is_disabled_outside_exact_test_mode_and_for_invalid_values(self):
+        """Production mode or ambiguous/out-of-range strings must never slow local analysis."""
+        cases = (
+            ("0", "75"),
+            ("01", "75"),
+            ("", "75"),
+            ("1", "-1"),
+            ("1", "251"),
+            ("1", "75.0"),
+            ("1", " 75"),
+            ("1", "+75"),
+            ("1", "075"),
+        )
+        for test_mode, delay_ms in cases:
+            with self.subTest(test_mode=test_mode, delay_ms=delay_ms):
+                self.assertEqual(
+                    self.decode_delays(test_mode=test_mode, delay_ms=delay_ms),
+                    [],
+                )
 
 
 if __name__ == "__main__":
