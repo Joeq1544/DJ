@@ -329,7 +329,7 @@ git status --short
 
 One independent reviewer checks only normal-workflow correctness, evidence integrity, unexplained scope growth, source immutability/private-path leakage, and whether any High/Medium defect blocks closure. Fix concrete findings with focused regressions; do not create repeated review loops.
 
-- [ ] **Step 4: Record actual evidence, commit, and push**
+- [x] **Step 4: Record actual evidence, commit, and push**
 
 Update every listed project-memory file with commands, counts, outcomes, limitations, and any reproducible defect. Record subjective personal-library tuning and visual QA as deferred—not passed. Inspect the staged diff for audio, XML exports, databases, credentials, private logs, and generated caches. Commit a green M3 checkpoint and push `main` to `origin` before beginning the separate M4 plan.
 

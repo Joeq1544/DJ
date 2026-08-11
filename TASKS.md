@@ -1,8 +1,8 @@
 # DJ Copilot Tasks
 
 Last updated: 2026-08-11
-Current milestone: M3 — Discovery and recommendation slice
-Current state: M3 implementation, post-review correction, and complete non-visual aggregate gate are green; the independent reviewer returned READY, the correction checkpoint is pending push, and visual QA remains deferred until all features are implemented
+Current milestone: M4 — Set workflow slice (planning)
+Current state: M3 is closed and pushed at `1e9d347` with reviewer READY and a green 81-core/104-desktop/four-Electron aggregate; bounded M4 domain, export, and renderer research is in progress, and visual QA remains deferred until all features are implemented
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -43,9 +43,9 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
 | --- | --- | --- | --- | --- | --- | --- |
 | M3-001 | ranking specialist | Deterministic schema-v2 search predicates, key/tempo normalization, similarity, all eight transition intents, confidence, reasons, penalties, missing evidence, and stable ties pass fixture tests | done | 17/17 focused ranking tests; hand-calculated integer endpoints, mixed provenance, all intents, missing evidence, and stable ties | `5a5d59d` | Heuristic weights require real-use tuning after functionality is complete |
-| M3-002 | primary + desktop boundary implementer | One bounded repository projection and three fixed core operations cross strict Python/Zod/IPC/preload contracts without paths, audio, schema migration, or N+1 summaries | done | Post-review 8/8 repository/service discovery tests and complete core 81/81, including repeated playlist positions; strict boundary 58/58; `pnpm typecheck` | `5a5d59d`, post-review correction pending checkpoint | Personal-library scan cap and sparse evidence must be disclosed honestly |
+| M3-002 | primary + desktop boundary implementer | One bounded repository projection and three fixed core operations cross strict Python/Zod/IPC/preload contracts without paths, audio, schema migration, or N+1 summaries | done | Post-review 8/8 repository/service discovery tests and complete core 81/81, including repeated playlist positions; strict boundary 58/58; `pnpm typecheck` | `5a5d59d`, `1e9d347`, pushed | Personal-library scan cap and sparse evidence must be disclosed honestly |
 | M3-003 | macOS UI specialist | Library search/filter, seed exploration, similar tracks, recommendation intents, and component explanations work accessibly on the existing Library screen | done | Discovery renderer 8/8; combined discovery/library/analysis renderer 32/32; strict typecheck and production build | `bb85aaa`, pushed | Visual QA remains deferred under D-045 |
-| M3-004 | primary | Generated-fixture desktop discovery flow, aggregate gate, one bounded review, current evidence/docs, and green pushed checkpoint close M3 | review | Post-review `pnpm verify:m3`: shell/tracked-residue checks + 81 core + 104 desktop + typecheck/build + 4 Electron flows + diff check; independent reviewer READY with no unresolved High/Medium defect | `bb85aaa`, pushed; correction checkpoint pending | Personal-library subjective relevance is deferred to Joe's final test period |
+| M3-004 | primary | Generated-fixture desktop discovery flow, aggregate gate, one bounded review, current evidence/docs, and green pushed checkpoint close M3 | done | Post-review `pnpm verify:m3`: shell/tracked-residue checks + 81 core + 104 desktop + typecheck/build + 4 Electron flows + diff check; independent reviewer READY with no unresolved High/Medium defect | `bb85aaa`, `1e9d347`, pushed | Personal-library subjective relevance is deferred to Joe's final test period |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
@@ -95,8 +95,8 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | M0 | Scope reset and green foundation | done | Green checkpoint `1f1157054a59`; M0 evidence and recovery record |
 | M1 | App shell and real library slice | done | Green checkpoint `dec0698`; `docs/evidence/m1-app-shell-library.md` |
 | M2 | Local analysis slice | done | `docs/evidence/m2-local-analysis.md`; green implementation `a66e0d6`; closure records `cb857a2`; independent reviewer READY |
-| M3 | Discovery and recommendation slice | in-progress | `docs/superpowers/plans/2026-08-11-m3-discovery-recommendations.md` |
-| M4 | Set workflow slice | not-started | Separate plan after M3 |
+| M3 | Discovery and recommendation slice | done | `docs/evidence/m3-discovery-recommendations.md`; green implementation `5a5d59d`/`bb85aaa`; reviewed correction/closure `1e9d347`; independent reviewer READY |
+| M4 | Set workflow slice | in-progress | Bounded domain/export/renderer research; separate implementation plan in preparation |
 | M5 | Personalization slice | not-started | Separate plan after M4 |
 | M6 | Codex-assisted slice | not-started | Separate plan after M5 |
 | M7 | Personal release polish | not-started | Separate plan after M6 |

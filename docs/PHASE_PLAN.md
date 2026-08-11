@@ -18,7 +18,7 @@ Delivery note (2026-08-11): Joe explicitly deferred all visual QA until the full
 | M6 — Codex-assisted slice | Existing-auth natural-language search, set planning/revision, explanations, and only necessary MCP tools | Mock integration plus one real existing-auth smoke flow |
 | M7 — Personal release polish | Recovery, migrations, setup/limitations, accessibility pass, and runnable personal macOS build | Clean setup/build/manual workflow on Joe's Mac |
 
-Progress on 2026-08-11: M0–M2 are closed and pushed. M3 implementation, review correction, and complete non-visual aggregate gate are green; its bounded reviewer returned READY and only the correction/closure pushes remain. Visual and subjective personal-library checks stay deferred under D-045.
+Progress on 2026-08-11: M0–M3 are closed and pushed. Bounded M4 domain, export, and renderer research is in progress before its separate implementation plan. Visual and subjective personal-library checks stay deferred under D-045.
 
 ## M1 scaffold contract
 

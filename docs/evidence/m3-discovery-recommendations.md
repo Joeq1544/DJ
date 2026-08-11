@@ -1,10 +1,11 @@
 # M3 Discovery and Recommendations Evidence
 
 - Date: 2026-08-11
-- Status: post-review correction and aggregate gate green; independent reviewer READY; correction checkpoint pending push
+- Status: complete; post-review aggregate green and independent reviewer READY with no unresolved High/Medium finding
 - Plan: `docs/superpowers/plans/2026-08-11-m3-discovery-recommendations.md`
 - Core/boundary checkpoint: `5a5d59d` (pushed to `origin/main`)
 - Renderer/integration checkpoint: `bb85aaa` (pushed to `origin/main`)
+- Review correction and closure checkpoint: `1e9d347` (pushed to `origin/main`)
 
 ## Scope exercised
 
