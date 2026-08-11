@@ -64,7 +64,8 @@ class CoreServiceTests(unittest.TestCase):
         self.assertEqual(imported["result"]["success"], True)
         self.assertEqual(imported["result"]["summary"]["importedTracks"], 4)
         self.assertEqual([node["name"] for node in tree["result"]], ["Root", "Warmup", "Opening", "Closer"])
-        self.assertEqual(set(tracks["result"].keys()), {"items", "nextCursor"})
+        self.assertEqual(set(tracks["result"].keys()), {"items", "nextCursor", "truncated"})
+        self.assertFalse(tracks["result"]["truncated"])
         self.assertEqual(
             set(tracks["result"]["items"][0].keys()),
             {

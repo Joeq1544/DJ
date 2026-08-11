@@ -5,6 +5,7 @@ const messageSchema = z.string().min(1).max(500);
 const displayTextSchema = z.string().max(1_000).nullable();
 const nonnegativeIntegerSchema = z.number().int().nonnegative();
 const ppmSchema = z.number().int().min(0).max(1_000_000);
+const signedPpmSchema = z.number().int().min(-1_000_000).max(1_000_000);
 const providerSchema = z.literal("ffmpeg-numpy-basic");
 const providerVersionSchema = z.literal("ffmpeg 8.1.2; ffprobe 8.1.2; numpy 2.4.4");
 const pipelineVersionSchema = z.literal("baseline-v1");
@@ -118,15 +119,144 @@ export const trackListItemSchema = z.strictObject({
   analysis: analysisSummarySchema.nullable(),
 });
 
-export const trackPageQuerySchema = z.strictObject({
+const trackFilterShape = {
   playlistId: idSchema.optional(),
+  text: z.string().min(1).max(200).optional(),
+  bpmMinMilli: z.number().int().min(30_000).max(400_000).optional(),
+  bpmMaxMilli: z.number().int().min(30_000).max(400_000).optional(),
+  musicalKey: z.string().min(1).max(64).optional(),
+  keyRelation: z.enum(["exact", "compatible"]).optional(),
+  genre: z.string().min(1).max(200).optional(),
+  energyMinPpm: ppmSchema.optional(),
+  energyMaxPpm: ppmSchema.optional(),
+  analysisState: z.enum(["any", "analyzed", "not_analyzed", "failed"]).optional(),
+  availability: z.enum(["any", "available", "missing", "unreadable"]).optional(),
+};
+
+interface TrackFilterRelations {
+  bpmMinMilli?: number | undefined;
+  bpmMaxMilli?: number | undefined;
+  musicalKey?: string | undefined;
+  keyRelation?: "exact" | "compatible" | undefined;
+  energyMinPpm?: number | undefined;
+  energyMaxPpm?: number | undefined;
+}
+
+function validateTrackFilterRelations(filters: TrackFilterRelations, context: z.RefinementCtx): void {
+  if (
+    filters.bpmMinMilli !== undefined &&
+    filters.bpmMaxMilli !== undefined &&
+    filters.bpmMinMilli > filters.bpmMaxMilli
+  ) {
+    context.addIssue({ code: "custom", path: ["bpmMaxMilli"], message: "Maximum BPM must not be less than minimum BPM" });
+  }
+  if (
+    filters.energyMinPpm !== undefined &&
+    filters.energyMaxPpm !== undefined &&
+    filters.energyMinPpm > filters.energyMaxPpm
+  ) {
+    context.addIssue({ code: "custom", path: ["energyMaxPpm"], message: "Maximum energy must not be less than minimum energy" });
+  }
+  if (filters.keyRelation !== undefined && filters.musicalKey === undefined) {
+    context.addIssue({ code: "custom", path: ["keyRelation"], message: "Key relation requires a musical key" });
+  }
+}
+
+export const trackFiltersSchema = z.strictObject(trackFilterShape).superRefine(validateTrackFilterRelations);
+
+export const trackPageQuerySchema = z.strictObject({
+  ...trackFilterShape,
   cursor: z.string().min(1).max(2_048).optional(),
   limit: z.number().int().min(1).max(200).default(100),
-});
+}).superRefine(validateTrackFilterRelations);
 
 export const trackPageSchema = z.strictObject({
   items: z.array(trackListItemSchema).max(200),
   nextCursor: z.string().min(1).max(2_048).nullable(),
+  truncated: z.boolean(),
+});
+
+export const discoveryIntentSchema = z.enum([
+  "smooth",
+  "build",
+  "peak",
+  "reset",
+  "genre_shift",
+  "adventurous",
+  "singalong_continuation",
+  "closer",
+]);
+
+const discoveryLimitSchema = z.number().int().min(1).max(20).default(10);
+
+export const findSimilarRequestSchema = z.strictObject({
+  seedTrackId: idSchema,
+  filters: trackFiltersSchema.optional(),
+  limit: discoveryLimitSchema,
+});
+
+export const recommendNextRequestSchema = z.strictObject({
+  seedTrackId: idSchema,
+  intent: discoveryIntentSchema,
+  filters: trackFiltersSchema.optional(),
+  limit: discoveryLimitSchema,
+});
+
+export const discoveryTrackSchema = trackListItemSchema.omit({ analysis: true });
+
+export const scoreComponentSchema = z
+  .strictObject({
+    name: z.enum(["tempo", "key", "energy", "style", "timbre", "vocal", "structure", "preference"]),
+    scorePpm: ppmSchema.nullable(),
+    weightPpm: ppmSchema,
+    contributionSignedPpm: signedPpmSchema,
+    effect: z.enum(["bonus", "penalty", "neutral", "missing"]),
+    reason: z.string().min(1).max(200),
+  })
+  .superRefine((component, context) => {
+    if (component.scorePpm === null) {
+      if (component.effect !== "missing") {
+        context.addIssue({ code: "custom", path: ["effect"], message: "A missing score requires a missing effect" });
+      }
+      if (component.contributionSignedPpm !== 0) {
+        context.addIssue({ code: "custom", path: ["contributionSignedPpm"], message: "A missing score has no contribution" });
+      }
+      return;
+    }
+    const expectedEffect = component.scorePpm >= 600_000
+      ? "bonus"
+      : component.scorePpm < 400_000
+        ? "penalty"
+        : "neutral";
+    if (component.effect !== expectedEffect) {
+      context.addIssue({ code: "custom", path: ["effect"], message: "Effect does not match the component score" });
+    }
+  });
+
+export const discoveryCandidateSchema = z.strictObject({
+  track: discoveryTrackSchema,
+  scorePpm: ppmSchema,
+  confidencePpm: ppmSchema,
+  reasons: z.array(z.string().min(1).max(200)).min(1).max(3),
+  components: z.array(scoreComponentSchema).min(1).max(8),
+});
+
+const discoveryResponseShape = {
+  seed: discoveryTrackSchema,
+  scannedCount: z.number().int().min(0).max(25_000),
+  truncated: z.boolean(),
+  items: z.array(discoveryCandidateSchema).max(20),
+};
+
+export const similarityResponseSchema = z.strictObject({
+  ...discoveryResponseShape,
+  algorithmVersion: z.literal("feature-similarity-v1"),
+});
+
+export const recommendationResponseSchema = z.strictObject({
+  ...discoveryResponseShape,
+  intent: discoveryIntentSchema,
+  algorithmVersion: z.literal("transition-v1"),
 });
 
 export const playlistTreeNodeSchema = z.strictObject({
@@ -191,6 +321,16 @@ export const coreRequestSchema = z.discriminatedUnion("command", [
   }),
   z.strictObject({
     ...requestBase,
+    command: z.literal("find_similar_tracks"),
+    payload: findSimilarRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("recommend_next_tracks"),
+    payload: recommendNextRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
     command: z.literal("queue_analysis"),
     payload: analysisQueueRequestSchema,
   }),
@@ -232,8 +372,17 @@ export const coreResponseSchema = z.discriminatedUnion("ok", [
 
 export type AppStatus = z.infer<typeof appStatusSchema>;
 export type TrackListItem = z.infer<typeof trackListItemSchema>;
+export type TrackFilters = z.input<typeof trackFiltersSchema>;
 export type TrackPageQuery = z.input<typeof trackPageQuerySchema>;
 export type TrackPage = z.infer<typeof trackPageSchema>;
+export type DiscoveryIntent = z.infer<typeof discoveryIntentSchema>;
+export type FindSimilarRequest = z.input<typeof findSimilarRequestSchema>;
+export type RecommendNextRequest = z.input<typeof recommendNextRequestSchema>;
+export type DiscoveryTrack = z.infer<typeof discoveryTrackSchema>;
+export type ScoreComponent = z.infer<typeof scoreComponentSchema>;
+export type DiscoveryCandidate = z.infer<typeof discoveryCandidateSchema>;
+export type SimilarityResponse = z.infer<typeof similarityResponseSchema>;
+export type RecommendationResponse = z.infer<typeof recommendationResponseSchema>;
 export type PlaylistTreeNode = z.infer<typeof playlistTreeNodeSchema>;
 export type ImportSummary = z.infer<typeof importSummarySchema>;
 export type ImportResult = z.infer<typeof importResultSchema>;
@@ -259,5 +408,9 @@ export interface DesktopApi {
     getStatus(trackIds?: string[]): Promise<AnalysisQueueStatus>;
     pause(): Promise<AnalysisQueueStatus>;
     resume(): Promise<AnalysisQueueStatus>;
+  };
+  discovery: {
+    findSimilar(request: FindSimilarRequest): Promise<SimilarityResponse>;
+    recommendNext(request: RecommendNextRequest): Promise<RecommendationResponse>;
   };
 }

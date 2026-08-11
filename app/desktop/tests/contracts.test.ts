@@ -57,8 +57,18 @@ describe("desktop boundary contracts", () => {
         },
       ],
       nextCursor: null,
+      truncated: false,
     };
     expect(trackPageSchema.safeParse(page).success).toBe(false);
+  });
+
+  it("requires the bounded-scan truncation flag on every track page", () => {
+    expect(trackPageSchema.safeParse({ items: [], nextCursor: null }).success).toBe(false);
+    expect(trackPageSchema.parse({ items: [], nextCursor: null, truncated: false })).toEqual({
+      items: [],
+      nextCursor: null,
+      truncated: false,
+    });
   });
 
   it("accepts the complete ready and playlist tree DTOs", () => {

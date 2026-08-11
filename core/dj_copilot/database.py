@@ -1,7 +1,8 @@
 """The service-owned SQLite projection of one imported Rekordbox library."""
 
 import base64
-from dataclasses import asdict, fields
+from dataclasses import asdict, dataclass, fields
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,11 +12,20 @@ import time
 import uuid
 
 from .analysis.provider import AnalysisFeatures
+from .discovery import TrackEvidence, TrackFilters, filter_evidence
 from .models import AnalysisSummary, ImportSummary, PlaylistTreeNode, RekordboxImport, StoredTrack, TrackPage
 from .rekordbox_xml import RekordboxImportError, parse_rekordbox_xml
 
 
 _ANALYSIS_STATUSES = frozenset(("queued", "running", "paused", "succeeded", "failed"))
+DISCOVERY_SCAN_LIMIT = 25_000
+
+
+@dataclass(frozen=True)
+class TrackEvidencePage:
+    items: tuple[TrackEvidence, ...]
+    next_cursor: str | None
+    truncated: bool
 
 
 class LibraryDatabase:
@@ -188,6 +198,53 @@ class LibraryDatabase:
                     raise RekordboxImportError("not_found", "The requested playlist was not found.")
                 return self._playlist_track_page(playlist_id, limit, cursor)
             return self._collection_track_page(limit, cursor)
+
+    def search_track_evidence(
+        self,
+        filters: TrackFilters,
+        *,
+        limit: int,
+        cursor: str | None = None,
+    ) -> TrackEvidencePage:
+        """Return one bounded, filtered page with analysis joined in one projection."""
+        with self._lock:
+            if not isinstance(filters, TrackFilters):
+                raise TypeError("filters must be TrackFilters")
+            if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 200:
+                raise RekordboxImportError("invalid_limit", "Track list limit must be an integer from 1 to 200.")
+            catalog, truncated = self._track_evidence_catalog(playlist_id=filters.playlist_id)
+            filtered = filter_evidence(catalog, filters)
+            signature = self._track_filter_signature(filters)
+            offset = 0
+            if cursor is not None:
+                cursor_signature, offset = _decode_cursor(cursor, (str, int))
+                if cursor_signature != signature or not 0 <= offset <= DISCOVERY_SCAN_LIMIT:
+                    raise RekordboxImportError("invalid_cursor", "The track list cursor is invalid.")
+            visible = filtered[offset:offset + limit]
+            next_offset = offset + len(visible)
+            next_cursor = (
+                _encode_cursor((signature, next_offset))
+                if next_offset < len(filtered)
+                else None
+            )
+            return TrackEvidencePage(visible, next_cursor, truncated)
+
+    def discovery_catalog(
+        self,
+        *,
+        playlist_id: str | None = None,
+    ) -> tuple[tuple[TrackEvidence, ...], bool]:
+        """Return bounded candidate evidence in deterministic library/playlist order."""
+        with self._lock:
+            return self._track_evidence_catalog(playlist_id=playlist_id)
+
+    def get_track_evidence(self, track_id: str) -> TrackEvidence | None:
+        """Return one current track and its path-free evidence by stable app ID."""
+        with self._lock:
+            if not isinstance(track_id, str) or not 1 <= len(track_id) <= 128:
+                return None
+            evidence, _ = self._track_evidence_catalog(track_id=track_id)
+            return evidence[0] if evidence else None
 
     def get_track_source_path(self, track_id: str) -> Path | None:
         """Return the service-private local source for one stable application track ID."""
@@ -669,6 +726,94 @@ class LibraryDatabase:
         parameters.append(limit + 1)
         rows = list(self.connection.execute(sql, parameters))
         return _page_from_rows(rows, limit, lambda row: (row["position"], row["id"]))
+
+    def _track_evidence_catalog(
+        self,
+        *,
+        playlist_id: str | None = None,
+        track_id: str | None = None,
+    ) -> tuple[tuple[TrackEvidence, ...], bool]:
+        if playlist_id is not None:
+            if not isinstance(playlist_id, str) or not 1 <= len(playlist_id) <= 128:
+                raise RekordboxImportError("not_found", "The requested playlist was not found.")
+            if not self.connection.execute(
+                "SELECT 1 FROM playlists WHERE id = ?", (playlist_id,)
+            ).fetchone():
+                raise RekordboxImportError("not_found", "The requested playlist was not found.")
+
+        sql = """
+            SELECT tracks.id, tracks.external_id, tracks.title, tracks.artist,
+                   tracks.album, tracks.genre, tracks.bpm_milli,
+                   tracks.musical_key, tracks.duration_ms, tracks.availability,
+                   analysis_jobs.status, analysis_jobs.progress_ppm,
+                   analysis_jobs.attempt_count, analysis_jobs.error_code,
+                   analysis_jobs.error_message,
+                   track_features.feature_json,
+                   track_features.fingerprint AS feature_fingerprint,
+                   track_features.provider AS feature_provider,
+                   track_features.provider_version AS feature_provider_version,
+                   track_features.pipeline_version AS feature_pipeline_version,
+                   GROUP_CONCAT(DISTINCT memberships.playlist_id) AS playlist_ids
+            FROM tracks
+            LEFT JOIN analysis_jobs ON analysis_jobs.track_id = tracks.id
+            LEFT JOIN track_features ON track_features.track_id = tracks.id
+            LEFT JOIN playlist_tracks AS memberships ON memberships.track_id = tracks.id
+        """
+        parameters: list[object] = []
+        predicates: list[str] = []
+        if playlist_id is not None:
+            sql += " JOIN playlist_tracks AS selected ON selected.track_id = tracks.id"
+            predicates.append("selected.playlist_id = ?")
+            parameters.append(playlist_id)
+        if track_id is not None:
+            predicates.append("tracks.id = ?")
+            parameters.append(track_id)
+        if predicates:
+            sql += " WHERE " + " AND ".join(predicates)
+        sql += " GROUP BY tracks.id"
+        if playlist_id is not None:
+            sql += " ORDER BY selected.position, tracks.id"
+        else:
+            sql += " ORDER BY COALESCE(tracks.title, ''), COALESCE(tracks.artist, ''), tracks.id"
+        row_limit = 2 if track_id is not None else DISCOVERY_SCAN_LIMIT + 1
+        sql += " LIMIT ?"
+        parameters.append(row_limit)
+        rows = list(self.connection.execute(sql, parameters))
+        truncated = track_id is None and len(rows) > DISCOVERY_SCAN_LIMIT
+        visible_rows = rows[:DISCOVERY_SCAN_LIMIT]
+        evidence: list[TrackEvidence] = []
+        for row in visible_rows:
+            track = StoredTrack(
+                id=row["id"],
+                external_id=row["external_id"],
+                title=row["title"],
+                artist=row["artist"],
+                album=row["album"],
+                genre=row["genre"],
+                bpm_milli=row["bpm_milli"],
+                musical_key=row["musical_key"],
+                duration_ms=row["duration_ms"],
+                availability=row["availability"],
+            )
+            analysis = _summary_from_row(row) if row["status"] is not None else None
+            playlist_ids = tuple(
+                sorted(value for value in (row["playlist_ids"] or "").split(",") if value)
+            )
+            evidence.append(TrackEvidence(track, analysis, playlist_ids))
+        return tuple(evidence), truncated
+
+    def _track_filter_signature(self, filters: TrackFilters) -> str:
+        revision_row = self.connection.execute(
+            "SELECT revision FROM library_state WHERE singleton = 1"
+        ).fetchone()
+        revision = revision_row["revision"] if revision_row is not None else 0
+        encoded = json.dumps(
+            {"revision": revision, "filters": asdict(filters)},
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("ascii")
+        return hashlib.sha256(encoded).hexdigest()[:24]
 
     def _track_id_for_external_id(self, external_id: str) -> str:
         row = self.connection.execute("SELECT id FROM tracks WHERE external_id = ?", (external_id,)).fetchone()

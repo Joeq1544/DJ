@@ -5,8 +5,12 @@ import {
   analysisQueueStatusSchema,
   analysisStatusQuerySchema,
   appStatusSchema,
+  findSimilarRequestSchema,
   importResultSchema,
   playlistTreeSchema,
+  recommendationResponseSchema,
+  recommendNextRequestSchema,
+  similarityResponseSchema,
   trackPageQuerySchema,
   trackPageSchema,
   type AppStatus,
@@ -100,6 +104,24 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
     if (!query.success) throw new Error(INVALID_PAYLOAD);
     const result = await dependencies.client().request("list_tracks", query.data);
     const parsed = trackPageSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("discovery:findSimilar", async (event, payload) => {
+    trust(event);
+    const request = findSimilarRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    const result = await dependencies.client().request("find_similar_tracks", request.data);
+    const parsed = similarityResponseSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("discovery:recommendNext", async (event, payload) => {
+    trust(event);
+    const request = recommendNextRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    const result = await dependencies.client().request("recommend_next_tracks", request.data);
+    const parsed = recommendationResponseSchema.safeParse(result);
     if (!parsed.success) throw new Error("Core response failed validation");
     return parsed.data;
   });

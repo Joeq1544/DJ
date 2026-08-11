@@ -113,6 +113,32 @@ describe("main shutdown", () => {
 
 describe("guarded IPC", () => {
   const fixture = resolve(process.cwd(), "../../fixtures/rekordbox/phase0-library.xml");
+  const discoveryTrack = {
+    id: "track-1",
+    title: "Generated Seed",
+    artist: "Fixture Artist",
+    album: null,
+    genre: "House",
+    bpmMilli: 120_000,
+    musicalKey: "8A",
+    durationMs: 180_000,
+    availability: "available",
+  };
+  const similarityResult = {
+    seed: discoveryTrack,
+    algorithmVersion: "feature-similarity-v1",
+    scannedCount: 1,
+    truncated: false,
+    items: [],
+  };
+  const recommendationResult = {
+    seed: discoveryTrack,
+    intent: "smooth",
+    algorithmVersion: "transition-v1",
+    scannedCount: 1,
+    truncated: false,
+    items: [],
+  };
   const analysisStatus = {
     state: "running",
     queued: 1,
@@ -143,9 +169,15 @@ describe("guarded IPC", () => {
     ],
   };
 
-  function harness(overrides: Partial<{ senderUrl: string; testXml: string; cancelled: boolean }> = {}) {
+  function harness(overrides: Partial<{
+    senderUrl: string;
+    testXml: string;
+    cancelled: boolean;
+    discoveryResult: unknown;
+  }> = {}) {
     const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
     const requests: string[] = [];
+    const requestCalls: Array<[string, unknown]> = [];
     registerIpcHandlers({
       ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
       dialog: { showOpenDialog: async () => ({ canceled: overrides.cancelled ?? false, filePaths: [fixture] }) },
@@ -157,6 +189,7 @@ describe("guarded IPC", () => {
       client: () => ({
         request: async (command, payload) => {
           requests.push(command);
+          requestCalls.push([command, payload]);
           if (command === "import_library") {
             expect(payload).toEqual({ sourcePath: fixture });
             return {
@@ -165,7 +198,9 @@ describe("guarded IPC", () => {
             };
           }
           if (command === "get_playlist_tree") return [];
-          if (command === "list_tracks") return { items: [], nextCursor: null };
+          if (command === "list_tracks") return { items: [], nextCursor: null, truncated: false };
+          if (command === "find_similar_tracks") return overrides.discoveryResult ?? similarityResult;
+          if (command === "recommend_next_tracks") return overrides.discoveryResult ?? recommendationResult;
           if (
             command === "queue_analysis" ||
             command === "get_analysis_status" ||
@@ -177,7 +212,7 @@ describe("guarded IPC", () => {
       }),
     });
     const event = { senderFrame: { url: overrides.senderUrl ?? "http://127.0.0.1:5173" } };
-    return { handlers, event, requests };
+    return { handlers, event, requests, requestCalls };
   }
 
   it("owns the import path and validates core results before returning them", async () => {
@@ -268,5 +303,88 @@ describe("guarded IPC", () => {
     await expect(handlers.get("analysis:getStatus")!(event)).resolves.toEqual(analysisStatus);
     activeClient = restartedClient;
     await expect(handlers.get("analysis:getStatus")!(event)).resolves.toEqual(recoveredStatus);
+  });
+
+  it("maps only the two fixed discovery channels to validated core commands", async () => {
+    const { handlers, event, requestCalls } = harness();
+
+    await expect(
+      handlers.get("discovery:findSimilar")!(event, {
+        seedTrackId: "track-1",
+        filters: { playlistId: "playlist-1", bpmMinMilli: 90_000, availability: "available" },
+      }),
+    ).resolves.toEqual(similarityResult);
+    await expect(
+      handlers.get("discovery:recommendNext")!(event, {
+        seedTrackId: "track-1",
+        intent: "smooth",
+        limit: 20,
+      }),
+    ).resolves.toEqual(recommendationResult);
+
+    expect(requestCalls.slice(-2)).toEqual([
+      [
+        "find_similar_tracks",
+        {
+          seedTrackId: "track-1",
+          filters: { playlistId: "playlist-1", bpmMinMilli: 90_000, availability: "available" },
+          limit: 10,
+        },
+      ],
+      ["recommend_next_tracks", { seedTrackId: "track-1", intent: "smooth", limit: 20 }],
+    ]);
+  });
+
+  it("rejects untrusted discovery senders and malformed discovery payloads", async () => {
+    const untrusted = harness({ senderUrl: "https://attacker.test" });
+    await expect(
+      untrusted.handlers.get("discovery:findSimilar")!(untrusted.event, { seedTrackId: "track-1" }),
+    ).rejects.toThrow("Untrusted IPC sender");
+    await expect(
+      untrusted.handlers.get("discovery:recommendNext")!(untrusted.event, {
+        seedTrackId: "track-1",
+        intent: "smooth",
+      }),
+    ).rejects.toThrow("Untrusted IPC sender");
+
+    const { handlers, event } = harness();
+    await expect(
+      handlers.get("discovery:findSimilar")!(event, { seedTrackId: "", shell: true }),
+    ).rejects.toThrow("Invalid IPC payload");
+    await expect(
+      handlers.get("discovery:recommendNext")!(event, {
+        seedTrackId: "track-1",
+        intent: "unknown",
+      }),
+    ).rejects.toThrow("Invalid IPC payload");
+    await expect(
+      handlers.get("discovery:findSimilar")!(event, {
+        seedTrackId: "track-1",
+        filters: { bpmMinMilli: 130_000, bpmMaxMilli: 120_000 },
+      }),
+    ).rejects.toThrow("Invalid IPC payload");
+  });
+
+  it("rejects malformed and path-bearing discovery results from core", async () => {
+    const malformed = harness({
+      discoveryResult: {
+        ...similarityResult,
+        seed: { ...discoveryTrack, sourcePath: "/private/music/seed.wav" },
+      },
+    });
+
+    await expect(
+      malformed.handlers.get("discovery:findSimilar")!(malformed.event, { seedTrackId: "track-1" }),
+    ).rejects.toThrow("Core response failed validation");
+
+    const wrongAlgorithm = harness({
+      discoveryResult: { ...recommendationResult, algorithmVersion: "transition-v2" },
+    });
+    await expect(
+      wrongAlgorithm.handlers.get("discovery:recommendNext")!(wrongAlgorithm.event, {
+        seedTrackId: "track-1",
+        intent: "smooth",
+      }),
+    ).rejects.toThrow("Core response failed validation");
   });
 });

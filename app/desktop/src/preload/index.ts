@@ -1,5 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopApi, TrackPageQuery } from "../shared/contracts";
+import type {
+  DesktopApi,
+  FindSimilarRequest,
+  RecommendNextRequest,
+  TrackPageQuery,
+} from "../shared/contracts";
 
 interface IpcRendererLike {
   invoke(channel: string, payload?: unknown): Promise<unknown>;
@@ -20,6 +25,10 @@ export function createDesktopApi(renderer: IpcRendererLike): DesktopApi {
       getStatus: (trackIds?: string[]) => renderer.invoke("analysis:getStatus", trackIds === undefined ? undefined : { trackIds }) as ReturnType<DesktopApi["analysis"]["getStatus"]>,
       pause: () => renderer.invoke("analysis:pause") as ReturnType<DesktopApi["analysis"]["pause"]>,
       resume: () => renderer.invoke("analysis:resume") as ReturnType<DesktopApi["analysis"]["resume"]>,
+    }),
+    discovery: Object.freeze({
+      findSimilar: (request: FindSimilarRequest) => renderer.invoke("discovery:findSimilar", request) as ReturnType<DesktopApi["discovery"]["findSimilar"]>,
+      recommendNext: (request: RecommendNextRequest) => renderer.invoke("discovery:recommendNext", request) as ReturnType<DesktopApi["discovery"]["recommendNext"]>,
     }),
   });
 }

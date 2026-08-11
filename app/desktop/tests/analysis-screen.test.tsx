@@ -146,6 +146,10 @@ function createApi(options: {
       pause: vi.fn().mockResolvedValue(analysisStatus({ state: "paused" })),
       resume: vi.fn().mockResolvedValue(analysisStatus({ state: "running" })),
     },
+    discovery: {
+      findSimilar: vi.fn(async () => { throw new Error("Discovery is not configured in this analysis test."); }),
+      recommendNext: vi.fn(async () => { throw new Error("Discovery is not configured in this analysis test."); }),
+    },
   };
 }
 
