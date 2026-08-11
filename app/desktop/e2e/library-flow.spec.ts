@@ -4,6 +4,7 @@ import { access, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import { promisify } from "node:util";
+import { buildDesktop } from "./build-desktop";
 
 const desktopDirectory = process.cwd();
 const repositoryRoot = resolve(desktopDirectory, "../..");
@@ -41,7 +42,7 @@ function electronTestEnvironment(pythonExecutable: string, testXml?: string): Re
 }
 
 test.beforeAll(async () => {
-  await execFileAsync("pnpm", ["build"], { cwd: desktopDirectory });
+  await buildDesktop(desktopDirectory);
 });
 
 test("imports the fixture and recovers the browsable library after one core restart", async () => {

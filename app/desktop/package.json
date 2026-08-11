@@ -23,7 +23,9 @@
     "test:e2e:m4": "playwright test e2e/set-flow.spec.ts",
     "test:e2e:m5": "playwright test e2e/personalization-flow.spec.ts",
     "test:e2e:m6": "playwright test e2e/assistant-flow.spec.ts",
+    "test:e2e:m7": "playwright test e2e/release-flow.spec.ts e2e/release-missing-helper.spec.ts",
     "smoke:m6:real": "DJ_COPILOT_REAL_SMOKE=1 playwright test e2e/assistant-real-smoke.spec.ts",
+    "smoke:m7:real": "DJ_COPILOT_REAL_SMOKE=1 playwright test e2e/release-real-codex-smoke.spec.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

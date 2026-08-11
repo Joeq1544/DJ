@@ -6,6 +6,7 @@ import { delimiter, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron as electron, expect, test, type ElectronApplication, type Locator, type Page } from "@playwright/test";
+import { buildDesktop } from "./build-desktop";
 
 const desktopDirectory = process.cwd();
 const repositoryRoot = resolve(desktopDirectory, "../..");
@@ -137,7 +138,7 @@ function ledgerValue(evidence: Locator, label: string): Locator {
 }
 
 test.beforeAll(async () => {
-  await execFileAsync("pnpm", ["build"], { cwd: desktopDirectory });
+  await buildDesktop(desktopDirectory);
 });
 
 test("pauses generated local analysis across a forced core restart and persists measured results", async () => {

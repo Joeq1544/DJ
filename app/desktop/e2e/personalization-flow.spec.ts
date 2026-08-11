@@ -6,6 +6,7 @@ import { basename, delimiter, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { buildDesktop } from "./build-desktop";
 
 const desktopDirectory = process.cwd();
 const repositoryRoot = resolve(desktopDirectory, "../..");
@@ -176,7 +177,7 @@ async function importFixture(page: Page): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  await execFileAsync("pnpm", ["build"], { cwd: desktopDirectory });
+  await buildDesktop(desktopDirectory);
 });
 
 test("persists, applies, exports, and exactly resets personal preferences through the production desktop boundary", async () => {

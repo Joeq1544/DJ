@@ -7,6 +7,7 @@ import { _electron as electron, expect, test, type ElectronApplication } from "@
 import { CodexProvider } from "../src/main/assistant/codex-provider";
 import { AIProviderError } from "../src/main/assistant/provider";
 import { assistantPlanOutputSchema, assistantSearchOutputSchema } from "../src/main/assistant/schemas";
+import { buildDesktop } from "./build-desktop";
 
 const desktopDirectory = process.cwd();
 const repositoryRoot = resolve(desktopDirectory, "../..");
@@ -51,7 +52,7 @@ function electronEnvironment(pythonExecutable: string): Record<string, string> {
 
 test.beforeAll(async () => {
   if (process.env.DJ_COPILOT_REAL_SMOKE === "1") {
-    await execFileAsync("pnpm", ["build"], { cwd: desktopDirectory });
+    await buildDesktop(desktopDirectory);
   }
 });
 

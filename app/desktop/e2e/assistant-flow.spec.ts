@@ -6,6 +6,7 @@ import { delimiter, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { buildDesktop } from "./build-desktop";
 
 const desktopDirectory = process.cwd();
 const repositoryRoot = resolve(desktopDirectory, "../..");
@@ -129,7 +130,7 @@ async function runCopilot(page: Page, prompt: string): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  await execFileAsync("pnpm", ["build"], { cwd: desktopDirectory });
+  await buildDesktop(desktopDirectory);
 });
 
 test("runs all M6 Copilot workflows through built Electron while preserving local state and sources", async () => {

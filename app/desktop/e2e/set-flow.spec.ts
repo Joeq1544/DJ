@@ -6,6 +6,7 @@ import { basename, delimiter, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { buildDesktop } from "./build-desktop";
 
 const desktopDirectory = process.cwd();
 const repositoryRoot = resolve(desktopDirectory, "../..");
@@ -93,7 +94,7 @@ async function updated(page: Page): Promise<void> {
   lastUpdateMessage = (await status.textContent())?.trim() ?? "";
 }
 
-test.beforeAll(async () => { await execFileAsync("pnpm", ["build"], { cwd: desktopDirectory }); });
+test.beforeAll(async () => { await buildDesktop(desktopDirectory); });
 
 test("runs the M4 set workflow through UI, preload, IPC, and core without changing the source library", async () => {
   test.setTimeout(120_000);

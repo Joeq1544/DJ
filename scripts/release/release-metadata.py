@@ -12,9 +12,9 @@ from typing import Any
 
 
 EXPECTED_NPM = {
-    "@openai/codex": "0.147.0",
-    "@openai/codex-darwin-arm64": "0.147.0",
-    "@openai/codex-sdk": "0.147.0",
+    ("@openai/codex", "0.147.0"),
+    ("@openai/codex", "0.147.0-darwin-arm64"),
+    ("@openai/codex-sdk", "0.147.0"),
 }
 PRIVACY_NOTICE = (
     "Release metadata contains dependency names, versions, licenses, and resource hashes only; "
@@ -90,6 +90,29 @@ def _npm_components(resources: Path) -> list[dict[str, str]]:
     return [components[key] for key in sorted(components)]
 
 
+def normalize_symlinks(application_root: Path, source_root: Path) -> None:
+    """Rewrite Packager's staging-path links as internal relative app links."""
+    application_root = application_root.resolve(strict=True)
+    source_root = source_root.resolve(strict=True)
+    for path in sorted(application_root.rglob("*")):
+        if not path.is_symlink():
+            continue
+        target = Path(os.readlink(path))
+        candidate = target if target.is_absolute() else path.parent / target
+        canonical = candidate.resolve(strict=True)
+        try:
+            relative_target = canonical.relative_to(source_root)
+            packaged_target = application_root / relative_target
+        except ValueError:
+            if not _within(application_root, canonical):
+                raise ValueError(f"Escaping packaged application symlink: {path.relative_to(application_root)}")
+            packaged_target = canonical
+        packaged_target.resolve(strict=True).relative_to(application_root)
+        replacement = os.path.relpath(packaged_target, path.parent)
+        path.unlink()
+        path.symlink_to(replacement, target_is_directory=packaged_target.is_dir())
+
+
 def validate(resources: Path) -> None:
     resources = resources.resolve(strict=True)
     expected = [
@@ -104,11 +127,31 @@ def validate(resources: Path) -> None:
         if not path.is_file():
             raise ValueError(f"Missing packaged resource: {path.relative_to(resources)}")
     _walk_resources(resources)
+
+    application_root = resources / "app"
+    sdk_root = (application_root / "node_modules" / "@openai" / "codex-sdk").resolve(strict=True)
+    helper_root = (sdk_root.parent / "codex").resolve(strict=True)
+    native_root = (helper_root.parent / "codex-darwin-arm64").resolve(strict=True)
+    for root in (sdk_root, helper_root, native_root):
+        if not _within(application_root, root):
+            raise ValueError("Packaged Codex resolves outside the application")
+    exact_codex_packages = (
+        (_json(sdk_root / "package.json"), "@openai/codex-sdk", "0.147.0"),
+        (_json(helper_root / "package.json"), "@openai/codex", "0.147.0"),
+        (_json(native_root / "package.json"), "@openai/codex", "0.147.0-darwin-arm64"),
+    )
+    for package, name, version in exact_codex_packages:
+        if package.get("name") != name or package.get("version") != version:
+            raise ValueError(f"Expected packaged runtime {name} {version}")
+    if not (native_root / "vendor" / "aarch64-apple-darwin" / "bin" / "codex").is_file():
+        raise ValueError("Missing packaged arm64 Codex executable")
+
     components = _npm_components(resources)
-    versions = {component["name"]: component["version"] for component in components}
-    for name, version in EXPECTED_NPM.items():
-        if versions.get(name) != version:
-            raise ValueError(f"Expected {name} {version}, found {versions.get(name, 'missing')}")
+    versions = {(component["name"], component["version"]) for component in components}
+    missing = sorted(EXPECTED_NPM - versions)
+    if missing:
+        expected = ", ".join(f"{name} {version}" for name, version in missing)
+        raise ValueError(f"Missing packaged npm component: {expected}")
 
 
 def generate(resources: Path) -> None:
@@ -167,8 +210,15 @@ def verify(resources: Path) -> None:
 
 
 def main() -> int:
+    if len(sys.argv) == 4 and sys.argv[1] == "normalize-symlinks":
+        normalize_symlinks(Path(sys.argv[2]), Path(sys.argv[3]))
+        return 0
     if len(sys.argv) != 3 or sys.argv[1] not in {"validate", "generate", "verify"}:
-        print("usage: release-metadata.py validate|generate|verify RESOURCES", file=sys.stderr)
+        print(
+            "usage: release-metadata.py validate|generate|verify RESOURCES\n"
+            "       release-metadata.py normalize-symlinks APPLICATION_ROOT SOURCE_ROOT",
+            file=sys.stderr,
+        )
         return 2
     resources = Path(sys.argv[2])
     {"validate": validate, "generate": generate, "verify": verify}[sys.argv[1]](resources)

@@ -6,6 +6,7 @@ import { delimiter, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
+import { buildDesktop } from "./build-desktop";
 
 const desktopDirectory = process.cwd();
 const repositoryRoot = resolve(desktopDirectory, "../..");
@@ -171,7 +172,7 @@ async function applySignalFilters(page: Page): Promise<void> {
 }
 
 test.beforeAll(async () => {
-  await execFileAsync("pnpm", ["build"], { cwd: desktopDirectory });
+  await buildDesktop(desktopDirectory);
 });
 
 test("searches, explores, and ranks the generated M3 library through the production desktop boundary", async () => {
