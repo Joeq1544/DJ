@@ -1,8 +1,8 @@
 # DJ Copilot Tasks
 
 Last updated: 2026-08-11
-Current milestone: M6 — Codex-assisted slice, bounded research and planning
-Current state: M5 is closed after its reviewer-found stale-comparison defect was corrected; post-fix `pnpm verify:m5` passes 151 core, 137 desktop, strict typecheck/build, and all six Electron flows; M6 is defining the smallest existing-auth Codex integration and visual QA stays deferred until all features are implemented
+Current milestone: M6 — Codex-assisted slice, provider and shared contracts
+Current state: ADR-0009 and the bounded M6 plan freeze exact SDK 0.147.0, existing ChatGPT auth, zero production MCP, strict search/plan/one-revision/explanation workflows, polling/cancellation, and confirmed writes; dependency composition and shared contract TDD begin next, with visual QA deferred
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -68,6 +68,16 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | M5-004 | macOS UI specialist | Inline metadata, saved filters, feedback, comparison, profile/export/reset controls expose complete accessible behavior | done | Post-review renderer aggregate 42/42; reset invalidation and accessible focus-return regressions included; strict typecheck/build | `035e1ba`, pushed; reviewed correction in closure checkpoint | Visual appearance remains deferred under D-045; state/error semantics are automated |
 | M5-005 | primary | Generated personalization Electron flow, complete aggregate, one bounded review, current evidence/docs, and green pushed checkpoint close M5 | done | Reviewer found one stale open-comparison defect; its RED/GREEN regression and correction are included. Post-fix `pnpm verify:m5`: 151 core + 137 desktop + strict typecheck/build + all 6 Electron flows | `b5cbee6`, pushed; reviewed closure commit | Subjective usefulness and all visual QA belong to Joe's final hands-on period |
 
+## M6 ledger
+
+| ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
+| --- | --- | --- | --- | --- | --- | --- |
+| M6-001 | primary + scope/research agents | Current official SDK/auth/model guidance, no-MCP topology, strict workflows, privacy bounds, and nonvisual gates are frozen | done | ADR-0009, bounded plan, refreshed official manual, exact npm/source/license/integrity evidence, one scope monitor | planning checkpoint pending | Exact 0.147.0 production/provider smoke remains implementation work |
+| M6-002 | primary + codex-mcp specialist | Exact SDK dependency, strict public contracts, matching-helper auth, production `CodexProvider`, and `MockAIProvider` pass focused tests/typecheck/build | in-progress | TDD begins after planning checkpoint | pending | ESM SDK/native resolution through CJS Electron main must be measured |
+| M6-003 | primary + desktop boundary implementer | Main coordinator routes bounded context through current core commands, streams/polls/cancels safely, and confirms durable proposals exactly once | not-started | Focused boundary/privacy/confirmation tests planned | pending | Stale revisions and late provider events must never write |
+| M6-004 | macOS UI specialist | Inline Copilot status/search/plan/revise/explain flows expose proposals, evidence, errors, cancellation, and focus semantics | not-started | Renderer behavior tests planned; visual QA deferred | pending | Complete SDK item snapshots are not token deltas |
+| M6-005 | primary | Generated mock Electron flow, complete aggregate, real existing-auth smoke, one review, current docs, and pushed checkpoint close M6 | not-started | `pnpm verify:m6` and separate explicit real smoke planned | pending | Real service quality/latency and cancellation remain unproved until run |
+
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
 The rows below preserve what the original commercial-style gate proved and did not prove. They are evidence history, not current MVP blockers.
@@ -119,5 +129,5 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | M3 | Discovery and recommendation slice | done | `docs/evidence/m3-discovery-recommendations.md`; green implementation `5a5d59d`/`bb85aaa`; reviewed correction/closure `1e9d347`; independent reviewer READY |
 | M4 | Set workflow slice | done | `docs/evidence/m4-set-workflow-export.md`; green/reviewed closure `10d2511` |
 | M5 | Personalization slice | done | `docs/evidence/m5-personalization-library-metadata.md`; implementation `b5cbee6`; post-review gate 151 core/137 desktop/6 Electron flows |
-| M6 | Codex-assisted slice | in-progress | Current official SDK research and separate bounded plan in preparation |
+| M6 | Codex-assisted slice | in-progress | ADR-0009 and `docs/superpowers/plans/2026-08-11-m6-codex-assistance.md`; dependency/contracts next |
 | M7 | Personal release polish | not-started | Separate plan after M6 |

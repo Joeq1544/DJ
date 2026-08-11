@@ -96,3 +96,9 @@ Practical safeguards remain: renderer isolation, fixed IPC, bounded schemas, val
 ## Historical Phase 0 evidence
 
 The detailed research, process-protocol proofs, hostile XML/audio fixtures, Codex experiments, and old commercial gate remain under `docs/evidence/phase-0/` and the ADRs. That evidence informs implementation but no longer blocks feature work on P0-016, exhaustive sentinels, ambient-configuration perfection, or complete process-tree containment. Missing historical evidence remains missing; it is not relabeled as passed.
+
+## M6 selected Codex topology
+
+ADR-0009 keeps AI in Electron main behind `AIProvider`. A bounded in-memory coordinator exposes only status/login/start/poll/cancel/confirm. `CodexProvider` uses exact official SDK 0.147.0 and existing ChatGPT authentication; `MockAIProvider` supplies deterministic tests. Codex receives one concise task plus bounded path-free current DTOs and returns a strict interpreted proposal or grounded explanation.
+
+There is no production MCP server in M6. Main invokes the already-fixed core commands for filters, Similar, Next, set creation, replacement lookup, mutation, and inspection. Search and explanation are read-only. A plan or one draft mutation gets a single-use main-owned confirmation bound to its request and current revision before the core may write. Request/event state is capped and expires in memory; no AI transcript schema is added. The SDK/runtime remains outside the CJS bundle/ASAR for native resolution, with complete packaging/signing verification owned by M7.

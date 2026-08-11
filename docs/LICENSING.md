@@ -1,6 +1,6 @@
 # Licensing and Distribution Strategy
 
-Status: M5 development inventory current; M7 distribution inventory pending
+Status: M6 development inventory current; M7 distribution inventory pending
 Project license: MIT (`../LICENSE`)
 
 ## Default-build policy
@@ -16,7 +16,7 @@ Project license: MIT (`../LICENSE`)
 | Component | Intended role | Code license evidence | Model/data evidence | Distribution status |
 | --- | --- | --- | --- | --- |
 | DJ Copilot repository | Application source | MIT license committed at `../LICENSE` | No model/data asset is committed | Allowed |
-| Official TypeScript Codex SDK | Candidate production AI provider | Apache-2.0 at `@openai/codex-sdk@0.146.0` / Codex commit `e363b08c9175ac1cbe5893615dd2cb9ddf95043b`; exact installed artifact integrity and transitive inventory remain pending | No model weights are selected for local redistribution; ChatGPT/Codex service and authentication terms remain a separate product/legal review | Provisionally allowed for an isolated Phase 0 spike only; default distribution remains blocked on service/auth/tool-isolation and packaged-helper evidence |
+| Official TypeScript Codex SDK | M6 production AI provider | Apache-2.0 at exact `@openai/codex-sdk@0.147.0`, tag `rust-v0.147.0`, commit `be6e8eac029b183056b7e4402879f15d2c85f61b`, npm integrity `sha512-nJL0maDBZy31uEArs+u46tW22veNdHjfs96AGaFTnI3jF+g8U+a422uaPiDZwEKmyxcNwStTRz6sIh6C7XxGFQ==`; exact matching CLI and Darwin-arm64 package hashes are recorded in M6 evidence | No model weights are redistributed and M6 leaves the model unset; ChatGPT/Codex service and authentication terms remain separate | Allowed for personal M6 development under ADR-0009; M7 must verify the full non-ASAR target tree, bundled `rg`/`zsh` notices/SBOM, nested signatures, helper launch, and service/login behavior before calling the app package complete |
 | Official Python Codex SDK | Single fallback candidate | Apache-2.0 at `openai-codex==0.144.4` / commit `5354e4951a8d10567ab2e43f8e483331f9ffe49e`; includes a pinned CLI binary dependency | No bundled application model assets; service/auth terms remain separate | Deferred; may replace, never accompany, the TypeScript production path if a documented gate forces reconsideration |
 | Python MCP SDK | Local bounded tool transport | MIT at `mcp==2.0.0` / commit `6f69a3758ebf2ee55ce050f58b470ce11af71133`; isolated `spikes/codex-mcp/python_mcp/requirements.lock` records the exact 29-package environment inventory | Not applicable | Independently reviewed for the local Phase 0 adapter; production hashes, bundled-runtime and notices verification remain required before distribution |
 | Electron | Accepted desktop framework | MIT; npm 43.2.0 observed, with exact supported patch deferred to Phase 1 | Not applicable | ADR-0001 accepts the framework/Node 24 major line; exact artifact integrity, transitive inventory, notices, and non-ASAR nested-resource signing remain mandatory |
@@ -44,6 +44,6 @@ Project license: MIT (`../LICENSE`)
 - Essentia code and model terms are incompatible or unresolved for default proprietary-style distribution.
 - CLAP/all-in-one/PANNs asset provenance, integrity and executable-deserialization paths need explicit resolution.
 - A distributable FFmpeg/decoder configuration, exact transitive/native codec inventory, and clean signed CPython/NumPy composition remain M7 work; the GPL-configured Homebrew binary is not a release artifact.
-- Codex SDK source licensing is known, but ChatGPT/Codex service terms, login UX, ambient-config isolation, exact artifact integrity, transitive packages, and signed helper redistribution remain blockers to default distribution.
+- Codex SDK source/artifact licensing and exact 0.147.0 integrity are known. M7 still must verify ChatGPT/Codex service/login UX in the packaged app, the complete target/transitive notice inventory, non-ASAR resources, and nested signatures. Perfect ambient-config isolation is an accepted personal-use deferral, not a release blocker.
 
 Research outcomes and rejected candidates are synchronized with `REPO_RESEARCH.md` and the audio-analysis ADR.

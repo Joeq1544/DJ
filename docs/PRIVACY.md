@@ -1,6 +1,6 @@
 # Privacy and Local Data Boundaries
 
-Status: Local M1–M5 behavior implemented; Codex data flow remains M6 work
+Status: Local M1–M5 behavior implemented; bounded M6 Codex data flow selected and awaiting implementation evidence
 Last updated: 2026-08-11
 
 ## Stays local
@@ -24,6 +24,8 @@ Only the smallest bounded context needed for the chosen task: validated app trac
 - Preferences support inspection, export, and reset.
 
 M4 set creation, ranking, inspection, organization advice, history, and XML export are entirely local and initialize no Codex request. M5 ratings, tags, notes, saved filters, feedback, profiles, and comparisons are also local. The renderer receives stable app IDs and display/derived evidence, never imported media paths, the imported XML path, or a chosen export path. Electron main owns export destinations and confirmation. Preference JSON contains only bounded counts, opaque current IDs, and numeric affinities—no paths, titles, artists, tags, notes, raw event history, audio, credentials, or logs.
+
+ADR-0009 selects an explicit-action-only M6 flow. Natural-language search sends the request and filter vocabulary, not a library dump. Plan parsing sends the request and optional selected-track context; the local core chooses tracks. Revision/explanation may send at most the current bounded path-free draft/recommendation/inspection DTOs needed for that request. Provider context excludes source/XML paths, raw or decoded audio, notes, credentials, logs, and unrestricted metadata. Search/explanation do not write; set creation/revision remain main-owned proposals until trusted-UI confirmation. These are requirements until M6 evidence records the implemented flow.
 
 ## Trust assumption
 

@@ -4,6 +4,13 @@ All notable project changes are recorded here. The project has not yet produced 
 
 ## Unreleased
 
+### 2026-08-11 — M6 Codex assistance planning
+
+- Selected exact official `@openai/codex-sdk@0.147.0` for Electron main with the user's existing ChatGPT/Codex login, no API-key provider, no pinned model, and deterministic `MockAIProvider` tests.
+- Accepted ADR-0009 and a bounded M6 plan for natural-language filters/Similar/Next, confirmed generated set plans, one confirmed draft revision, grounded explanations, polling snapshots, and cancellation.
+- Chose zero production MCP tools: Codex interprets bounded path-free evidence while the existing Python core remains the only search, ranking, set, and durable-state owner.
+- Retired Phase 0 wrapper/bridge/containment machinery stays historical. M6 requires focused contracts, one generated mock Electron flow, one redacted real existing-auth Electron smoke, and no visual QA.
+
 ### 2026-08-11 — M5 personalization and library metadata planning
 
 - Accepted ADR-0008 and a bounded three-table M5 plan for ratings/tags/notes, saved filters, explicit feedback, deterministic visible preference effects, baseline comparison, confirmed export, and reset.
