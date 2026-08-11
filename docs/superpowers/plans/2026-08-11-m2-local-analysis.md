@@ -189,12 +189,12 @@ class AnalysisManager:
     def queue_tracks(self, track_ids: tuple[str, ...]) -> AnalysisQueueStatus: ...
     def pause(self) -> AnalysisQueueStatus: ...
     def resume(self) -> AnalysisQueueStatus: ...
-    def status(self) -> AnalysisQueueStatus: ...
+    def status(self, track_ids: tuple[str, ...] | None = None) -> AnalysisQueueStatus: ...
 ```
 
 - [ ] **Step 1: Write failing repository tests**
 
-Tests must prove the additive schema stores private `source_path` but omits it from `StoredTrack`; preserves features for a stable ID across reimport; removes orphaned job/features for a removed track; stores exactly one latest job and one latest feature row per track; clamps progress to 0–1,000,000; preserves provider/pipeline/confidence; and converts persisted `running` to `queued` at startup while leaving `paused` unchanged.
+Tests must prove an existing M1 database is copied to a unique sibling `*.pre-m2.sqlite3` backup before the first schema change and remains readable after upgrade; a brand-new empty database requires no backup; the additive schema stores private `source_path` but omits it from `StoredTrack`; preserves features for a stable ID across reimport; removes orphaned job/features for a removed track; stores exactly one latest job and one latest feature row per track; clamps progress to 0–1,000,000; preserves provider/pipeline/confidence; and converts persisted `running` to `queued` at startup while leaving `paused` unchanged.
 
 Run:
 
@@ -206,7 +206,7 @@ Expected red result: analysis tables/methods and stored source paths do not exis
 
 - [ ] **Step 2: Add the additive schema and thread-safe repository methods**
 
-Open SQLite with `check_same_thread=False` and serialize every public repository operation with one `threading.RLock`. Add `source_path TEXT NOT NULL DEFAULT ''` to `tracks` through an idempotent column check. Add:
+Open SQLite with `check_same_thread=False` and serialize every public repository operation with one `threading.RLock`. Use `PRAGMA user_version = 2` as the M2 schema marker. When a version-0 database already contains the M1 `tracks` table without `source_path`, use SQLite's online backup API to create the first non-existing sibling named `<stem>.pre-m2.sqlite3`, `<stem>.pre-m2-2.sqlite3`, and so on before executing DDL; expose the chosen path for recovery evidence. A new empty database creates version 2 directly without a backup. Add `source_path TEXT NOT NULL DEFAULT ''` to `tracks` through an idempotent column check. Add:
 
 ```sql
 CREATE TABLE IF NOT EXISTS analysis_control (
@@ -249,7 +249,7 @@ The fake provider records analyzed IDs, emits literal progress `[100_000, 500_00
 - `stop()` returns running work to `queued`, and a fresh manager completes it;
 - one failed item is followed by a successful item;
 - matching fingerprint/provider/pipeline reuses cached results, while a changed fingerprint or pipeline reanalyzes;
-- `status()` reports bounded aggregate progress and at most 200 requested items.
+- `status(track_ids)` reports global bounded aggregate progress plus items for exactly the unique requested known IDs in request order; `None` returns no items and more than 200, duplicate, empty, or unknown IDs is rejected.
 
 Run:
 
@@ -288,17 +288,17 @@ Run the Step 1 and Step 3 commands. Expected: all database and manager tests pas
 ```ts
 analysis: {
   queue(trackIds: string[]): Promise<AnalysisQueueStatus>;
-  getStatus(): Promise<AnalysisQueueStatus>;
+  getStatus(trackIds?: string[]): Promise<AnalysisQueueStatus>;
   pause(): Promise<AnalysisQueueStatus>;
   resume(): Promise<AnalysisQueueStatus>;
 }
 ```
 
-`AnalysisQueueStatus` is a strict object with `state: "idle" | "running" | "paused"`, five nonnegative counts, `progressPpm`, strict capabilities, and at most 200 strict item objects. Each item contains `trackId`, status/progress/attempt/error fields, and a nullable strict feature object matching Task 1. `TrackListItem` gains `analysis: AnalysisSummary | null`; it still rejects paths and unknown fields.
+`AnalysisQueueStatus` is a strict object with `state: "idle" | "running" | "paused"`, five nonnegative counts, `progressPpm`, strict capabilities, and at most 200 strict item objects. Each item contains `trackId`, status/progress/attempt/error fields, and a nullable strict feature object matching Task 1. `TrackListItem` gains `analysis: AnalysisSummary | null`; it still rejects paths and unknown fields. `get_analysis_status` accepts `{}` or `{ trackIds: [...] }`; when IDs are supplied, the response includes exactly those known IDs in request order while aggregate counts remain global.
 
 - [ ] **Step 1: Write failing Python service tests**
 
-Start the real service with generated XML/audio and injected exact executables. Verify `queue_analysis`, `get_analysis_status`, `pause_analysis`, and `resume_analysis`; reject empty, duplicate, unknown, malformed, or more than 200 IDs; reject payloads on status/pause/resume; prove responses contain no path; and prove SIGTERM stops the manager before closing SQLite/socket. A provider-unavailable process must keep health/library commands ready and report unavailable capabilities.
+Start the real service with generated XML/audio and injected exact executables. Verify `queue_analysis`, `get_analysis_status`, `pause_analysis`, and `resume_analysis`; reject empty, duplicate, unknown, malformed, or more than 200 IDs; accept only an optional strict `trackIds` list on status; reject payloads on pause/resume; prove responses contain no path; and prove SIGTERM stops the manager before closing SQLite/socket. A provider-unavailable process must keep health/library commands ready and report unavailable capabilities.
 
 Run:
 
@@ -368,7 +368,7 @@ Tests must prove:
 - succeeded rows show codec/container, duration/sample-rate/channels, local BPM/key, confidence labels, provider/pipeline, RMS/energy/rhythm/timbre values, limitations, and the sixteen-cell strip;
 - failed rows show the stable message and can be selected/requeued without hiding successful rows;
 - a provider-unavailable state disables analysis with the returned reason while library browsing remains usable, and available baseline analysis labels structure/embeddings as unavailable rather than silently omitting them;
-- one-second polling never overlaps and merges job updates by `trackId` without resetting playlist selection or loaded rows.
+- one-second polling never overlaps, requests the currently rendered/selected known IDs in stable order (capped at 200 by selection controls), and merges job updates by `trackId` without resetting playlist selection or loaded rows.
 
 Run:
 
