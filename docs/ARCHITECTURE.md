@@ -51,6 +51,10 @@ The M4 desktop boundary adds six fixed set operations and two export operations.
 
 The production build currently bundles the Electron main, isolated preload, and renderer only. A bundled CPython 3.12 runtime and packaged resource discovery remain M7 work; development success is not packaging evidence.
 
+## M5 implementation contract (in progress)
+
+ADR-0008 freezes schema v4 as exactly three additional app-owned tables for track metadata, saved filters, and strict feedback. The planned pure `preference-linear-v1` model activates only after five effective signals, adds the existing optional preference component with a maximum 150,000-ppm weight, and exposes one same-universe baseline comparison. Tags/notes remain searchable explicit metadata rather than learned sentiment. Reset clears ratings/feedback to restore baseline while preserving tags, notes, saved filters, drafts, analysis, and library data. Electron main will own confirmed atomic bounded-JSON preference export. None of this paragraph is implementation evidence until M5 tasks and gates record it.
+
 ## Data ownership and source immutability
 
 - Rekordbox XML and audio are user-selected read-only inputs.

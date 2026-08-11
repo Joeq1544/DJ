@@ -11,6 +11,7 @@ ADRs are immutable decision history once accepted. A change creates a supersedin
 | [0005](0005-audio-analysis-and-licenses.md) | Audio-analysis providers and license strategy | Accepted |
 | [0006](0006-embedding-storage-and-search.md) | Embedding storage/search | Accepted |
 | [0007](0007-packaging-strategy.md) | macOS packaging | Accepted |
+| [0008](0008-personalization-and-user-metadata.md) | Interpretable personalization and user metadata | Accepted |
 
 Statuses are `Proposed`, `Accepted`, `Rejected`, `Superseded`, or `Deprecated`. Acceptance records an architectural choice, not completion of its implementation. ADR-0002 is accepted for the 2026-08-10 personal-use trust model; its basis intentionally differs from the original commercial Phase 0 evidence gate, whose missing results remain historical limitations.
 

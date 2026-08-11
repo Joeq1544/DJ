@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-11
 Current milestone: M5 — Personalization and library metadata
-Current state: M0–M4 are closed and pushed through `10d2511`; the post-review M4 gate passed 119 core, 116 desktop, strict typecheck/build, and five Electron flows with reviewer READY; M5 bounded planning is in progress and visual QA stays deferred until all features are implemented
+Current state: M0–M4 are closed and pushed through `320d027`; ADR-0008 and the bounded M5 implementation plan freeze the three-table `preference-linear-v1` slice; pure model/filter-compatibility work begins next and visual QA stays deferred until all features are implemented
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -58,6 +58,16 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | M4-005 | macOS UI specialist | One inline Set workspace exposes every structured create/edit/history/version/inspection/organization/export behavior accessibly with no renderer scoring/filesystem access | done | 34/34 focused renderer tests; complete desktop 114/114; strict typecheck and production build passed | `82bbf94`, pushed | All screenshot and subjective visual QA is deferred under D-045 |
 | M4-006 | primary | Generated official-XML import-to-export Electron flow, aggregate gate, one bounded review, current memory/docs, and a green pushed checkpoint close M4 | done | Post-review `pnpm verify:m4`: 119 core + 116 desktop + strict typecheck/build + 5 Electron flows; generated official import, repeated draft, edits/history/versions/inspection, cancel/new/overwrite export, production-parser reparse, reload, hashes, and cleanup passed; original reviewer READY | `dd741d6`, `10d2511`, pushed | Nonvisual automation is not real Rekordbox or native-picker visual validation |
 
+## M5 ledger
+
+| ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
+| --- | --- | --- | --- | --- | --- | --- |
+| M5-001 | primary + ranking specialist | ADR-0008, v3/v4 filter compatibility, and pure deterministic preference/profile/scorer behavior are frozen and tested | in-progress | `docs/adr/0008-personalization-and-user-metadata.md`; bounded scope monitor; M5 plan; red/green pure suites pending | planning checkpoint pending | Personal effects must remain zero below five signals and capped thereafter |
+| M5-002 | core implementer | Schema-v4 backup, metadata/saved-filter/feedback persistence, strict service commands, same-universe comparison, reset, and atomic successful-draft evidence work | not-started | Task 2 of M5 plan | none | Retained metadata and old M4 drafts must survive migration/reimport |
+| M5-003 | primary + desktop boundary implementer | Strict shared schemas, trusted IPC/preload, and confirmed atomic preference JSON export work without renderer paths | not-started | Task 3 of M5 plan | none | Export confirmation must bind the profile revision and destination state |
+| M5-004 | macOS UI specialist | Inline metadata, saved filters, feedback, comparison, profile/export/reset controls expose complete accessible behavior | not-started | Task 4 of M5 plan | none | Visual appearance remains deferred; state/error semantics remain automated |
+| M5-005 | primary | Generated personalization Electron flow, complete aggregate, one bounded review, current evidence/docs, and green pushed checkpoint close M5 | not-started | Task 5 of M5 plan | none | Subjective usefulness still belongs to Joe's final hands-on period |
+
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
 The rows below preserve what the original commercial-style gate proved and did not prove. They are evidence history, not current MVP blockers.
@@ -108,6 +118,6 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | M2 | Local analysis slice | done | `docs/evidence/m2-local-analysis.md`; green implementation `a66e0d6`; closure records `cb857a2`; independent reviewer READY |
 | M3 | Discovery and recommendation slice | done | `docs/evidence/m3-discovery-recommendations.md`; green implementation `5a5d59d`/`bb85aaa`; reviewed correction/closure `1e9d347`; independent reviewer READY |
 | M4 | Set workflow slice | done | `docs/evidence/m4-set-workflow-export.md`; green/reviewed closure `10d2511` |
-| M5 | Personalization slice | in-progress | Single bounded scope monitor and implementation plan in progress |
+| M5 | Personalization slice | in-progress | ADR-0008 and `docs/superpowers/plans/2026-08-11-m5-personalization-library-metadata.md`; Task 1 next |
 | M6 | Codex-assisted slice | not-started | Separate plan after M5 |
 | M7 | Personal release polish | not-started | Separate plan after M6 |

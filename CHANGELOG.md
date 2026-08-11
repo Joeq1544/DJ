@@ -4,6 +4,11 @@ All notable project changes are recorded here. The project has not yet produced 
 
 ## Unreleased
 
+### 2026-08-11 — M5 personalization and library metadata planning
+
+- Accepted ADR-0008 and a bounded three-table M5 plan for ratings/tags/notes, saved filters, explicit feedback, deterministic visible preference effects, baseline comparison, confirmed export, and reset.
+- Kept the slice on the existing SQLite/ranking/Library-screen architecture with no ML service, embeddings, FTS, background learner, event framework, or visual QA gate.
+
 ### 2026-08-11 — M4 set workflow and Rekordbox export slice
 
 - Added schema-v3 persistent set drafts with immutable snapshots, optimistic revisions, branch-aware undo/redo, saved-version view/restore, repeats, track/position pins, bans, roles, energy goals, constraints, and restart persistence.
