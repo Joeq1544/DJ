@@ -16,6 +16,10 @@ build/
 coverage/
 .coverage
 *.log
+.superpowers/
+test-results/
+playwright-report/
+*.sock
 
 .env
 .env.*

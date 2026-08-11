@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-10
 Current milestone: M1 — App shell and real library slice
-Current state: M1 plan ready; implementation in progress
+Current state: M1 contracts, core, desktop boundary, and renderer are green; Electron fixture flow and evidence are in progress
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -22,11 +22,11 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 
 | ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
 | --- | --- | --- | --- | --- | --- | --- |
-| M1-001 | primary | Root workspace, exact dependency pins, strict build/test commands, and shared DTO/runtime schemas exist | in-progress | `docs/superpowers/plans/2026-08-10-m1-app-shell-library.md` | pending | Host Python is 3.14.3; bundled CPython remains M7 work |
-| M1-002 | core implementer | Fixture and selected XML parse into an atomic app-owned SQLite revision with stable app IDs and ordered playlists | not-started | Focused Python parser/database/service tests | pending | Real Rekordbox variant compatibility remains opt-in evidence |
-| M1-003 | desktop implementer | Electron supervises the core and exposes only guarded typed preload operations | not-started | Main/preload/security/supervision tests | pending | Development paths must not become packaged-path claims |
-| M1-004 | UI implementer | Library and playlists are usable through accessible loading, empty, ready, degraded, and error states | not-started | Renderer behavior and keyboard tests | pending | Large-library virtualization waits for measured need |
-| M1-005 | primary | Production build and Electron fixture import/browse/restart flow pass; docs/evidence are current and checkpoint is pushed | not-started | `pnpm verify:m1`; bounded manual development launch | pending | Personal XML evidence is not passed unless explicitly selected |
+| M1-001 | primary | Root workspace, exact dependency pins, strict build/test commands, and shared DTO/runtime schemas exist | review | 6/6 contract tests; `pnpm typecheck`; `pnpm build` | pending implementation checkpoint | Host Python is 3.14.3; bundled CPython remains M7 work |
+| M1-002 | core implementer | Fixture and selected XML parse into an atomic app-owned SQLite revision with stable app IDs and ordered playlists | review | 22/22 focused Python parser/database/service tests | pending implementation checkpoint | Real Rekordbox variant compatibility remains opt-in evidence |
+| M1-003 | desktop implementer | Electron supervises the core and exposes only guarded typed preload operations | review | 18/18 focused main/preload/security/supervision tests; restart uses the replacement client | pending implementation checkpoint | Development paths must not become packaged-path claims |
+| M1-004 | UI implementer | Library and playlists are usable through accessible loading, empty, ready, degraded, and error states | review | 12/12 renderer behavior and keyboard tests; production renderer build | pending implementation checkpoint | Large-library virtualization waits for measured need |
+| M1-005 | primary | Production build and Electron fixture import/browse/restart flow pass; docs/evidence are current and checkpoint is pushed | in-progress | `pnpm verify:m1`; bounded manual development launch | pending | Personal XML evidence is not passed unless explicitly selected |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 

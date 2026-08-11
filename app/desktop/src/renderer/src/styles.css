@@ -1,0 +1,61 @@
+:root {
+  color: #12202b;
+  background: #e7edf0;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  font-size: 100%;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+body { margin: 0; min-width: 20rem; min-height: 100vh; }
+button, input, select, textarea { font: inherit; }
+button:focus-visible, [role="treeitem"]:focus-visible { outline: 0.1875rem solid #e3a63b; outline-offset: -0.1875rem; }
+
+.library-workstation { display: grid; grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr); min-height: 100vh; }
+.library-sidebar { background: #12202b; color: #e7edf0; grid-column: 1; grid-row: 1; padding: 1.5rem 1rem; }
+.library-sidebar__brand { margin: 0 0 3rem; color: #e3a63b; font-family: "Avenir Next", Avenir, sans-serif; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.16em; }
+.library-content { grid-column: 2; grid-row: 1; min-width: 0; background: #f8fafa; padding: 1.5rem 2rem 2rem; }
+.library-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 1rem; border-bottom: 0.0625rem solid #b9c7cc; padding-bottom: 1.25rem; }
+.eyebrow, .sidebar-label { margin: 0 0 0.35rem; color: #63767f; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.sidebar-label { color: #9eb1b8; padding-left: 0.75rem; }
+h1, h2 { margin: 0; font-family: "Avenir Next", Avenir, sans-serif; font-weight: 600; letter-spacing: -0.02em; }
+h1 { font-size: clamp(1.5rem, 3vw, 2rem); }
+h2 { font-size: 1rem; }
+.import-button { border: 0.0625rem solid #b27b1d; border-radius: 0.25rem; background: #e3a63b; color: #12202b; cursor: pointer; font-weight: 700; padding: 0.625rem 0.875rem; white-space: nowrap; }
+.import-button:hover:not(:disabled) { background: #f0bc56; }
+.import-button:disabled { cursor: wait; opacity: 0.68; }
+.library-navigation { min-width: 0; }
+.cue-tree { position: relative; margin-top: 0.75rem; }
+.cue-tree::before { background: #e3a63b; content: ""; inset: 0.35rem auto 0.35rem 0.75rem; opacity: 0.9; position: absolute; width: 0.0625rem; }
+.tree-item { align-items: center; color: #e7edf0; cursor: pointer; display: grid; gap: 0.5rem; grid-template-columns: 1rem minmax(0, 1fr) auto auto; margin: 0; min-height: 2.25rem; padding: 0.25rem 0.5rem 0.25rem 0.25rem; position: relative; }
+.tree-item[aria-level="2"] { padding-left: 1.25rem; }
+.tree-item[aria-selected="true"] { background: #263843; color: #f8fafa; }
+.tree-item:hover { background: #1c303a; }
+.cue-node { background: #12202b; border: 0.125rem solid #e3a63b; border-radius: 50%; height: 0.625rem; justify-self: center; position: relative; width: 0.625rem; z-index: 1; }
+.tree-item[aria-selected="true"] .cue-node { background: #e3a63b; }
+.tree-item__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-item__disclosure, .tree-item__count { color: #9eb1b8; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75rem; }
+.status-panel { border-bottom: 0.0625rem solid #b9c7cc; display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; padding: 0.75rem 0; }
+.status-panel__state, .status-panel__detail, .status-panel__success, .status-panel__error { margin: 0; font-size: 0.8125rem; }
+.status-panel__state { color: #263843; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.status-panel__detail { color: #52676f; }
+.status-panel__success { color: #1c716d; }
+.status-panel__error { color: #923d25; font-weight: 600; }
+.track-surface { margin-top: 1.5rem; }
+.track-surface__heading { align-items: baseline; display: flex; gap: 0.75rem; margin-bottom: 0.625rem; }
+.track-surface__heading .eyebrow { margin: 0; }
+table { border-collapse: collapse; table-layout: fixed; width: 100%; }
+th, td { border-bottom: 0.0625rem solid #ced9dc; overflow: hidden; padding: 0.75rem 0.5rem; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+th { color: #52676f; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.6875rem; letter-spacing: 0.05em; text-transform: uppercase; }
+th:nth-child(1) { width: 31%; } th:nth-child(2) { width: 27%; } th:nth-child(3) { width: 12%; } th:nth-child(4) { width: 12%; } th:nth-child(5) { width: 18%; }
+td { font-size: 0.875rem; }
+.data-cell, .availability { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8125rem; }
+.availability { align-items: center; display: inline-flex; gap: 0.375rem; }
+.availability--available { color: #287b76; }.availability--missing { color: #9a6115; }.availability--unreadable { color: #923d25; }
+.table-note, .empty-library { color: #52676f; padding: 2rem 0.5rem; white-space: normal; }
+.empty-library strong, .empty-library span { display: block; }.empty-library strong { color: #263843; font-family: "Avenir Next", Avenir, sans-serif; margin-bottom: 0.25rem; }
+
+@media (max-width: 44rem) { .library-workstation { grid-template-columns: 1fr; }.library-sidebar, .library-content { grid-column: 1; }.library-content { grid-row: 1; }.library-sidebar { grid-row: 2; padding: 1rem; }.library-sidebar__brand { margin-bottom: 1rem; }.cue-tree { display: flex; overflow-x: auto; }.cue-tree::before { display: none; }.tree-item { min-width: max-content; }.tree-item[aria-level="2"] { padding-left: 0.25rem; }.library-content { padding: 1rem; }.library-toolbar { align-items: start; flex-direction: column; }.import-button { width: 100%; } table { min-width: 38rem; }.track-surface { overflow-x: auto; } }
+@media (prefers-color-scheme: dark) { :root { background: #12202b; color: #e7edf0; }.library-content { background: #182a33; }.library-toolbar, .status-panel { border-color: #3e5661; }.eyebrow { color: #a7bbc2; }.status-panel__state, .status-panel__detail, th, .table-note, .empty-library { color: #bfd0d5; }.empty-library strong { color: #f8fafa; } th, td { border-color: #3e5661; }.tree-item[aria-selected="true"] { background: #314a56; }.cue-node { background: #12202b; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
