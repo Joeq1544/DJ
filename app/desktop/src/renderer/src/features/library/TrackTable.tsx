@@ -7,11 +7,15 @@ const MAX_ANALYSIS_SELECTION = 200;
 interface TrackTableProps {
   tracks: TrackListItem[] | null;
   loading: boolean;
+  filtered: boolean;
+  truncated: boolean;
+  loadError: string | null;
   nextCursor: string | null;
   loadingMore: boolean;
   selectedTrackIds: ReadonlySet<string>;
   onToggleTrack: (trackId: string, selected: boolean) => void;
   onToggleAll: (trackIds: string[], selected: boolean) => void;
+  onExplore: (track: TrackListItem) => void;
   onLoadMore: () => void;
 }
 
@@ -56,11 +60,15 @@ function localKey(track: TrackListItem): string {
 export function TrackTable({
   tracks,
   loading,
+  filtered,
+  truncated,
+  loadError,
   nextCursor,
   loadingMore,
   selectedTrackIds,
   onToggleTrack,
   onToggleAll,
+  onExplore,
   onLoadMore,
 }: TrackTableProps) {
   const selectableIds = (tracks ?? [])
@@ -101,16 +109,26 @@ export function TrackTable({
               <th scope="col">Imported key</th>
               <th scope="col">Local key</th>
               <th scope="col">Status</th>
+              <th scope="col">Discover</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={8} className="table-note">Loading tracks…</td></tr>
+              <tr><td colSpan={9} className="table-note">Loading tracks…</td></tr>
+            ) : loadError !== null ? (
+              <tr>
+                <td colSpan={9} className="empty-library empty-library--error">
+                  <strong>Tracks could not be loaded</strong>
+                  <span>Keep the current playlist and filters, then try again.</span>
+                </td>
+              </tr>
             ) : tracks !== null && tracks.length === 0 ? (
               <tr>
-                <td colSpan={8} className="empty-library">
-                  <strong>No tracks imported yet</strong>
-                  <span>Import a Rekordbox XML file to start browsing your library.</span>
+                <td colSpan={9} className="empty-library">
+                  <strong>{filtered ? "No tracks match these filters" : "No tracks imported yet"}</strong>
+                  <span>{filtered
+                    ? "Try broader values or clear the filters."
+                    : "Import a Rekordbox XML file to start browsing your library."}</span>
                 </td>
               </tr>
             ) : tracks?.map((track) => {
@@ -149,15 +167,20 @@ export function TrackTable({
                       </span>
                       <span className={`analysis-state analysis-state--${track.analysis?.status ?? "not_queued"}`}>{analysisState(track)}</span>
                     </td>
+                    <td className="discovery-column">
+                      <button type="button" className="explore-button" aria-label={`Explore ${title}`} onClick={() => onExplore(track)}>
+                        Explore
+                      </button>
+                    </td>
                   </tr>
                   {features !== null ? (
                     <tr className="evidence-row" aria-label="Analysis evidence">
-                      <td colSpan={8}><FeatureEvidence features={features} trackTitle={title} /></td>
+                      <td colSpan={9}><FeatureEvidence features={features} trackTitle={title} /></td>
                     </tr>
                   ) : null}
                   {failedMessage !== null ? (
                     <tr className="analysis-error-row" aria-label="Analysis error">
-                      <td colSpan={8}><p><strong>Analysis failed:</strong> {failedMessage}</p></td>
+                      <td colSpan={9}><p><strong>Analysis failed:</strong> {failedMessage}</p></td>
                     </tr>
                   ) : null}
                 </Fragment>
@@ -166,6 +189,9 @@ export function TrackTable({
           </tbody>
         </table>
       </div>
+      {truncated ? (
+        <p className="track-surface__truncated" role="status">Showing results from the first 25,000 scanned tracks.</p>
+      ) : null}
       {nextCursor !== null ? (
         <div className="track-surface__more">
           <button type="button" className="load-more-button" disabled={loadingMore} onClick={onLoadMore}>

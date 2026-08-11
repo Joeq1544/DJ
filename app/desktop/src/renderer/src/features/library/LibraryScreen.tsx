@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AnalysisQueueStatus,
   AnalysisSummary,
   AppStatus,
   DesktopApi,
   PlaylistTreeNode,
+  TrackFilters,
   TrackListItem,
+  TrackPageQuery,
 } from "../../../../shared/contracts";
 import { AnalysisControls } from "../analysis/AnalysisControls";
+import { DiscoveryFilters } from "../discovery/DiscoveryFilters";
+import { DiscoveryPanel, type DiscoverySeed } from "../discovery/DiscoveryPanel";
 import { ImportPanel } from "./ImportPanel";
 import { PlaylistTree } from "./PlaylistTree";
 import { StatusPanel } from "./StatusPanel";
@@ -76,16 +80,38 @@ function desktopApi(): DesktopApi | null {
   return (window as unknown as DjCopilotWindow).djCopilot;
 }
 
+function filtersWithPlaylist(playlistId: string | null, filters: TrackFilters): TrackFilters {
+  return playlistId === null ? filters : { ...filters, playlistId };
+}
+
+function trackQuery(
+  playlistId: string | null,
+  filters: TrackFilters,
+  cursor?: string,
+): TrackPageQuery | undefined {
+  const query: TrackPageQuery = filtersWithPlaylist(playlistId, filters);
+  if (cursor !== undefined) query.cursor = cursor;
+  return Object.keys(query).length === 0 ? undefined : query;
+}
+
+function requestTrackPage(api: DesktopApi, query: TrackPageQuery | undefined) {
+  return query === undefined ? api.library.listTracks() : api.library.listTracks(query);
+}
+
 export function LibraryScreen() {
   const [status, setStatus] = useState<AppStatus | null>(null);
   const [tree, setTree] = useState<PlaylistTreeNode[]>([]);
   const [tracks, setTracks] = useState<TrackListItem[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<TrackFilters>({});
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [tracksTruncated, setTracksTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tracksLoading, setTracksLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [partialError, setPartialError] = useState<string | null>(null);
+  const [trackLoadError, setTrackLoadError] = useState<string | null>(null);
+  const [discoverySeed, setDiscoverySeed] = useState<DiscoverySeed | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -97,11 +123,17 @@ export function LibraryScreen() {
   const [analysisActionError, setAnalysisActionError] = useState<string | null>(null);
   const statusRefreshInProgress = useRef(false);
   const analysisPollInProgress = useRef(false);
+  const trackRequestSequence = useRef(0);
   const tracksRef = useRef<TrackListItem[] | null>(tracks);
   const selectedTrackIdsRef = useRef<ReadonlySet<string>>(selectedTrackIds);
 
   tracksRef.current = tracks;
   selectedTrackIdsRef.current = selectedTrackIds;
+
+  const discoveryFilters = useMemo(
+    () => filtersWithPlaylist(selectedId, activeFilters),
+    [activeFilters, selectedId],
+  );
 
   const mergeAnalysisStatus = useCallback((update: AnalysisQueueStatus) => {
     setAnalysisStatus((current) => mergeQueueStatus(current, update));
@@ -113,36 +145,51 @@ export function LibraryScreen() {
     }) ?? current);
   }, []);
 
-  const loadTracks = useCallback(async (playlistId: string | null) => {
+  const loadTracks = useCallback(async (playlistId: string | null, filters: TrackFilters) => {
+    const requestSequence = ++trackRequestSequence.current;
     setTracksLoading(true);
+    setLoadingMore(false);
     setTracks(null);
     setNextCursor(null);
+    setTracksTruncated(false);
+    setTrackLoadError(null);
     const api = desktopApi();
     if (api === null || api === undefined) {
       setPartialError("The secure desktop connection is unavailable.");
+      setTrackLoadError("The secure desktop connection is unavailable.");
       setTracks([]);
       setTracksLoading(false);
       return;
     }
     try {
-      const page = await api.library.listTracks(playlistId === null ? undefined : { playlistId });
+      const page = await requestTrackPage(api, trackQuery(playlistId, filters));
+      if (requestSequence !== trackRequestSequence.current) return;
       setTracks(page.items);
       setNextCursor(page.nextCursor);
+      setTracksTruncated(page.truncated);
       setPartialError(null);
+      setTrackLoadError(null);
     } catch (error) {
-      setPartialError(error instanceof Error ? error.message : "Tracks could not be loaded.");
+      if (requestSequence !== trackRequestSequence.current) return;
+      const message = error instanceof Error ? error.message : "Tracks could not be loaded.";
+      setPartialError(message);
+      setTrackLoadError(message);
       setTracks([]);
       setNextCursor(null);
     } finally {
-      setTracksLoading(false);
+      if (requestSequence === trackRequestSequence.current) setTracksLoading(false);
     }
   }, []);
 
-  const refreshLibrary = useCallback(async () => {
+  const refreshLibrary = useCallback(async (filters: TrackFilters = {}) => {
+    const requestSequence = ++trackRequestSequence.current;
     setLoading(true);
     setTracksLoading(true);
+    setLoadingMore(false);
     setTracks(null);
     setNextCursor(null);
+    setTracksTruncated(false);
+    setTrackLoadError(null);
     const api = desktopApi();
     if (api === null || api === undefined) {
       setStatus({
@@ -151,6 +198,7 @@ export function LibraryScreen() {
       });
       setTracks([]);
       setPartialError(null);
+      setTrackLoadError("The secure desktop connection is unavailable.");
       setTracksLoading(false);
       setLoading(false);
       return;
@@ -162,23 +210,26 @@ export function LibraryScreen() {
     const [statusResult, treeResult, trackResult] = await Promise.allSettled([
       statusRequest,
       api.library.getPlaylistTree(),
-      api.library.listTracks(),
+      requestTrackPage(api, trackQuery(null, filters)),
     ]);
     const errors: string[] = [];
     if (statusResult.status === "fulfilled") setStatus(statusResult.value);
     else errors.push("service state");
     if (treeResult.status === "fulfilled") setTree(treeResult.value);
     else errors.push("playlist tree");
-    if (trackResult.status === "fulfilled") {
+    if (trackResult.status === "fulfilled" && requestSequence === trackRequestSequence.current) {
       setTracks(trackResult.value.items);
       setNextCursor(trackResult.value.nextCursor);
-    } else {
+      setTracksTruncated(trackResult.value.truncated);
+      setTrackLoadError(null);
+    } else if (trackResult.status === "rejected" && requestSequence === trackRequestSequence.current) {
       errors.push("tracks");
       setTracks([]);
       setNextCursor(null);
+      setTrackLoadError("Tracks could not be loaded.");
     }
     setPartialError(errors.length > 0 ? `Could not load ${errors.join(" and ")}.` : null);
-    setTracksLoading(false);
+    if (requestSequence === trackRequestSequence.current) setTracksLoading(false);
     setLoading(false);
   }, []);
 
@@ -243,31 +294,47 @@ export function LibraryScreen() {
 
   const selectPlaylist = async (playlistId: string | null) => {
     setSelectedId(playlistId);
-    await loadTracks(playlistId);
+    await loadTracks(playlistId, activeFilters);
   };
 
   const loadMoreTracks = async () => {
     if (nextCursor === null || loadingMore) return;
+    const requestSequence = ++trackRequestSequence.current;
     const api = desktopApi();
     if (api === null || api === undefined) {
       setPartialError("The secure desktop connection is unavailable.");
+      setTrackLoadError("The secure desktop connection is unavailable.");
       setNextCursor(null);
       return;
     }
     setLoadingMore(true);
     try {
-      const page = await api.library.listTracks(selectedId === null
-        ? { cursor: nextCursor }
-        : { playlistId: selectedId, cursor: nextCursor });
+      const page = await requestTrackPage(api, trackQuery(selectedId, activeFilters, nextCursor));
+      if (requestSequence !== trackRequestSequence.current) return;
       setTracks((current) => [...(current ?? []), ...page.items]);
       setNextCursor(page.nextCursor);
+      setTracksTruncated(page.truncated);
       setPartialError(null);
+      setTrackLoadError(null);
     } catch (error) {
-      setPartialError(error instanceof Error ? error.message : "More tracks could not be loaded.");
+      if (requestSequence !== trackRequestSequence.current) return;
+      const message = error instanceof Error ? error.message : "More tracks could not be loaded.";
+      setPartialError(message);
       setNextCursor(null);
     } finally {
-      setLoadingMore(false);
+      if (requestSequence === trackRequestSequence.current) setLoadingMore(false);
     }
+  };
+
+  const applyFilters = async (filters: TrackFilters) => {
+    setActiveFilters(filters);
+    await loadTracks(selectedId, filters);
+  };
+
+  const clearFilters = async () => {
+    const filters: TrackFilters = {};
+    setActiveFilters(filters);
+    await loadTracks(selectedId, filters);
   };
 
   const importXml = async () => {
@@ -286,7 +353,8 @@ export function LibraryScreen() {
         setImportMessage(`${result.summary.importedTracks} tracks imported and ${result.summary.importedPlaylists} playlists.`);
         setSelectedId(null);
         setSelectedTrackIds(new Set());
-        await refreshLibrary();
+        setDiscoverySeed(null);
+        await refreshLibrary(activeFilters);
       } else if (result.error.code === "cancelled") {
         return;
       } else {
@@ -393,14 +461,36 @@ export function LibraryScreen() {
           onPause={() => { void pauseAnalysis(); }}
           onResume={() => { void resumeAnalysis(); }}
         />
+        <DiscoveryFilters
+          activeFilters={activeFilters}
+          loading={tracksLoading}
+          onApply={(filters) => { void applyFilters(filters); }}
+          onClear={() => { void clearFilters(); }}
+        />
+        {discoverySeed === null ? null : (
+          <DiscoveryPanel
+            key={discoverySeed.id}
+            api={desktopApi() ?? null}
+            seed={discoverySeed}
+            filters={discoveryFilters}
+          />
+        )}
         <TrackTable
           tracks={tracks}
           loading={tracksLoading}
+          filtered={Object.keys(activeFilters).length > 0}
+          truncated={tracksTruncated}
+          loadError={trackLoadError}
           nextCursor={nextCursor}
           loadingMore={loadingMore}
           selectedTrackIds={selectedTrackIds}
           onToggleTrack={toggleTrack}
           onToggleAll={toggleAll}
+          onExplore={(track) => setDiscoverySeed({
+            id: track.id,
+            title: track.title ?? "Untitled track",
+            artist: track.artist ?? "Unknown artist",
+          })}
           onLoadMore={() => { void loadMoreTracks(); }}
         />
       </div>

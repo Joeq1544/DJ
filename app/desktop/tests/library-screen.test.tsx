@@ -113,7 +113,7 @@ function createApi(options: {
     library: {
       importXml: vi.fn().mockResolvedValue(options.importResult ?? successfulImport),
       getPlaylistTree: vi.fn().mockResolvedValue(options.tree ?? tree),
-      listTracks: vi.fn().mockResolvedValue({ items: options.tracks ?? tracks, nextCursor: null }),
+      listTracks: vi.fn().mockResolvedValue({ items: options.tracks ?? tracks, nextCursor: null, truncated: false }),
     },
     analysis: {
       queue: vi.fn().mockResolvedValue(analysisStatus),
@@ -270,13 +270,13 @@ describe("LibraryScreen", () => {
   it("appends the next track page and resets pagination for a playlist selection", async () => {
     const user = userEvent.setup();
     const api = createApi();
-    let resolveNextPage: ((page: { items: TrackListItem[]; nextCursor: null }) => void) | undefined;
+    let resolveNextPage: ((page: { items: TrackListItem[]; nextCursor: null; truncated: false }) => void) | undefined;
     api.library.listTracks = vi.fn()
-      .mockResolvedValueOnce({ items: tracks.slice(0, 2), nextCursor: "cursor-2" })
+      .mockResolvedValueOnce({ items: tracks.slice(0, 2), nextCursor: "cursor-2", truncated: false })
       .mockImplementationOnce(() => new Promise((resolve) => {
         resolveNextPage = resolve;
       }))
-      .mockResolvedValueOnce({ items: [tracks[3]], nextCursor: null });
+      .mockResolvedValueOnce({ items: [tracks[3]], nextCursor: null, truncated: false });
     renderLibrary(api);
 
     expect(await screen.findByText("Blue Monday")).toBeVisible();
@@ -288,7 +288,7 @@ describe("LibraryScreen", () => {
     if (resolveNextPage === undefined) throw new Error("Expected the next page request");
     const nextPageResolver = resolveNextPage;
     await act(async () => {
-      nextPageResolver({ items: tracks.slice(2), nextCursor: null });
+      nextPageResolver({ items: tracks.slice(2), nextCursor: null, truncated: false });
     });
     expect(await screen.findByText("Ain't No Mountain High Enough")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Load more tracks" })).not.toBeInTheDocument();
@@ -349,14 +349,32 @@ describe("LibraryScreen", () => {
 
     await user.tab();
     expect(screen.getByRole("button", { name: "Import Rekordbox XML" })).toHaveFocus();
-    await user.tab();
-    expect(screen.getByRole("checkbox", { name: "Select all analyzable tracks" })).toHaveFocus();
-    await user.tab();
-    expect(screen.getByRole("checkbox", { name: "Select Sæglópur for analysis" })).toHaveFocus();
-    await user.tab();
-    expect(screen.getByRole("checkbox", { name: "Select Untitled track for analysis" })).toHaveFocus();
-    await user.tab();
-    expect(screen.getByRole("treeitem", { name: /All Tracks/ })).toHaveFocus();
+
+    const expectedTabOrder = [
+      screen.getByRole("searchbox", { name: "Search library" }),
+      screen.getByRole("spinbutton", { name: "Minimum BPM" }),
+      screen.getByRole("spinbutton", { name: "Maximum BPM" }),
+      screen.getByRole("textbox", { name: "Musical key" }),
+      screen.getByRole("textbox", { name: "Genre" }),
+      screen.getByRole("spinbutton", { name: "Minimum energy (%)" }),
+      screen.getByRole("spinbutton", { name: "Maximum energy (%)" }),
+      screen.getByRole("combobox", { name: "Analysis state" }),
+      screen.getByRole("combobox", { name: "Availability" }),
+      screen.getByRole("button", { name: "Apply filters" }),
+      screen.getByRole("checkbox", { name: "Select all analyzable tracks" }),
+      screen.getByRole("checkbox", { name: "Select Sæglópur for analysis" }),
+      screen.getByRole("button", { name: "Explore Sæglópur" }),
+      screen.getByRole("button", { name: "Explore Blue Monday" }),
+      screen.getByRole("button", { name: "Explore Ain't No Mountain High Enough" }),
+      screen.getByRole("checkbox", { name: "Select Untitled track for analysis" }),
+      screen.getByRole("button", { name: "Explore Untitled track" }),
+      screen.getByRole("treeitem", { name: /All Tracks/ }),
+    ];
+
+    for (const control of expectedTabOrder) {
+      await user.tab();
+      expect(control).toHaveFocus();
+    }
     expect(screen.getByRole("navigation", { name: "Library navigation" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Imported BPM" })).toBeInTheDocument();
     expect(screen.getByRole("columnheader", { name: "Local BPM" })).toBeInTheDocument();

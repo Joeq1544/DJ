@@ -112,6 +112,7 @@ describe("analysis boundary contracts", () => {
           },
         ],
         nextCursor: null,
+        truncated: false,
       }).success,
     ).toBe(false);
   });

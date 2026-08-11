@@ -138,7 +138,7 @@ function createApi(options: {
         preservedPreviousLibrary: true,
       }),
       getPlaylistTree: vi.fn().mockResolvedValue(tree),
-      listTracks: vi.fn().mockResolvedValue({ items: options.tracks ?? tracks, nextCursor: null }),
+      listTracks: vi.fn().mockResolvedValue({ items: options.tracks ?? tracks, nextCursor: null, truncated: false }),
     },
     analysis: {
       queue: vi.fn().mockResolvedValue(status),
