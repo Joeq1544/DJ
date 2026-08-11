@@ -106,6 +106,41 @@ export const appStatusSchema = z.strictObject({
   message: z.string().max(500).nullable(),
 });
 
+const userTagSchema = z.string().min(1).max(40).refine(
+  (tag) => tag === tag.trim() && tag === tag.normalize("NFKC"),
+  "Tags must be trimmed and Unicode-normalized",
+);
+
+const userTagsSchema = z.array(userTagSchema).max(20).superRefine((tags, context) => {
+  const normalized = new Set<string>();
+  tags.forEach((tag, index) => {
+    const key = tag.normalize("NFKC").toLowerCase();
+    if (normalized.has(key)) {
+      context.addIssue({ code: "custom", path: [index], message: "Tags must be unique ignoring case" });
+    }
+    normalized.add(key);
+  });
+});
+
+const trackMetadataValueSchema = z.strictObject({
+  rating: z.number().int().min(1).max(5).nullable(),
+  tags: userTagsSchema,
+  note: z.string().min(1).max(2_000).nullable(),
+});
+
+export const trackMetadataSchema = z.strictObject({
+  trackId: idSchema,
+  ...trackMetadataValueSchema.shape,
+  updatedAt: z.string().min(1).max(64),
+});
+
+export const trackMetadataGetRequestSchema = z.strictObject({ trackId: idSchema });
+
+export const trackMetadataUpdateRequestSchema = z.strictObject({
+  trackId: idSchema,
+  ...trackMetadataValueSchema.shape,
+});
+
 export const trackListItemSchema = z.strictObject({
   id: idSchema,
   title: displayTextSchema,
@@ -117,6 +152,7 @@ export const trackListItemSchema = z.strictObject({
   durationMs: z.number().int().nonnegative().nullable(),
   availability: z.enum(["available", "missing", "unreadable"]),
   analysis: analysisSummarySchema.nullable(),
+  userMetadata: trackMetadataValueSchema,
 });
 
 const trackFilterShape = {
@@ -131,6 +167,8 @@ const trackFilterShape = {
   energyMaxPpm: ppmSchema.optional(),
   analysisState: z.enum(["any", "analyzed", "not_analyzed", "failed"]).optional(),
   availability: z.enum(["any", "available", "missing", "unreadable"]).optional(),
+  ratingMin: z.number().int().min(1).max(5).optional(),
+  tag: userTagSchema.optional(),
 };
 
 interface TrackFilterRelations {
@@ -202,7 +240,7 @@ export const recommendNextRequestSchema = z.strictObject({
   limit: discoveryLimitSchema,
 });
 
-export const discoveryTrackSchema = trackListItemSchema.omit({ analysis: true });
+export const discoveryTrackSchema = trackListItemSchema.omit({ analysis: true, userMetadata: true });
 
 export const scoreComponentSchema = z
   .strictObject({
@@ -256,8 +294,201 @@ export const similarityResponseSchema = z.strictObject({
 export const recommendationResponseSchema = z.strictObject({
   ...discoveryResponseShape,
   intent: discoveryIntentSchema,
-  algorithmVersion: z.literal("transition-v1"),
+  algorithmVersion: z.enum(["transition-v1", "transition-v1+preference-linear-v1"]),
 });
+
+export const savedFilterSchema = z.strictObject({
+  id: idSchema,
+  name: z.string().min(1).max(80),
+  filters: trackFiltersSchema,
+  createdAt: z.string().min(1).max(64),
+  updatedAt: z.string().min(1).max(64),
+});
+
+export const savedFilterListSchema = z.strictObject({ items: z.array(savedFilterSchema).max(50) });
+
+export const savedFilterSaveRequestSchema = z.strictObject({
+  id: idSchema.optional(),
+  name: z.string().min(1).max(80),
+  filters: trackFiltersSchema,
+});
+
+export const savedFilterDeleteRequestSchema = z.strictObject({ id: idSchema });
+export const savedFilterDeleteResultSchema = z.strictObject({ deleted: z.literal(true) });
+
+const directFeedbackSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("liked"), trackId: idSchema }),
+  z.strictObject({ type: z.literal("disliked"), trackId: idSchema }),
+]);
+
+const recommendationFeedbackSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("accepted"), trackId: idSchema, seedTrackId: idSchema, intent: discoveryIntentSchema }),
+  z.strictObject({ type: z.literal("rejected"), trackId: idSchema, seedTrackId: idSchema, intent: discoveryIntentSchema }),
+  z.strictObject({ type: z.literal("skipped"), trackId: idSchema, seedTrackId: idSchema, intent: discoveryIntentSchema }),
+]);
+
+export const recordFeedbackRequestSchema = z.union([directFeedbackSchema, recommendationFeedbackSchema]);
+
+export const preferenceEventCountsSchema = z.strictObject({
+  liked: nonnegativeIntegerSchema,
+  disliked: nonnegativeIntegerSchema,
+  accepted: nonnegativeIntegerSchema,
+  rejected: nonnegativeIntegerSchema,
+  skipped: nonnegativeIntegerSchema,
+  manualReplacement: nonnegativeIntegerSchema,
+  manualReorder: nonnegativeIntegerSchema,
+  pinned: nonnegativeIntegerSchema,
+  removed: nonnegativeIntegerSchema,
+  banned: nonnegativeIntegerSchema,
+});
+
+const preferenceTrackAffinitySchema = z.strictObject({
+  trackId: idSchema,
+  title: displayTextSchema,
+  artist: displayTextSchema,
+  scorePpm: ppmSchema,
+  evidenceCount: z.number().int().positive(),
+});
+
+const preferenceGenreAffinitySchema = z.strictObject({
+  genre: z.string().min(1).max(1_000),
+  scorePpm: ppmSchema,
+  evidenceCount: z.number().int().positive(),
+});
+
+const preferenceProfileShape = {
+  algorithmVersion: z.literal("preference-linear-v1"),
+  revision: z.string().regex(/^[a-f0-9]{64}$/u),
+  status: z.enum(["baseline", "learning", "active"]),
+  totalPersonalDataCount: nonnegativeIntegerSchema,
+  effectiveEvidenceCount: nonnegativeIntegerSchema,
+  minimumEvidenceCount: z.literal(5),
+  preferenceWeightPpm: z.number().int().min(0).max(150_000),
+  eventCounts: preferenceEventCountsSchema,
+  trackAffinities: z.array(preferenceTrackAffinitySchema).max(50),
+  trackAffinitiesTruncated: z.boolean(),
+  genreAffinities: z.array(preferenceGenreAffinitySchema).max(50),
+  genreAffinitiesTruncated: z.boolean(),
+};
+
+interface PreferenceEvidenceRelations {
+  status: "baseline" | "learning" | "active";
+  totalPersonalDataCount: number;
+  effectiveEvidenceCount: number;
+  minimumEvidenceCount: 5;
+  preferenceWeightPpm: number;
+}
+
+function validatePreferenceEvidence(profile: PreferenceEvidenceRelations, context: z.RefinementCtx): void {
+  const expectedStatus = profile.effectiveEvidenceCount === 0
+    ? "baseline"
+    : profile.effectiveEvidenceCount < profile.minimumEvidenceCount
+      ? "learning"
+      : "active";
+  if (profile.status !== expectedStatus) {
+    context.addIssue({ code: "custom", path: ["status"], message: "Preference status disagrees with evidence" });
+  }
+  const expectedWeight = expectedStatus === "active"
+    ? Math.min(150_000, (profile.effectiveEvidenceCount - 4) * 15_000)
+    : 0;
+  if (profile.preferenceWeightPpm !== expectedWeight) {
+    context.addIssue({ code: "custom", path: ["preferenceWeightPpm"], message: "Preference weight disagrees with evidence" });
+  }
+}
+
+export const preferenceProfileSchema = z.strictObject(preferenceProfileShape).superRefine(validatePreferenceEvidence);
+
+export const recordFeedbackResultSchema = z.strictObject({
+  recorded: z.literal(true),
+  profile: preferenceProfileSchema,
+});
+
+export const compareRecommendationsRequestSchema = recommendNextRequestSchema;
+
+export const recommendationRankChangeSchema = z.strictObject({
+  trackId: idSchema,
+  baselineRank: z.number().int().min(1).max(20),
+  personalizedRank: z.number().int().min(1).max(20),
+  delta: z.number().int().min(-19).max(19),
+});
+
+export const compareRecommendationsResponseSchema = z.strictObject({
+  profile: preferenceProfileSchema,
+  baseline: recommendationResponseSchema,
+  personalized: recommendationResponseSchema,
+  rankChanges: z.array(recommendationRankChangeSchema).max(20),
+}).superRefine((comparison, context) => {
+  if (comparison.baseline.algorithmVersion !== "transition-v1") {
+    context.addIssue({ code: "custom", path: ["baseline", "algorithmVersion"], message: "Baseline must use transition-v1" });
+  }
+  const expectedPersonalizedVersion = comparison.profile.status === "active"
+    ? "transition-v1+preference-linear-v1"
+    : "transition-v1";
+  if (comparison.personalized.algorithmVersion !== expectedPersonalizedVersion) {
+    context.addIssue({ code: "custom", path: ["personalized", "algorithmVersion"], message: "Personalized algorithm version disagrees with profile status" });
+  }
+  if (
+    comparison.baseline.seed.id !== comparison.personalized.seed.id ||
+    comparison.baseline.intent !== comparison.personalized.intent ||
+    comparison.baseline.scannedCount !== comparison.personalized.scannedCount ||
+    comparison.baseline.truncated !== comparison.personalized.truncated
+  ) {
+    context.addIssue({ code: "custom", path: ["personalized"], message: "Baseline and personalized request context must match" });
+  }
+  const baselineIds = comparison.baseline.items.map((item) => item.track.id);
+  const personalizedIds = comparison.personalized.items.map((item) => item.track.id);
+  if (
+    baselineIds.length !== personalizedIds.length ||
+    new Set(baselineIds).size !== baselineIds.length ||
+    new Set(personalizedIds).size !== personalizedIds.length ||
+    baselineIds.some((trackId) => !personalizedIds.includes(trackId))
+  ) {
+    context.addIssue({ code: "custom", path: ["personalized", "items"], message: "Baseline and personalized candidates must match" });
+  }
+  if (comparison.rankChanges.length !== baselineIds.length) {
+    context.addIssue({ code: "custom", path: ["rankChanges"], message: "Every candidate requires one rank change" });
+    return;
+  }
+  comparison.rankChanges.forEach((change, index) => {
+    const baselineRank = baselineIds.indexOf(change.trackId) + 1;
+    const personalizedRank = personalizedIds.indexOf(change.trackId) + 1;
+    if (
+      baselineRank === 0 ||
+      personalizedRank === 0 ||
+      change.baselineRank !== baselineRank ||
+      change.personalizedRank !== personalizedRank ||
+      change.delta !== baselineRank - personalizedRank
+    ) {
+      context.addIssue({ code: "custom", path: ["rankChanges", index], message: "Rank change disagrees with candidate order" });
+    }
+  });
+});
+
+export const preferenceResetResultSchema = z.strictObject({
+  status: z.literal("reset"),
+  clearedFeedbackCount: nonnegativeIntegerSchema,
+  clearedRatingCount: nonnegativeIntegerSchema,
+  profile: preferenceProfileSchema,
+});
+
+const exportTrackAffinitySchema = preferenceTrackAffinitySchema.omit({ title: true, artist: true });
+
+export const preferenceExportSnapshotSchema = z.strictObject({
+  format: z.literal("dj-copilot-preferences-v1"),
+  algorithmVersion: z.literal("preference-linear-v1"),
+  revision: z.string().regex(/^[a-f0-9]{64}$/u),
+  status: z.enum(["baseline", "learning", "active"]),
+  totalPersonalDataCount: nonnegativeIntegerSchema,
+  effectiveEvidenceCount: nonnegativeIntegerSchema,
+  minimumEvidenceCount: z.literal(5),
+  preferenceWeightPpm: z.number().int().min(0).max(150_000),
+  ratingCount: nonnegativeIntegerSchema,
+  eventCounts: preferenceEventCountsSchema,
+  trackAffinities: z.array(exportTrackAffinitySchema).max(50),
+  trackAffinitiesTruncated: z.boolean(),
+  genreAffinities: z.array(preferenceGenreAffinitySchema).max(50),
+  genreAffinitiesTruncated: z.boolean(),
+}).superRefine(validatePreferenceEvidence);
 
 export const playlistTreeNodeSchema = z.strictObject({
   id: idSchema,
@@ -505,6 +736,35 @@ export const exportConfirmRequestSchema = z.strictObject({ confirmationId: idSch
 
 const exportReasonSchema = z.strictObject({ code: z.string().min(1).max(64), message: messageSchema });
 
+export const preferenceExportPrepareResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({ status: z.literal("cancelled") }),
+  z.strictObject({ status: z.literal("blocked"), reasons: z.array(exportReasonSchema).min(1).max(20) }),
+  z.strictObject({
+    status: z.literal("ready"),
+    confirmationId: idSchema,
+    destinationDisplay: z.string().min(1).max(1_000),
+    willReplaceExisting: z.boolean(),
+    effectiveEvidenceCount: nonnegativeIntegerSchema,
+    profileStatus: z.enum(["baseline", "learning", "active"]),
+  }),
+]);
+
+export const preferenceExportConfirmRequestSchema = z.strictObject({ confirmationId: idSchema });
+
+export const preferenceExportConfirmResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("exported"),
+    overwritten: z.boolean(),
+    format: z.literal("dj-copilot-preferences-v1"),
+    destinationState: z.literal("replaced"),
+  }),
+  z.strictObject({
+    status: z.literal("blocked"),
+    reasons: z.array(exportReasonSchema).min(1).max(20),
+    destinationState: z.enum(["unchanged", "unknown"]),
+  }),
+]);
+
 export const exportPrepareResultSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("cancelled") }),
   z.strictObject({ status: z.literal("blocked"), reasons: z.array(exportReasonSchema).min(1).max(20) }),
@@ -603,6 +863,56 @@ export const coreRequestSchema = z.discriminatedUnion("command", [
   }),
   z.strictObject({
     ...requestBase,
+    command: z.literal("get_track_metadata"),
+    payload: trackMetadataGetRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("update_track_metadata"),
+    payload: trackMetadataUpdateRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("list_saved_filters"),
+    payload: z.strictObject({}),
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("save_saved_filter"),
+    payload: savedFilterSaveRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("delete_saved_filter"),
+    payload: savedFilterDeleteRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("get_preference_profile"),
+    payload: z.strictObject({}),
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("record_feedback"),
+    payload: recordFeedbackRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("compare_recommendations"),
+    payload: compareRecommendationsRequestSchema,
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("reset_preferences"),
+    payload: z.strictObject({}),
+  }),
+  z.strictObject({
+    ...requestBase,
+    command: z.literal("get_preference_export"),
+    payload: z.strictObject({}),
+  }),
+  z.strictObject({
+    ...requestBase,
     command: z.literal("queue_analysis"),
     payload: analysisQueueRequestSchema,
   }),
@@ -695,6 +1005,18 @@ export type ScoreComponent = z.infer<typeof scoreComponentSchema>;
 export type DiscoveryCandidate = z.infer<typeof discoveryCandidateSchema>;
 export type SimilarityResponse = z.infer<typeof similarityResponseSchema>;
 export type RecommendationResponse = z.infer<typeof recommendationResponseSchema>;
+export type TrackMetadata = z.infer<typeof trackMetadataSchema>;
+export type TrackMetadataUpdateRequest = z.infer<typeof trackMetadataUpdateRequestSchema>;
+export type SavedFilter = z.infer<typeof savedFilterSchema>;
+export type SavedFilterSaveRequest = z.infer<typeof savedFilterSaveRequestSchema>;
+export type RecordFeedbackRequest = z.infer<typeof recordFeedbackRequestSchema>;
+export type PreferenceProfile = z.infer<typeof preferenceProfileSchema>;
+export type CompareRecommendationsRequest = z.input<typeof compareRecommendationsRequestSchema>;
+export type CompareRecommendationsResponse = z.infer<typeof compareRecommendationsResponseSchema>;
+export type PreferenceResetResult = z.infer<typeof preferenceResetResultSchema>;
+export type PreferenceExportSnapshot = z.infer<typeof preferenceExportSnapshotSchema>;
+export type PreferenceExportPrepareResult = z.infer<typeof preferenceExportPrepareResultSchema>;
+export type PreferenceExportConfirmResult = z.infer<typeof preferenceExportConfirmResultSchema>;
 export type PlaylistTreeNode = z.infer<typeof playlistTreeNodeSchema>;
 export type ImportSummary = z.infer<typeof importSummarySchema>;
 export type ImportResult = z.infer<typeof importResultSchema>;
@@ -727,6 +1049,11 @@ export interface DesktopApi {
     importXml(): Promise<ImportResult>;
     getPlaylistTree(): Promise<PlaylistTreeNode[]>;
     listTracks(query?: TrackPageQuery): Promise<TrackPage>;
+    getTrackMetadata(trackId: string): Promise<TrackMetadata>;
+    updateTrackMetadata(request: TrackMetadataUpdateRequest): Promise<TrackMetadata>;
+    listSavedFilters(): Promise<{ items: SavedFilter[] }>;
+    saveSavedFilter(request: SavedFilterSaveRequest): Promise<SavedFilter>;
+    deleteSavedFilter(id: string): Promise<{ deleted: true }>;
   };
   analysis: {
     queue(trackIds: string[]): Promise<AnalysisQueueStatus>;
@@ -737,6 +1064,14 @@ export interface DesktopApi {
   discovery: {
     findSimilar(request: FindSimilarRequest): Promise<SimilarityResponse>;
     recommendNext(request: RecommendNextRequest): Promise<RecommendationResponse>;
+  };
+  preferences: {
+    getProfile(): Promise<PreferenceProfile>;
+    recordFeedback(request: RecordFeedbackRequest): Promise<{ recorded: true; profile: PreferenceProfile }>;
+    compareRecommendations(request: CompareRecommendationsRequest): Promise<CompareRecommendationsResponse>;
+    reset(): Promise<PreferenceResetResult>;
+    prepareExport(): Promise<PreferenceExportPrepareResult>;
+    confirmExport(confirmationId: string): Promise<PreferenceExportConfirmResult>;
   };
   sets: {
     list(): Promise<SetDraftListResult>;

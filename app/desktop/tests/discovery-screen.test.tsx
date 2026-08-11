@@ -3,10 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type {
   AnalysisQueueStatus,
+  CompareRecommendationsResponse,
   DesktopApi,
   DiscoveryCandidate,
   DiscoveryTrack,
   PlaylistTreeNode,
+  PreferenceProfile,
   RecommendationResponse,
   SimilarityResponse,
   TrackListItem,
@@ -47,6 +49,7 @@ function track(id: string, title: string, overrides: Partial<TrackListItem> = {}
     durationMs: 240_000,
     availability: "available",
     analysis: null,
+    userMetadata: { rating: null, tags: [], note: null },
     ...overrides,
   };
 }
@@ -156,6 +159,41 @@ function recommendation(
   };
 }
 
+function baselineProfile(): PreferenceProfile {
+  return {
+    algorithmVersion: "preference-linear-v1",
+    revision: "a".repeat(64),
+    status: "baseline",
+    totalPersonalDataCount: 0,
+    effectiveEvidenceCount: 0,
+    minimumEvidenceCount: 5,
+    preferenceWeightPpm: 0,
+    eventCounts: { liked: 0, disliked: 0, accepted: 0, rejected: 0, skipped: 0, manualReplacement: 0, manualReorder: 0, pinned: 0, removed: 0, banned: 0 },
+    trackAffinities: [],
+    trackAffinitiesTruncated: false,
+    genreAffinities: [],
+    genreAffinitiesTruncated: false,
+  };
+}
+
+function comparison(
+  intent: RecommendationResponse["intent"] = "smooth",
+  items: DiscoveryCandidate[] = [candidate("next-one", "Next One", 880_000, 730_000)],
+): CompareRecommendationsResponse {
+  const response = recommendation(intent, items);
+  return {
+    profile: baselineProfile(),
+    baseline: response,
+    personalized: response,
+    rankChanges: items.map((item, index) => ({
+      trackId: item.track.id,
+      baselineRank: index + 1,
+      personalizedRank: index + 1,
+      delta: 0,
+    })),
+  };
+}
+
 function page(items = tracks, nextCursor: string | null = null, truncated = false): TrackPage {
   return { items, nextCursor, truncated };
 }
@@ -173,6 +211,11 @@ function createApi(): DesktopApi {
       }),
       getPlaylistTree: vi.fn().mockResolvedValue(playlists),
       listTracks: vi.fn().mockResolvedValue(page()),
+      getTrackMetadata: vi.fn(async () => { throw new Error("Metadata is not configured in this discovery test."); }),
+      updateTrackMetadata: vi.fn(async () => { throw new Error("Metadata is not configured in this discovery test."); }),
+      listSavedFilters: vi.fn().mockResolvedValue({ items: [] }),
+      saveSavedFilter: vi.fn(async () => { throw new Error("Saved filters are not configured in this discovery test."); }),
+      deleteSavedFilter: vi.fn(async () => { throw new Error("Saved filters are not configured in this discovery test."); }),
     },
     analysis: {
       queue: vi.fn().mockResolvedValue(analysisStatus),
@@ -183,6 +226,14 @@ function createApi(): DesktopApi {
     discovery: {
       findSimilar: vi.fn().mockResolvedValue(similarity()),
       recommendNext: vi.fn().mockResolvedValue(recommendation()),
+    },
+    preferences: {
+      getProfile: vi.fn().mockResolvedValue(baselineProfile()),
+      recordFeedback: vi.fn(async () => { throw new Error("Preferences are not configured in this discovery test."); }),
+      compareRecommendations: vi.fn(async (request) => comparison(request.intent)),
+      reset: vi.fn(async () => { throw new Error("Preferences are not configured in this discovery test."); }),
+      prepareExport: vi.fn(async () => { throw new Error("Preferences are not configured in this discovery test."); }),
+      confirmExport: vi.fn(async () => { throw new Error("Preferences are not configured in this discovery test."); }),
     },
     sets: { list: vi.fn(async () => ({ items: [] })), create: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }), get: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }), mutate: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }), findReplacements: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }), inspect: vi.fn(async () => { throw new Error("Sets are not configured in this discovery test."); }) },
     exports: { prepare: vi.fn(async () => { throw new Error("Exports are not configured in this discovery test."); }), confirm: vi.fn(async () => { throw new Error("Exports are not configured in this discovery test."); }) },
@@ -373,7 +424,7 @@ describe("inline discovery", () => {
     await user.keyboard("{ArrowRight}");
     expect(nextTab).toHaveFocus();
     expect(nextTab).toHaveAttribute("aria-selected", "true");
-    expect(api.discovery.recommendNext).toHaveBeenLastCalledWith({
+    expect(api.preferences.compareRecommendations).toHaveBeenLastCalledWith({
       seedTrackId: "track-alpha",
       intent: "smooth",
       limit: 10,
@@ -391,7 +442,7 @@ describe("inline discovery", () => {
       "Closer",
     ]);
     await user.selectOptions(intent, "genre_shift");
-    expect(api.discovery.recommendNext).toHaveBeenLastCalledWith({
+    expect(api.preferences.compareRecommendations).toHaveBeenLastCalledWith({
       seedTrackId: "track-alpha",
       intent: "genre_shift",
       limit: 10,
@@ -431,7 +482,7 @@ describe("inline discovery", () => {
   it("renders an actionable empty recommendation state", async () => {
     const user = userEvent.setup();
     const api = createApi();
-    api.discovery.recommendNext = vi.fn().mockResolvedValue(recommendation("smooth", []));
+    api.preferences.compareRecommendations = vi.fn().mockResolvedValue(comparison("smooth", []));
     renderLibrary(api);
     await screen.findByText("Alpha");
     await user.click(screen.getByRole("button", { name: "Explore Alpha" }));

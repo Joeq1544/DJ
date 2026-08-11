@@ -6,6 +6,7 @@ import type {
   AnalysisQueueStatus,
   DesktopApi,
   PlaylistTreeNode,
+  PreferenceProfile,
   TrackListItem,
 } from "../src/shared/contracts";
 import { LibraryScreen } from "../src/renderer/src/features/library/LibraryScreen";
@@ -108,6 +109,7 @@ function track(
     durationMs: 245_000,
     availability,
     analysis,
+    userMetadata: { rating: null, tags: [], note: null },
   };
 }
 
@@ -121,6 +123,23 @@ const tracks = [
 const tree: PlaylistTreeNode[] = [
   { id: "playlist-warmup", parentId: null, name: "Warmup", kind: "playlist", order: 0, trackCount: 4 },
 ];
+
+function baselineProfile(): PreferenceProfile {
+  return {
+    algorithmVersion: "preference-linear-v1",
+    revision: "a".repeat(64),
+    status: "baseline",
+    totalPersonalDataCount: 0,
+    effectiveEvidenceCount: 0,
+    minimumEvidenceCount: 5,
+    preferenceWeightPpm: 0,
+    eventCounts: { liked: 0, disliked: 0, accepted: 0, rejected: 0, skipped: 0, manualReplacement: 0, manualReorder: 0, pinned: 0, removed: 0, banned: 0 },
+    trackAffinities: [],
+    trackAffinitiesTruncated: false,
+    genreAffinities: [],
+    genreAffinitiesTruncated: false,
+  };
+}
 
 function createApi(options: {
   tracks?: TrackListItem[];
@@ -139,6 +158,11 @@ function createApi(options: {
       }),
       getPlaylistTree: vi.fn().mockResolvedValue(tree),
       listTracks: vi.fn().mockResolvedValue({ items: options.tracks ?? tracks, nextCursor: null, truncated: false }),
+      getTrackMetadata: vi.fn(async () => { throw new Error("Metadata is not configured in this analysis test."); }),
+      updateTrackMetadata: vi.fn(async () => { throw new Error("Metadata is not configured in this analysis test."); }),
+      listSavedFilters: vi.fn().mockResolvedValue({ items: [] }),
+      saveSavedFilter: vi.fn(async () => { throw new Error("Saved filters are not configured in this analysis test."); }),
+      deleteSavedFilter: vi.fn(async () => { throw new Error("Saved filters are not configured in this analysis test."); }),
     },
     analysis: {
       queue: vi.fn().mockResolvedValue(status),
@@ -149,6 +173,14 @@ function createApi(options: {
     discovery: {
       findSimilar: vi.fn(async () => { throw new Error("Discovery is not configured in this analysis test."); }),
       recommendNext: vi.fn(async () => { throw new Error("Discovery is not configured in this analysis test."); }),
+    },
+    preferences: {
+      getProfile: vi.fn().mockResolvedValue(baselineProfile()),
+      recordFeedback: vi.fn(async () => { throw new Error("Preferences are not configured in this analysis test."); }),
+      compareRecommendations: vi.fn(async () => { throw new Error("Preferences are not configured in this analysis test."); }),
+      reset: vi.fn(async () => { throw new Error("Preferences are not configured in this analysis test."); }),
+      prepareExport: vi.fn(async () => { throw new Error("Preferences are not configured in this analysis test."); }),
+      confirmExport: vi.fn(async () => { throw new Error("Preferences are not configured in this analysis test."); }),
     },
     sets: { list: vi.fn(async () => ({ items: [] })), create: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), get: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), mutate: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), findReplacements: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }), inspect: vi.fn(async () => { throw new Error("Sets are not configured in this analysis test."); }) },
     exports: { prepare: vi.fn(async () => { throw new Error("Exports are not configured in this analysis test."); }), confirm: vi.fn(async () => { throw new Error("Exports are not configured in this analysis test."); }) },

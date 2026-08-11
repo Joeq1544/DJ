@@ -12,6 +12,8 @@ interface FilterDraft {
   musicalKey: string;
   keyRelation: KeyRelation;
   genre: string;
+  ratingMin: string;
+  tag: string;
   energyMin: string;
   energyMax: string;
   analysisState: AnalysisState;
@@ -33,6 +35,8 @@ function draftFromFilters(filters: TrackFilters): FilterDraft {
     musicalKey: filters.musicalKey ?? "",
     keyRelation: filters.keyRelation ?? "compatible",
     genre: filters.genre ?? "",
+    ratingMin: filters.ratingMin === undefined ? "" : String(filters.ratingMin),
+    tag: filters.tag ?? "",
     energyMin: filters.energyMinPpm === undefined ? "" : String(filters.energyMinPpm / 10_000),
     energyMax: filters.energyMaxPpm === undefined ? "" : String(filters.energyMaxPpm / 10_000),
     analysisState: filters.analysisState ?? "any",
@@ -50,6 +54,7 @@ function filtersFromDraft(draft: FilterDraft): TrackFilters {
   const text = draft.text.trim();
   const musicalKey = draft.musicalKey.trim();
   const genre = draft.genre.trim();
+  const tag = draft.tag.normalize("NFKC").trim();
   const bpmMinMilli = scaledInteger(draft.bpmMin, 1_000);
   const bpmMaxMilli = scaledInteger(draft.bpmMax, 1_000);
   const energyMinPpm = scaledInteger(draft.energyMin, 10_000);
@@ -63,6 +68,8 @@ function filtersFromDraft(draft: FilterDraft): TrackFilters {
     filters.keyRelation = draft.keyRelation;
   }
   if (genre !== "") filters.genre = genre;
+  if (draft.ratingMin !== "") filters.ratingMin = Number(draft.ratingMin);
+  if (tag !== "") filters.tag = tag;
   if (energyMinPpm !== undefined) filters.energyMinPpm = energyMinPpm;
   if (energyMaxPpm !== undefined) filters.energyMaxPpm = energyMaxPpm;
   if (draft.analysisState !== "any") filters.analysisState = draft.analysisState;
@@ -84,6 +91,9 @@ function rangeError(filters: TrackFilters): string | null {
     filters.energyMinPpm > filters.energyMaxPpm
   ) {
     return "Minimum energy must not exceed maximum energy.";
+  }
+  if (filters.tag !== undefined && filters.tag.length > 40) {
+    return "An exact tag must be 40 characters or fewer.";
   }
   return null;
 }
@@ -145,7 +155,7 @@ export function DiscoveryFilters({ activeFilters, loading, onApply, onClear }: D
             maxLength={200}
             value={draft.text}
             onChange={(event) => update("text", event.currentTarget.value)}
-            placeholder="Title, artist, album, or genre"
+            placeholder="Title, artist, album, genre, tag, or note"
           />
         </label>
 
@@ -212,6 +222,32 @@ export function DiscoveryFilters({ activeFilters, loading, onApply, onClear }: D
             value={draft.genre}
             onChange={(event) => update("genre", event.currentTarget.value)}
             placeholder="House"
+          />
+        </label>
+
+        <label className="filter-field">
+          <span>Minimum rating</span>
+          <select
+            value={draft.ratingMin}
+            onChange={(event) => update("ratingMin", event.currentTarget.value)}
+          >
+            <option value="">Any rating</option>
+            <option value="1">1 star or more</option>
+            <option value="2">2 stars or more</option>
+            <option value="3">3 stars or more</option>
+            <option value="4">4 stars or more</option>
+            <option value="5">5 stars</option>
+          </select>
+        </label>
+
+        <label className="filter-field">
+          <span>Exact tag</span>
+          <input
+            type="text"
+            maxLength={40}
+            value={draft.tag}
+            onChange={(event) => update("tag", event.currentTarget.value)}
+            placeholder="Warm"
           />
         </label>
 

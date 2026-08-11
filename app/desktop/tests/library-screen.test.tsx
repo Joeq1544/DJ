@@ -7,6 +7,7 @@ import type {
   DesktopApi,
   ImportResult,
   PlaylistTreeNode,
+  PreferenceProfile,
   TrackListItem,
 } from "../src/shared/contracts";
 import { LibraryScreen } from "../src/renderer/src/features/library/LibraryScreen";
@@ -24,6 +25,7 @@ const tracks: TrackListItem[] = [
     durationMs: 431_000,
     availability: "available",
     analysis: null,
+    userMetadata: { rating: null, tags: [], note: null },
   },
   {
     id: "track-2",
@@ -36,6 +38,7 @@ const tracks: TrackListItem[] = [
     durationMs: 448_000,
     availability: "missing",
     analysis: null,
+    userMetadata: { rating: null, tags: [], note: null },
   },
   {
     id: "track-3",
@@ -48,6 +51,7 @@ const tracks: TrackListItem[] = [
     durationMs: 151_000,
     availability: "unreadable",
     analysis: null,
+    userMetadata: { rating: null, tags: [], note: null },
   },
   {
     id: "track-4",
@@ -60,6 +64,7 @@ const tracks: TrackListItem[] = [
     durationMs: null,
     availability: "available",
     analysis: null,
+    userMetadata: { rating: null, tags: [], note: null },
   },
 ];
 
@@ -100,6 +105,23 @@ const analysisStatus: AnalysisQueueStatus = {
   items: [],
 };
 
+function baselineProfile(): PreferenceProfile {
+  return {
+    algorithmVersion: "preference-linear-v1",
+    revision: "a".repeat(64),
+    status: "baseline",
+    totalPersonalDataCount: 0,
+    effectiveEvidenceCount: 0,
+    minimumEvidenceCount: 5,
+    preferenceWeightPpm: 0,
+    eventCounts: { liked: 0, disliked: 0, accepted: 0, rejected: 0, skipped: 0, manualReplacement: 0, manualReorder: 0, pinned: 0, removed: 0, banned: 0 },
+    trackAffinities: [],
+    trackAffinitiesTruncated: false,
+    genreAffinities: [],
+    genreAffinitiesTruncated: false,
+  };
+}
+
 function createApi(options: {
   status?: AppStatus;
   tree?: PlaylistTreeNode[];
@@ -114,6 +136,11 @@ function createApi(options: {
       importXml: vi.fn().mockResolvedValue(options.importResult ?? successfulImport),
       getPlaylistTree: vi.fn().mockResolvedValue(options.tree ?? tree),
       listTracks: vi.fn().mockResolvedValue({ items: options.tracks ?? tracks, nextCursor: null, truncated: false }),
+      getTrackMetadata: vi.fn(async () => { throw new Error("Metadata is not configured in this library test."); }),
+      updateTrackMetadata: vi.fn(async () => { throw new Error("Metadata is not configured in this library test."); }),
+      listSavedFilters: vi.fn().mockResolvedValue({ items: [] }),
+      saveSavedFilter: vi.fn(async () => { throw new Error("Saved filters are not configured in this library test."); }),
+      deleteSavedFilter: vi.fn(async () => { throw new Error("Saved filters are not configured in this library test."); }),
     },
     analysis: {
       queue: vi.fn().mockResolvedValue(analysisStatus),
@@ -124,6 +151,14 @@ function createApi(options: {
     discovery: {
       findSimilar: vi.fn(async () => { throw new Error("Discovery is not configured in this library test."); }),
       recommendNext: vi.fn(async () => { throw new Error("Discovery is not configured in this library test."); }),
+    },
+    preferences: {
+      getProfile: vi.fn().mockResolvedValue(baselineProfile()),
+      recordFeedback: vi.fn(async () => { throw new Error("Preferences are not configured in this library test."); }),
+      compareRecommendations: vi.fn(async () => { throw new Error("Preferences are not configured in this library test."); }),
+      reset: vi.fn(async () => { throw new Error("Preferences are not configured in this library test."); }),
+      prepareExport: vi.fn(async () => { throw new Error("Preferences are not configured in this library test."); }),
+      confirmExport: vi.fn(async () => { throw new Error("Preferences are not configured in this library test."); }),
     },
     sets: { list: vi.fn(async () => ({ items: [] })), create: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), get: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), mutate: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), findReplacements: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }), inspect: vi.fn(async () => { throw new Error("Sets are not configured in this library test."); }) },
     exports: { prepare: vi.fn(async () => { throw new Error("Exports are not configured in this library test."); }), confirm: vi.fn(async () => { throw new Error("Exports are not configured in this library test."); }) },
@@ -348,6 +383,7 @@ describe("LibraryScreen", () => {
     const user = userEvent.setup();
     renderLibrary();
     await screen.findByText("Library service ready");
+    await screen.findByText("No preference evidence yet. Recommendations use the non-personal baseline.");
 
     await user.tab();
     expect(screen.getByRole("button", { name: "Import Rekordbox XML" })).toHaveFocus();
@@ -358,18 +394,28 @@ describe("LibraryScreen", () => {
       screen.getByRole("spinbutton", { name: "Maximum BPM" }),
       screen.getByRole("textbox", { name: "Musical key" }),
       screen.getByRole("textbox", { name: "Genre" }),
+      screen.getByRole("combobox", { name: "Minimum rating" }),
+      screen.getByRole("textbox", { name: "Exact tag" }),
       screen.getByRole("spinbutton", { name: "Minimum energy (%)" }),
       screen.getByRole("spinbutton", { name: "Maximum energy (%)" }),
       screen.getByRole("combobox", { name: "Analysis state" }),
       screen.getByRole("combobox", { name: "Availability" }),
       screen.getByRole("button", { name: "Apply filters" }),
+      screen.getByRole("textbox", { name: "Filter name" }),
+      screen.getByText("Inspect preference evidence"),
+      screen.getByRole("button", { name: "Prepare preference export" }),
+      screen.getByRole("button", { name: "Reset preferences" }),
       screen.getByRole("checkbox", { name: "Select all analyzable tracks" }),
       screen.getByRole("checkbox", { name: "Select Sæglópur for analysis" }),
       screen.getByRole("button", { name: "Explore Sæglópur" }),
+      screen.getByRole("button", { name: "Edit details for Sæglópur" }),
       screen.getByRole("button", { name: "Explore Blue Monday" }),
+      screen.getByRole("button", { name: "Edit details for Blue Monday" }),
       screen.getByRole("button", { name: "Explore Ain't No Mountain High Enough" }),
+      screen.getByRole("button", { name: "Edit details for Ain't No Mountain High Enough" }),
       screen.getByRole("checkbox", { name: "Select Untitled track for analysis" }),
       screen.getByRole("button", { name: "Explore Untitled track" }),
+      screen.getByRole("button", { name: "Edit details for Untitled track" }),
       screen.getByRole("treeitem", { name: /All Tracks/ }),
     ];
 

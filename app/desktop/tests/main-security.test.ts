@@ -139,6 +139,53 @@ describe("guarded IPC", () => {
     truncated: false,
     items: [],
   };
+  const metadataResult = {
+    trackId: "track-1",
+    rating: 5,
+    tags: ["Warmup"],
+    note: "Long intro",
+    updatedAt: "2026-08-11T00:00:00Z",
+  };
+  const savedFilterResult = {
+    id: "filter-1",
+    name: "Warmup",
+    filters: { tag: "Warmup", ratingMin: 4 },
+    createdAt: "2026-08-11T00:00:00Z",
+    updatedAt: "2026-08-11T00:00:00Z",
+  };
+  const preferenceProfile = {
+    algorithmVersion: "preference-linear-v1",
+    revision: "a".repeat(64),
+    status: "learning",
+    totalPersonalDataCount: 1,
+    effectiveEvidenceCount: 1,
+    minimumEvidenceCount: 5,
+    preferenceWeightPpm: 0,
+    eventCounts: {
+      liked: 1, disliked: 0, accepted: 0, rejected: 0, skipped: 0,
+      manualReplacement: 0, manualReorder: 0, pinned: 0, removed: 0, banned: 0,
+    },
+    trackAffinities: [{ trackId: "track-1", title: "Generated Seed", artist: "Fixture Artist", scorePpm: 1_000_000, evidenceCount: 1 }],
+    trackAffinitiesTruncated: false,
+    genreAffinities: [{ genre: "house", scorePpm: 1_000_000, evidenceCount: 1 }],
+    genreAffinitiesTruncated: false,
+  };
+  const preferenceExportSnapshot = {
+    format: "dj-copilot-preferences-v1",
+    algorithmVersion: "preference-linear-v1",
+    revision: preferenceProfile.revision,
+    status: preferenceProfile.status,
+    totalPersonalDataCount: preferenceProfile.totalPersonalDataCount,
+    effectiveEvidenceCount: preferenceProfile.effectiveEvidenceCount,
+    minimumEvidenceCount: preferenceProfile.minimumEvidenceCount,
+    preferenceWeightPpm: preferenceProfile.preferenceWeightPpm,
+    ratingCount: 0,
+    eventCounts: preferenceProfile.eventCounts,
+    trackAffinities: [{ trackId: "track-1", scorePpm: 1_000_000, evidenceCount: 1 }],
+    trackAffinitiesTruncated: false,
+    genreAffinities: preferenceProfile.genreAffinities,
+    genreAffinitiesTruncated: false,
+  };
   const analysisStatus = {
     state: "running",
     queued: 1,
@@ -201,6 +248,23 @@ describe("guarded IPC", () => {
           if (command === "list_tracks") return { items: [], nextCursor: null, truncated: false };
           if (command === "find_similar_tracks") return overrides.discoveryResult ?? similarityResult;
           if (command === "recommend_next_tracks") return overrides.discoveryResult ?? recommendationResult;
+          if (command === "get_track_metadata" || command === "update_track_metadata") return metadataResult;
+          if (command === "list_saved_filters") return { items: [savedFilterResult] };
+          if (command === "save_saved_filter") return savedFilterResult;
+          if (command === "delete_saved_filter") return { deleted: true };
+          if (command === "get_preference_profile") return preferenceProfile;
+          if (command === "record_feedback") return { recorded: true, profile: preferenceProfile };
+          if (command === "compare_recommendations") {
+            return {
+              profile: preferenceProfile,
+              baseline: recommendationResult,
+              personalized: recommendationResult,
+              rankChanges: [],
+            };
+          }
+          if (command === "reset_preferences") {
+            return { status: "reset", clearedFeedbackCount: 1, clearedRatingCount: 1, profile: { ...preferenceProfile, revision: "b".repeat(64), status: "baseline", totalPersonalDataCount: 0, effectiveEvidenceCount: 0, eventCounts: { ...preferenceProfile.eventCounts, liked: 0 }, trackAffinities: [], genreAffinities: [] } };
+          }
           if (
             command === "queue_analysis" ||
             command === "get_analysis_status" ||
@@ -246,6 +310,101 @@ describe("guarded IPC", () => {
 
     await expect(handlers.get("library:listTracks")!(event, { limit: 201 })).rejects.toThrow("Invalid IPC payload");
     await expect(handlers.get("library:listTracks")!(event, { playlistId: "" })).rejects.toThrow("Invalid IPC payload");
+  });
+
+  it("maps fixed metadata, saved-filter, and preference channels to validated core operations", async () => {
+    const { handlers, event, requestCalls } = harness();
+
+    await expect(handlers.get("library:getTrackMetadata")!(event, { trackId: "track-1" })).resolves.toEqual(metadataResult);
+    await expect(handlers.get("library:updateTrackMetadata")!(event, {
+      trackId: "track-1", rating: 5, tags: ["Warmup"], note: "Long intro",
+    })).resolves.toEqual(metadataResult);
+    await expect(handlers.get("library:listSavedFilters")!(event)).resolves.toEqual({ items: [savedFilterResult] });
+    await expect(handlers.get("library:saveSavedFilter")!(event, {
+      name: "Warmup", filters: { tag: "Warmup", ratingMin: 4 },
+    })).resolves.toEqual(savedFilterResult);
+    await expect(handlers.get("library:deleteSavedFilter")!(event, { id: "filter-1" })).resolves.toEqual({ deleted: true });
+    await expect(handlers.get("preferences:getProfile")!(event)).resolves.toEqual(preferenceProfile);
+    await expect(handlers.get("preferences:recordFeedback")!(event, { type: "liked", trackId: "track-1" })).resolves.toEqual({ recorded: true, profile: preferenceProfile });
+    await expect(handlers.get("preferences:compareRecommendations")!(event, {
+      seedTrackId: "track-1", intent: "smooth", limit: 20,
+    })).resolves.toMatchObject({ profile: preferenceProfile, rankChanges: [] });
+    await expect(handlers.get("preferences:reset")!(event)).resolves.toMatchObject({ status: "reset", clearedFeedbackCount: 1, clearedRatingCount: 1 });
+
+    expect(requestCalls.slice(-9)).toEqual([
+      ["get_track_metadata", { trackId: "track-1" }],
+      ["update_track_metadata", { trackId: "track-1", rating: 5, tags: ["Warmup"], note: "Long intro" }],
+      ["list_saved_filters", {}],
+      ["save_saved_filter", { name: "Warmup", filters: { tag: "Warmup", ratingMin: 4 } }],
+      ["delete_saved_filter", { id: "filter-1" }],
+      ["get_preference_profile", {}],
+      ["record_feedback", { type: "liked", trackId: "track-1" }],
+      ["compare_recommendations", { seedTrackId: "track-1", intent: "smooth", limit: 20 }],
+      ["reset_preferences", {}],
+    ]);
+  });
+
+  it("rejects untrusted or malformed personalization requests before core and malformed core responses before renderer", async () => {
+    const untrusted = harness({ senderUrl: "https://attacker.test" });
+    await expect(untrusted.handlers.get("preferences:getProfile")!(untrusted.event)).rejects.toThrow("Untrusted IPC sender");
+
+    const { handlers, event, requests } = harness();
+    await expect(handlers.get("library:getTrackMetadata")!(event, { trackId: "", sourcePath: "/private/music.wav" })).rejects.toThrow("Invalid IPC payload");
+    await expect(handlers.get("library:updateTrackMetadata")!(event, { trackId: "track-1", rating: 6, tags: [], note: null })).rejects.toThrow("Invalid IPC payload");
+    await expect(handlers.get("library:listSavedFilters")!(event, {})).rejects.toThrow("Invalid IPC payload");
+    await expect(handlers.get("preferences:recordFeedback")!(event, { type: "manual_reorder", trackId: "track-1" })).rejects.toThrow("Invalid IPC payload");
+    await expect(handlers.get("preferences:reset")!(event, {})).rejects.toThrow("Invalid IPC payload");
+    expect(requests).toEqual([]);
+
+    const malformedHandlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => malformedHandlers.set(channel, handler) },
+      dialog: { showOpenDialog: async () => ({ canceled: true, filePaths: [] }) },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      client: () => ({ request: async () => ({ ...preferenceProfile, sourcePath: "/private/music.wav" }) }),
+    });
+    const trusted = { senderFrame: { url: "http://127.0.0.1:5173" } };
+    await expect(malformedHandlers.get("preferences:getProfile")!(trusted)).rejects.toThrow("Core response failed validation");
+    await expect(malformedHandlers.get("preferences:prepareExport")!(trusted)).rejects.toThrow("Core response failed validation");
+  });
+
+  it("keeps preference-export paths in main and returns path-free cancellation and invalid-confirmation results", async () => {
+    const handlers = new Map<string, (event: { senderFrame: { url: string } }, payload?: unknown) => Promise<unknown>>();
+    const requests: Array<[string, unknown]> = [];
+    registerIpcHandlers({
+      ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
+      dialog: {
+        showOpenDialog: async () => ({ canceled: true, filePaths: [] }),
+        showSaveDialog: async () => ({ canceled: true }),
+      },
+      getWindow: () => null,
+      repositoryRoot: resolve(process.cwd(), "../.."),
+      rendererUrl: "http://127.0.0.1:5173",
+      status: () => ({ state: "ready", message: null }),
+      client: () => ({
+        request: async (command, payload) => {
+          requests.push([command, payload]);
+          return preferenceExportSnapshot;
+        },
+      }),
+    });
+    const event = { senderFrame: { url: "http://127.0.0.1:5173" } };
+    const attacker = { senderFrame: { url: "https://attacker.test" } };
+
+    await expect(handlers.get("preferences:prepareExport")!(attacker)).rejects.toThrow("Untrusted IPC sender");
+    await expect(handlers.get("preferences:confirmExport")!(attacker, { confirmationId: "missing" })).rejects.toThrow("Untrusted IPC sender");
+    await expect(handlers.get("preferences:prepareExport")!(event, {})).rejects.toThrow("Invalid IPC payload");
+    await expect(handlers.get("preferences:confirmExport")!(event, { confirmationId: "missing", destinationPath: "/private/export.json" })).rejects.toThrow("Invalid IPC payload");
+    await expect(handlers.get("preferences:prepareExport")!(event)).resolves.toEqual({ status: "cancelled" });
+    await expect(handlers.get("preferences:confirmExport")!(event, { confirmationId: "missing" })).resolves.toEqual({
+      status: "blocked",
+      reasons: [{ code: "invalid_confirmation", message: "The preference export confirmation is unavailable or has expired" }],
+      destinationState: "unchanged",
+    });
+    expect(requests).toEqual([["get_preference_export", {}]]);
   });
 
   it("guards every fixed analysis channel and returns its validated core result", async () => {

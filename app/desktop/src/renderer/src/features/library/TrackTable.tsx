@@ -16,6 +16,7 @@ interface TrackTableProps {
   onToggleTrack: (trackId: string, selected: boolean) => void;
   onToggleAll: (trackIds: string[], selected: boolean) => void;
   onExplore: (track: TrackListItem) => void;
+  onEditDetails: (track: TrackListItem, trigger: HTMLButtonElement) => void;
   onLoadMore: () => void;
 }
 
@@ -69,6 +70,7 @@ export function TrackTable({
   onToggleTrack,
   onToggleAll,
   onExplore,
+  onEditDetails,
   onLoadMore,
 }: TrackTableProps) {
   const selectableIds = (tracks ?? [])
@@ -108,23 +110,24 @@ export function TrackTable({
               <th scope="col">Local BPM</th>
               <th scope="col">Imported key</th>
               <th scope="col">Local key</th>
+              <th scope="col">Personal</th>
               <th scope="col">Status</th>
-              <th scope="col">Discover</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={9} className="table-note">Loading tracks…</td></tr>
+              <tr><td colSpan={10} className="table-note">Loading tracks…</td></tr>
             ) : loadError !== null ? (
               <tr>
-                <td colSpan={9} className="empty-library empty-library--error">
+                <td colSpan={10} className="empty-library empty-library--error">
                   <strong>Tracks could not be loaded</strong>
                   <span>Keep the current playlist and filters, then try again.</span>
                 </td>
               </tr>
             ) : tracks !== null && tracks.length === 0 ? (
               <tr>
-                <td colSpan={9} className="empty-library">
+                <td colSpan={10} className="empty-library">
                   <strong>{filtered ? "No tracks match these filters" : "No tracks imported yet"}</strong>
                   <span>{filtered
                     ? "Try broader values or clear the filters."
@@ -161,6 +164,10 @@ export function TrackTable({
                     <td className="data-cell">{localBpm(track)}</td>
                     <td className="data-cell">{track.musicalKey ?? "—"}</td>
                     <td className="data-cell">{localKey(track)}</td>
+                    <td className="personal-track-cell">
+                      <span>{track.userMetadata.rating === null ? "Unrated" : "★".repeat(track.userMetadata.rating)}</span>
+                      <span>{track.userMetadata.tags.length === 0 ? "No tags" : track.userMetadata.tags.join(" · ")}</span>
+                    </td>
                     <td>
                       <span className={`availability availability--${track.availability}`}>
                         <span aria-hidden="true">{state.icon}</span>{state.label}
@@ -171,16 +178,24 @@ export function TrackTable({
                       <button type="button" className="explore-button" aria-label={`Explore ${title}`} onClick={() => onExplore(track)}>
                         Explore
                       </button>
+                      <button
+                        type="button"
+                        className="explore-button"
+                        aria-label={`Edit details for ${title}`}
+                        onClick={(event) => onEditDetails(track, event.currentTarget)}
+                      >
+                        Details
+                      </button>
                     </td>
                   </tr>
                   {features !== null ? (
                     <tr className="evidence-row" aria-label="Analysis evidence">
-                      <td colSpan={9}><FeatureEvidence features={features} trackTitle={title} /></td>
+                      <td colSpan={10}><FeatureEvidence features={features} trackTitle={title} /></td>
                     </tr>
                   ) : null}
                   {failedMessage !== null ? (
                     <tr className="analysis-error-row" aria-label="Analysis error">
-                      <td colSpan={9}><p><strong>Analysis failed:</strong> {failedMessage}</p></td>
+                      <td colSpan={10}><p><strong>Analysis failed:</strong> {failedMessage}</p></td>
                     </tr>
                   ) : null}
                 </Fragment>

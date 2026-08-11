@@ -6,11 +6,25 @@ import {
   analysisQueueStatusSchema,
   analysisStatusQuerySchema,
   appStatusSchema,
+  compareRecommendationsRequestSchema,
+  compareRecommendationsResponseSchema,
   findSimilarRequestSchema,
   importResultSchema,
   playlistTreeSchema,
+  preferenceExportConfirmRequestSchema,
+  preferenceExportConfirmResultSchema,
+  preferenceExportPrepareResultSchema,
+  preferenceProfileSchema,
+  preferenceResetResultSchema,
   recommendationResponseSchema,
   recommendNextRequestSchema,
+  recordFeedbackRequestSchema,
+  recordFeedbackResultSchema,
+  savedFilterDeleteRequestSchema,
+  savedFilterDeleteResultSchema,
+  savedFilterListSchema,
+  savedFilterSaveRequestSchema,
+  savedFilterSchema,
   exportConfirmRequestSchema,
   exportConfirmResultSchema,
   exportPrepareRequestSchema,
@@ -30,11 +44,15 @@ import {
   similarityResponseSchema,
   trackPageQuerySchema,
   trackPageSchema,
+  trackMetadataGetRequestSchema,
+  trackMetadataSchema,
+  trackMetadataUpdateRequestSchema,
   type AppStatus,
   type CoreRequest,
   type DesktopApi,
 } from "../shared/contracts";
 import { CoreServiceError } from "./core-client";
+import { createPreferenceExportCoordinator } from "./preference-export";
 
 type IpcHandler = (event: { senderFrame: { url: string } | null }, payload?: unknown) => Promise<unknown>;
 
@@ -79,6 +97,16 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
   const lstat = dependencies.lstat ?? nodeLstat;
   const canonicalize = dependencies.realpath ?? nodeRealpath;
   const confirmations = new Map<string, PendingExportConfirmation>();
+  const preferenceExport = createPreferenceExportCoordinator({
+    showSaveDialog: async (options) => {
+      const showSaveDialog = dependencies.dialog.showSaveDialog;
+      if (!showSaveDialog) throw new Error("Export dialog is unavailable");
+      return showSaveDialog(dependencies.getWindow(), options);
+    },
+    fetchSnapshot: () => dependencies.client().request("get_preference_export", {}),
+    now,
+    createConfirmationId: newConfirmationId,
+  });
   const clearExpiredConfirmations = () => {
     const currentTime = now();
     for (const [confirmationId, confirmation] of confirmations) {
@@ -151,6 +179,50 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
     if (!parsed.success) throw new Error("Core response failed validation");
     return parsed.data;
   });
+  dependencies.ipcMain.handle("library:getTrackMetadata", async (event, payload) => {
+    trust(event);
+    const request = trackMetadataGetRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    const result = await dependencies.client().request("get_track_metadata", request.data);
+    const parsed = trackMetadataSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("library:updateTrackMetadata", async (event, payload) => {
+    trust(event);
+    const request = trackMetadataUpdateRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    const result = await dependencies.client().request("update_track_metadata", request.data);
+    const parsed = trackMetadataSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("library:listSavedFilters", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    const result = await dependencies.client().request("list_saved_filters", {});
+    const parsed = savedFilterListSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("library:saveSavedFilter", async (event, payload) => {
+    trust(event);
+    const request = savedFilterSaveRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    const result = await dependencies.client().request("save_saved_filter", request.data);
+    const parsed = savedFilterSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("library:deleteSavedFilter", async (event, payload) => {
+    trust(event);
+    const request = savedFilterDeleteRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    const result = await dependencies.client().request("delete_saved_filter", request.data);
+    const parsed = savedFilterDeleteResultSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
   dependencies.ipcMain.handle("discovery:findSimilar", async (event, payload) => {
     trust(event);
     const request = findSimilarRequestSchema.safeParse(payload);
@@ -168,6 +240,51 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
     const parsed = recommendationResponseSchema.safeParse(result);
     if (!parsed.success) throw new Error("Core response failed validation");
     return parsed.data;
+  });
+  dependencies.ipcMain.handle("preferences:getProfile", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    const result = await dependencies.client().request("get_preference_profile", {});
+    const parsed = preferenceProfileSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("preferences:recordFeedback", async (event, payload) => {
+    trust(event);
+    const request = recordFeedbackRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    const result = await dependencies.client().request("record_feedback", request.data);
+    const parsed = recordFeedbackResultSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("preferences:compareRecommendations", async (event, payload) => {
+    trust(event);
+    const request = compareRecommendationsRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    const result = await dependencies.client().request("compare_recommendations", request.data);
+    const parsed = compareRecommendationsResponseSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("preferences:reset", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    const result = await dependencies.client().request("reset_preferences", {});
+    const parsed = preferenceResetResultSchema.safeParse(result);
+    if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  });
+  dependencies.ipcMain.handle("preferences:prepareExport", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    return preferenceExportPrepareResultSchema.parse(await preferenceExport.prepare());
+  });
+  dependencies.ipcMain.handle("preferences:confirmExport", async (event, payload) => {
+    trust(event);
+    const request = preferenceExportConfirmRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    return preferenceExportConfirmResultSchema.parse(await preferenceExport.confirm(request.data.confirmationId));
   });
   dependencies.ipcMain.handle("analysis:queue", async (event, payload) => {
     trust(event);

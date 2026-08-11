@@ -5,8 +5,10 @@ import type {
   AppStatus,
   DesktopApi,
   PlaylistTreeNode,
+  PreferenceProfile,
   TrackFilters,
   TrackListItem,
+  TrackMetadata,
   TrackPageQuery,
   SetDraftSnapshot,
 } from "../../../../shared/contracts";
@@ -19,6 +21,9 @@ import { StatusPanel } from "./StatusPanel";
 import { TrackTable } from "./TrackTable";
 import { SetDraftLauncher } from "../sets/SetDraftLauncher";
 import { SetWorkspace } from "../sets/SetWorkspace";
+import { PreferencePanel } from "../personalization/PreferencePanel";
+import { SavedFiltersPanel } from "../personalization/SavedFiltersPanel";
+import { TrackMetadataPanel } from "../personalization/TrackMetadataPanel";
 
 interface DjCopilotWindow extends Window {
   djCopilot: DesktopApi;
@@ -119,6 +124,10 @@ export function LibraryScreen() {
   const [partialError, setPartialError] = useState<string | null>(null);
   const [trackLoadError, setTrackLoadError] = useState<string | null>(null);
   const [discoverySeed, setDiscoverySeed] = useState<DiscoverySeed | null>(null);
+  const [metadataTrack, setMetadataTrack] = useState<TrackListItem | null>(null);
+  const [preferenceProfile, setPreferenceProfile] = useState<PreferenceProfile | null>(null);
+  const [preferenceLoading, setPreferenceLoading] = useState(true);
+  const [preferenceError, setPreferenceError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -132,6 +141,8 @@ export function LibraryScreen() {
   const statusRefreshInProgress = useRef(false);
   const analysisPollInProgress = useRef(false);
   const trackRequestSequence = useRef(0);
+  const preferenceRequestSequence = useRef(0);
+  const metadataTriggerRef = useRef<HTMLButtonElement | null>(null);
   const tracksRef = useRef<TrackListItem[] | null>(tracks);
   const selectedTrackIdsRef = useRef<ReadonlySet<string>>(selectedTrackIds);
 
@@ -142,6 +153,18 @@ export function LibraryScreen() {
     () => filtersWithPlaylist(selectedId, activeFilters),
     [activeFilters, selectedId],
   );
+
+  const completeFilters = useMemo(
+    () => filtersWithPlaylist(selectedId, activeFilters),
+    [activeFilters, selectedId],
+  );
+
+  const acceptProfile = useCallback((profile: PreferenceProfile) => {
+    preferenceRequestSequence.current += 1;
+    setPreferenceProfile(profile);
+    setPreferenceError(null);
+    setPreferenceLoading(false);
+  }, []);
 
   const mergeAnalysisStatus = useCallback((update: AnalysisQueueStatus) => {
     setAnalysisStatus((current) => mergeQueueStatus(current, update));
@@ -285,9 +308,32 @@ export function LibraryScreen() {
     }
   }, [mergeAnalysisStatus]);
 
+  const refreshPreferenceProfile = useCallback(async () => {
+    const sequence = ++preferenceRequestSequence.current;
+    const api = desktopApi();
+    setPreferenceLoading(true);
+    if (api === null || api === undefined) {
+      setPreferenceError("The secure desktop connection is unavailable.");
+      setPreferenceLoading(false);
+      return;
+    }
+    try {
+      const profile = await api.preferences.getProfile();
+      if (sequence !== preferenceRequestSequence.current) return;
+      setPreferenceProfile(profile);
+      setPreferenceError(null);
+    } catch (error) {
+      if (sequence !== preferenceRequestSequence.current) return;
+      setPreferenceError(readableError(error, "Preference profile could not be loaded."));
+    } finally {
+      if (sequence === preferenceRequestSequence.current) setPreferenceLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void refreshLibrary();
     void refreshAnalysis();
+    void refreshPreferenceProfile();
     const statusPoll = window.setInterval(() => {
       void refreshStatus();
     }, 2_000);
@@ -298,7 +344,7 @@ export function LibraryScreen() {
       window.clearInterval(statusPoll);
       window.clearInterval(analysisPoll);
     };
-  }, [refreshAnalysis, refreshLibrary, refreshStatus]);
+  }, [refreshAnalysis, refreshLibrary, refreshPreferenceProfile, refreshStatus]);
 
   const selectPlaylist = async (playlistId: string | null) => {
     setSelectedId(playlistId);
@@ -343,6 +389,67 @@ export function LibraryScreen() {
     const filters: TrackFilters = {};
     setActiveFilters(filters);
     await loadTracks(selectedId, filters);
+  };
+
+  const loadSavedFilters = async (savedFilters: TrackFilters) => {
+    const { playlistId, ...filters } = savedFilters;
+    const targetPlaylistId = playlistId ?? null;
+    if (
+      targetPlaylistId !== null &&
+      !tree.some((node) => node.id === targetPlaylistId && node.kind === "playlist")
+    ) {
+      throw new Error("The saved playlist is no longer in this library. Current playlist and results were kept.");
+    }
+    const api = desktopApi();
+    if (api === null || api === undefined) throw new Error("The secure desktop connection is unavailable.");
+    const requestSequence = ++trackRequestSequence.current;
+    setTracksLoading(true);
+    setLoadingMore(false);
+    try {
+      const page = await requestTrackPage(api, trackQuery(targetPlaylistId, filters));
+      if (requestSequence !== trackRequestSequence.current) return;
+      setSelectedId(targetPlaylistId);
+      setActiveFilters(filters);
+      setTracks(page.items);
+      setNextCursor(page.nextCursor);
+      setTracksTruncated(page.truncated);
+      setTrackLoadError(null);
+      setPartialError(null);
+      setDiscoverySeed(null);
+    } catch (error) {
+      if (requestSequence === trackRequestSequence.current) {
+        setPartialError(readableError(error, "The saved filter could not be loaded."));
+      }
+      throw error;
+    } finally {
+      if (requestSequence === trackRequestSequence.current) setTracksLoading(false);
+    }
+  };
+
+  const refreshVisibleTracks = (fallback: string) => {
+    const api = desktopApi();
+    if (api === null || api === undefined) return;
+    const requestSequence = ++trackRequestSequence.current;
+    void requestTrackPage(api, trackQuery(selectedId, activeFilters))
+      .then((page) => {
+        if (requestSequence !== trackRequestSequence.current) return;
+        setTracks(page.items);
+        setNextCursor(page.nextCursor);
+        setTracksTruncated(page.truncated);
+        setTrackLoadError(null);
+        setPartialError(null);
+      })
+      .catch((error: unknown) => {
+        if (requestSequence !== trackRequestSequence.current) return;
+        setPartialError(`${readableError(error, fallback)} Showing the last track list.`);
+      });
+  };
+
+  const metadataSaved = (metadata: TrackMetadata) => {
+    const userMetadata = { rating: metadata.rating, tags: metadata.tags, note: metadata.note };
+    setTracks((current) => current?.map((track) => track.id === metadata.trackId ? { ...track, userMetadata } : track) ?? current);
+    refreshVisibleTracks("Tracks could not be refreshed after saving personal details.");
+    void refreshPreferenceProfile();
   };
 
   const importXml = async () => {
@@ -475,12 +582,29 @@ export function LibraryScreen() {
           onApply={(filters) => { void applyFilters(filters); }}
           onClear={() => { void clearFilters(); }}
         />
+        <SavedFiltersPanel
+          api={desktopApi() ?? null}
+          currentFilters={completeFilters}
+          onLoad={loadSavedFilters}
+        />
+        <PreferencePanel
+          api={desktopApi() ?? null}
+          profile={preferenceProfile}
+          loading={preferenceLoading}
+          loadError={preferenceError}
+          onProfile={acceptProfile}
+          onReset={() => {
+            setMetadataTrack(null);
+            refreshVisibleTracks("Tracks could not be refreshed after resetting preferences.");
+          }}
+        />
         {discoverySeed === null ? null : (
           <DiscoveryPanel
             key={discoverySeed.id}
             api={desktopApi() ?? null}
             seed={discoverySeed}
             filters={discoveryFilters}
+            onProfile={acceptProfile}
           />
         )}
         <TrackTable
@@ -499,8 +623,25 @@ export function LibraryScreen() {
             title: track.title ?? "Untitled track",
             artist: track.artist ?? "Unknown artist",
           })}
+          onEditDetails={(track, trigger) => {
+            metadataTriggerRef.current = trigger;
+            setMetadataTrack(track);
+          }}
           onLoadMore={() => { void loadMoreTracks(); }}
         />
+        {metadataTrack === null ? null : (
+          <TrackMetadataPanel
+            key={metadataTrack.id}
+            api={desktopApi() ?? null}
+            track={metadataTrack}
+            onClose={() => {
+              setMetadataTrack(null);
+              metadataTriggerRef.current?.focus();
+            }}
+            onSaved={metadataSaved}
+            onProfile={acceptProfile}
+          />
+        )}
       </div>
       <aside className="library-sidebar">
         <div className="library-sidebar__brand">DJ COPILOT</div>
