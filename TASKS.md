@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-11
 Current milestone: M2 — Local analysis slice
-Current state: M2 is complete at pushed implementation checkpoint `a66e0d6`; the independent reviewer returned READY, M3 planning is next, and visual QA is deferred until all features are implemented
+Current state: M2 is complete at pushed implementation checkpoint `a66e0d6` and closure-record checkpoint `cb857a2`; the independent reviewer returned READY, M3 planning is next, and visual QA is deferred until all features are implemented
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -36,7 +36,7 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | M2-002 | core implementer | App-owned SQLite persists private paths, jobs, cache keys, progress, results, pause/resume, per-file failure, and restart recovery without leaking paths | done | repository 17/17; manager 7/7; reimport race RED 3/3 then GREEN 3/3; included in 56/56 aggregate core suite | `d1dad4b`, `a66e0d6`, pushed | Source path/availability changes invalidate analysis; bundled-runtime recovery remains M7 evidence |
 | M2-003 | desktop-boundary implementer | Four fixed analysis operations cross strict Python/Zod/IPC/preload contracts while library operations remain responsive and usable without the provider | done | Python service 13/13, including real `python -S` NumPy absence; focused boundary 24/24; strict typecheck and production build | `da730ba`, `a66e0d6`, pushed | External FFmpeg/NumPy absence degrades analysis honestly while library browsing remains available |
 | M2-004 | UI implementer | Users can select tracks, start/retry, pause/resume, monitor progress/failures, and inspect local features plus confidence/provenance accessibly | done | renderer behavior 24/24; complete desktop 62/62; production renderer build | `da730ba`, `a66e0d6`, pushed | Visual QA is deferred under D-045 |
-| M2-005 | primary | Generated-audio desktop flow proves pause, core restart, persisted resume, valid/failed isolation, feature display, current docs, review, and pushed checkpoint | done | post-review `pnpm verify:m2`: 56 core + 62 desktop + typecheck/build + 3 Electron flows; independent reviewer READY with no unresolved High/Medium finding | `e803c1d`, `a66e0d6`, pushed | Current GPL-configured Homebrew FFmpeg is development-only and must not be bundled |
+| M2-005 | primary | Generated-audio desktop flow proves pause, core restart, persisted resume, valid/failed isolation, feature display, current docs, review, and pushed checkpoint | done | post-review `pnpm verify:m2`: 56 core + 62 desktop + typecheck/build + 3 Electron flows; independent reviewer READY with no unresolved High/Medium finding | `e803c1d`, `a66e0d6`, `cb857a2`, pushed | Current GPL-configured Homebrew FFmpeg is development-only and must not be bundled |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
@@ -85,7 +85,7 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | --- | --- | --- | --- |
 | M0 | Scope reset and green foundation | done | Green checkpoint `1f1157054a59`; M0 evidence and recovery record |
 | M1 | App shell and real library slice | done | Green checkpoint `dec0698`; `docs/evidence/m1-app-shell-library.md` |
-| M2 | Local analysis slice | done | `docs/evidence/m2-local-analysis.md`; post-review green checkpoint `a66e0d6`; independent reviewer READY |
+| M2 | Local analysis slice | done | `docs/evidence/m2-local-analysis.md`; green implementation `a66e0d6`; closure records `cb857a2`; independent reviewer READY |
 | M3 | Discovery and recommendation slice | not-started | Separate plan after M2 |
 | M4 | Set workflow slice | not-started | Separate plan after M3 |
 | M5 | Personalization slice | not-started | Separate plan after M4 |

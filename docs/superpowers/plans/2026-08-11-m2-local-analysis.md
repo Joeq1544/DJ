@@ -461,7 +461,7 @@ Record exact host/runtime/provider versions, fixture hashes, feature outputs/tol
 
 The reviewer checks the complete M2 diff against this plan and the approved personal-MVP design. Resolve any High/Medium normal-workflow defect with one bounded fix wave and affected tests; do not start repeated security or screenshot review loops.
 
-- [ ] **Step 6: Inspect, commit, and push M2**
+- [x] **Step 6: Inspect, commit, and push M2**
 
 The primary inspects status, intended manifest, staged diff, credentials, personal metadata, audio, databases, caches, and generated outputs; runs `git diff --cached --check`; commits `feat: add resumable local track analysis`; pushes `main`; records the exact green hash; and verifies `origin/main...main` is `0 0` with a clean worktree.
 

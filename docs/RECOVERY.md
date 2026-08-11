@@ -1,6 +1,6 @@
 # Recovery Guide
 
-Status: M2 complete at pushed post-review implementation checkpoint `a66e0d6`; independent reviewer READY
+Status: M2 complete at pushed implementation checkpoint `a66e0d6` and closure-record checkpoint `cb857a2`; independent reviewer READY
 Last updated: 2026-08-11
 
 ## M0 green checkpoint

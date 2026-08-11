@@ -4,6 +4,7 @@
 - Status: complete; post-review aggregate green and independent reviewer READY with no unresolved High/Medium finding
 - Plan: `docs/superpowers/plans/2026-08-11-m2-local-analysis.md`
 - Post-review green implementation checkpoint: `a66e0d6` (pushed to `origin/main`)
+- Closure-record checkpoint: `cb857a2` (pushed to `origin/main`)
 
 ## Scope exercised
 
