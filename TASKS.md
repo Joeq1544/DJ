@@ -78,6 +78,16 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | M6-004 | macOS UI specialist | Inline Copilot status/search/plan/revise/explain flows expose proposals, evidence, errors, cancellation, and focus semantics | done | Post-review assistant renderer 16/16; explicit status/no mount helper, four modes, last-good errors, proposals, citations, no-op refresh, focus return; aggregate included | `fd0984e`, pushed | Visual appearance remains deferred under D-045 |
 | M6-005 | primary | Generated mock Electron flow, complete aggregate, real existing-auth smoke, one review, current docs, and pushed checkpoint close M6 | done | Post-review `pnpm verify:m6`: 151 core + 219 desktop + strict typecheck/build + 7 Electron flows; separate real existing-auth smoke 1/1; reviewer READY | `fd0984e`, pushed | Personal-library relevance/latency and final visual QA remain Joe's final hands-on work |
 
+## M7 ledger
+
+| ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
+| --- | --- | --- | --- | --- | --- | --- |
+| M7-001 | primary + release/dependency reviewers | Bounded personal-package topology, exact dependencies, resource layout, diagnostics/recovery scope, and nonvisual gates are frozen | in-progress | ADR-0010; M7 bounded plan; primary-source dependency and repository gap reports | planning checkpoint pending | Final package size and local FFmpeg/PyInstaller builds remain unmeasured |
+| M7-002 | audio/core implementer | Exact decoder validation, selected analysis rebuild, and atomic integrity-checked online SQLite backup pass focused and aggregate tests | not-started | TDD after shared contracts | pending | Restore is documented offline; source media remains immutable |
+| M7-003 | primary + desktop/UI implementers | Packaged-only resource resolution plus compact diagnostics/recovery controls work through fixed IPC/preload with no ambient fallback | not-started | Focused main/preload/renderer and package-boundary tests planned | pending | Visual QA remains deferred under D-045 |
+| M7-004 | packaging implementer + primary | Clean production stage composes exact arm64 Electron/core/FFmpeg/Codex resources with hashes, SBOM, notices, and ad-hoc signing | not-started | `pnpm package:mac` plus resource inspection planned | pending | Personal build is not notarized or public-distribution-ready |
+| M7-005 | primary | Packaged generated workflow, helper-failure degradation, packaged real-Codex smoke, migration/recovery checks, one review, docs, and pushed checkpoint close M7 | not-started | `pnpm verify:m7` and opt-in packaged smoke planned | pending | Joe's real-library, subjective, and visual checks remain final hands-on work |
+
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
 The rows below preserve what the original commercial-style gate proved and did not prove. They are evidence history, not current MVP blockers.
@@ -130,4 +140,4 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | M4 | Set workflow slice | done | `docs/evidence/m4-set-workflow-export.md`; green/reviewed closure `10d2511` |
 | M5 | Personalization slice | done | `docs/evidence/m5-personalization-library-metadata.md`; implementation `b5cbee6`; post-review gate 151 core/137 desktop/6 Electron flows |
 | M6 | Codex-assisted slice | done | `docs/evidence/m6-codex-assistance.md`; post-review 151 core/219 desktop/7 mock Electron flows; real existing-auth smoke 1/1; reviewer READY; `fd0984e`, pushed |
-| M7 | Personal release polish | not-started | Separate plan after M6 |
+| M7 | Personal release polish | in-progress | ADR-0010 and `docs/superpowers/plans/2026-08-11-m7-personal-release.md`; planning checkpoint next |
