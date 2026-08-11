@@ -76,12 +76,12 @@ function xmlAttribute(value: string): string {
 }
 
 async function writeFixtureXml(xmlPath: string, audioDirectory: string): Promise<void> {
-  const tracks = [
+  const tracks = ([
     ["clicks", "Clicks", "clicks.wav"],
     ["harmonic", "Harmonic", "harmonic.wav"],
     ["silence", "Silence", "silence.wav"],
     ["corrupt", "Corrupt", "corrupt.wav"],
-  ].map(([id, title, filename]) => {
+  ] as const).map(([id, title, filename]) => {
     const location = pathToFileURL(join(audioDirectory, filename)).href;
     return `    <TRACK TrackID="${id}" Name="${title}" Artist="Generated fixture" Location="${xmlAttribute(location)}"/>`;
   }).join("\n");
