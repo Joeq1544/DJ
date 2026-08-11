@@ -147,6 +147,47 @@ class RekordboxXMLTests(unittest.TestCase):
             self.parse_text(xml)
         self.assertEqual(raised.exception.code, "ambiguous_location_reference")
 
+    def test_accepts_official_node_level_numeric_track_id_and_location_references(self):
+        xml = (
+            '<DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="2">'
+            '<TRACK TrackID="1" Location="file://localhost/music/one.mp3"/>'
+            '<TRACK TrackID="2" Location="file://localhost/music/Caf%C3%A9%20%26%20two.mp3"/>'
+            '</COLLECTION><PLAYLISTS><NODE Type="0" Name="ROOT" Count="2">'
+            '<NODE Type="1" Name="By ID" KeyType="0" Entries="2">'
+            '<TRACK Key="2"/><TRACK Key="1"/></NODE>'
+            '<NODE Type="1" Name="By location" KeyType="1" Entries="1">'
+            '<TRACK Key="file://localhost/music/Caf%C3%A9%20%26%20two.mp3"/></NODE>'
+            '</NODE></PLAYLISTS></DJ_PLAYLISTS>'
+        )
+
+        imported = self.parse_text(xml)
+
+        self.assertEqual(imported.playlists[1].track_external_ids, ("2", "1"))
+        self.assertEqual(imported.playlists[2].track_external_ids, ("2",))
+
+    def test_rejects_unknown_or_mixed_official_playlist_reference_styles(self):
+        prefix = (
+            '<DJ_PLAYLISTS Version="1.0.0"><COLLECTION Entries="1">'
+            '<TRACK TrackID="1" Location="file://localhost/music/one.mp3"/>'
+            '</COLLECTION><PLAYLISTS>'
+        )
+        suffix = '</PLAYLISTS></DJ_PLAYLISTS>'
+        cases = [
+            '<NODE Type="1" Name="Unknown numeric" KeyType="2" Entries="1"><TRACK Key="1"/></NODE>',
+            '<NODE Type="1" Name="Unknown text" KeyType="TrackID" Entries="1"><TRACK Key="1"/></NODE>',
+            '<NODE Type="1" Name="Node child conflict" KeyType="0" Entries="1">'
+            '<TRACK KeyType="TrackID" Key="1"/></NODE>',
+            '<NODE Type="1" Name="Numeric child" Entries="1"><TRACK KeyType="0" Key="1"/></NODE>',
+            '<NODE Type="1" Name="Mixed children" Entries="2">'
+            '<TRACK KeyType="TrackID" Key="1"/><TRACK Key="1"/></NODE>',
+        ]
+
+        for playlist in cases:
+            with self.subTest(playlist=playlist):
+                with self.assertRaises(RekordboxImportError) as raised:
+                    self.parse_text(prefix + playlist + suffix)
+                self.assertEqual(raised.exception.code, "unsupported_playlist_reference")
+
 
 if __name__ == "__main__":
     unittest.main()

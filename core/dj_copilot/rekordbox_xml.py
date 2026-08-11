@@ -161,7 +161,21 @@ def _parse_playlists(
         entry_count += len(references)
         if entry_count > limits.max_playlist_entries:
             _raise("playlist_entry_limit_exceeded", "The Rekordbox XML document has too many playlist entries.")
-        track_external_ids = tuple(_resolve_reference(reference, tracks, track_ids_by_path) for reference in references)
+        node_key_type = node.get("KeyType")
+        if node_key_type is None:
+            reference_key_type = None
+        elif node_key_type == "0":
+            reference_key_type = "TrackID"
+        elif node_key_type == "1":
+            reference_key_type = "Location"
+        else:
+            _raise("unsupported_playlist_reference", "The Rekordbox XML playlist reference format is unsupported.")
+        if reference_key_type is not None and any(reference.get("KeyType") is not None for reference in references):
+            _raise("unsupported_playlist_reference", "The Rekordbox XML playlist reference format is unsupported.")
+        track_external_ids = tuple(
+            _resolve_reference(reference, tracks, track_ids_by_path, key_type=reference_key_type)
+            for reference in references
+        )
         playlists.append(ImportedPlaylist(index_path, parent_key, name, "playlist", order, track_external_ids))
 
     for root_order, node in enumerate(roots):
@@ -173,12 +187,14 @@ def _resolve_reference(
     reference: ElementTree.Element,
     tracks: dict[str, ImportedTrack],
     track_ids_by_path: dict[str, list[str]],
+    *,
+    key_type: str | None = None,
 ) -> str:
-    key_type = reference.get("KeyType")
+    effective_key_type = key_type if key_type is not None else reference.get("KeyType")
     key = reference.get("Key")
-    if key_type == "TrackID":
+    if effective_key_type == "TrackID":
         external_id = _required_id(key, "playlist track")
-    elif key_type == "Location":
+    elif effective_key_type == "Location":
         normalized_path = _local_path(key)
         matching_ids = track_ids_by_path.get(normalized_path, [])
         if len(matching_ids) > 1:
