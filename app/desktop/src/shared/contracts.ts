@@ -967,6 +967,7 @@ export const assistantConfirmRequestSchema = z.strictObject({ requestId: idSchem
 export const assistantConfirmResultSchema = z.discriminatedUnion("status", [
   z.strictObject({ status: z.literal("created"), snapshot: setDraftSnapshotSchema }),
   z.strictObject({ status: z.literal("updated"), snapshot: setDraftSnapshotSchema }),
+  z.strictObject({ status: z.literal("unchanged"), snapshot: setDraftSnapshotSchema }),
   z.strictObject({ status: z.literal("conflict"), currentRevision: revisionSchema }),
   z.strictObject({
     status: z.literal("blocked"),

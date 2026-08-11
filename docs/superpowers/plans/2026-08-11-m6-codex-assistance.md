@@ -159,10 +159,10 @@ Add one inline **Copilot** region to the current Library screen rather than a ro
 
 **Files:** `app/desktop/src/shared/contracts.ts`, `app/desktop/package.json`, `pnpm-lock.yaml`, `app/desktop/scripts/build-main.mjs`, focused contract/build tests.
 
-- [ ] Write strict red tests for every request/proposal/event/status/poll/confirm shape, bounds, unknown fields, and DesktopApi method.
-- [ ] Pin `@openai/codex-sdk@0.147.0`; run install/typecheck. Add a compatible direct `@modelcontextprotocol/sdk` dependency only if the published declaration actually fails resolution.
-- [ ] Prove the main bundle can lazy-import the externalized ESM SDK and preserve native dependency resolution.
-- [ ] Commit/push the shared contract only when focused tests, typecheck, and production build are green.
+- [x] Write strict red tests for every request/proposal/event/status/poll/confirm shape, bounds, unknown fields, and DesktopApi method.
+- [x] Pin `@openai/codex-sdk@0.147.0`; run install/typecheck. Add a compatible direct `@modelcontextprotocol/sdk` dependency only if the published declaration actually fails resolution.
+- [x] Prove the main bundle can lazy-import the externalized ESM SDK and preserve native dependency resolution.
+- [x] Commit/push the shared contract only when focused tests, typecheck, and production build are green.
 
 ### Task 2: Production and mock providers
 
@@ -170,9 +170,9 @@ Add one inline **Copilot** region to the current Library screen rather than a ro
 
 **Files:** new `app/desktop/src/main/assistant/*` provider/runtime modules and focused provider tests only.
 
-- [ ] Write red tests for exact status classification, no API-key options/environment, 0.147.0 configuration, structured schema parsing, known-ID validation hooks, complete streaming snapshots, new/resumed thread ID, timeout, cancellation, no late events, one corrective retry, and safe errors.
-- [ ] Implement `AIProvider`, deterministic `MockAIProvider`, matching-helper auth runner, and lazy production `CodexProvider` without MCP or shell/file tools.
-- [ ] Run focused provider tests, typecheck, and main build.
+- [x] Write red tests for exact status classification, no API-key options/environment, 0.147.0 configuration, structured schema parsing, known-ID validation hooks, complete streaming snapshots, new/resumed thread ID, timeout, cancellation, no late events, one corrective retry, and safe errors.
+- [x] Implement `AIProvider`, deterministic `MockAIProvider`, matching-helper auth runner, and lazy production `CodexProvider` without MCP or shell/file tools.
+- [x] Run focused provider tests, typecheck, and main build.
 
 Task 2 begins after Task 1 freezes types. It must not edit shared schemas, IPC/preload, renderer, or project memory.
 
@@ -182,10 +182,10 @@ Task 2 begins after Task 1 freezes types. It must not edit shared schemas, IPC/p
 
 **Files:** new coordinator/context/prompt modules, `app/desktop/src/main/ipc.ts`, `app/desktop/src/main/main.ts`, `app/desktop/src/preload/index.ts`, shutdown integration, focused main/preload tests.
 
-- [ ] Write red tests for bounded context, exact local command routing, no provider call from local workflows, search execution, proposal-without-write, confirm-only write, single-use/expiry/mismatch/stale/conflict behavior, polling order/caps, cancellation, shutdown, and response validation.
-- [ ] Implement concise versioned prompts from current official guidance: outcome, success criteria, evidence/ID constraints, no metadata instructions, output schema, and stop rule.
-- [ ] Use only current path-free core DTOs/commands. Add no Python command or MCP bridge unless a failing required workflow proves it necessary and the plan is amended.
-- [ ] Run focused boundary tests, desktop aggregate, typecheck, and build.
+- [x] Write red tests for bounded context, exact local command routing, no provider call from local workflows, search execution, proposal-without-write, confirm-only write, single-use/expiry/mismatch/stale/conflict behavior, polling order/caps, cancellation, shutdown, and response validation.
+- [x] Implement concise versioned prompts from current official guidance: outcome, success criteria, evidence/ID constraints, no metadata instructions, output schema, and stop rule.
+- [x] Use only current path-free core DTOs/commands. Add no Python command or MCP bridge unless a failing required workflow proves it necessary and the plan is amended.
+- [x] Run focused boundary tests, desktop aggregate, typecheck, and build.
 
 Task 3 begins after Task 1; it may run alongside Task 2 on disjoint provider files.
 
@@ -195,9 +195,9 @@ Task 3 begins after Task 1; it may run alongside Task 2 on disjoint provider fil
 
 **Files:** new renderer `features/assistant/*`, minimal `LibraryScreen.tsx`/set-selection integration, styles, focused renderer tests.
 
-- [ ] Write behavior tests first for status/recovery, all four modes, disabled context, polling snapshots, cancel, exact local search evidence, proposal separation/confirm/discard, conflicts/errors/last-good state, citations, and focus return.
-- [ ] Implement within existing semantic/tokens/components. No screenshots or visual QA.
-- [ ] Run focused renderer tests, renderer aggregate, typecheck, and production build.
+- [x] Write behavior tests first for status/recovery, all four modes, disabled context, polling snapshots, cancel, exact local search evidence, proposal separation/confirm/discard, conflicts/errors/last-good state, citations, and focus return.
+- [x] Implement within existing semantic/tokens/components. No screenshots or visual QA.
+- [x] Run focused renderer tests, renderer aggregate, typecheck, and production build.
 
 Task 4 begins after Task 1's public API is stable and may run alongside Tasks 2â€“3 on disjoint files.
 
@@ -205,9 +205,9 @@ Task 4 begins after Task 1's public API is stable and may run alongside Tasks 2â
 
 **Owner:** primary
 
-- [ ] Add one generated nonvisual Electron flow using `MockAIProvider`: import, status, filters/Similar/Next, plan preview/no-write/confirm, one revision preview/no-write/confirm, grounded explanation, cancellation, local-workflow preservation, restart, source hashes, and runtime cleanup.
-- [ ] Add an explicit opt-in real Electron smoke using the production 0.147.0 provider and current ChatGPT login. Use generated IDs/metadata only. Prove status, streamed event consumption, strict natural-language search, strict small set plan, exact thread ID/resume, and actual AbortSignal cancellation. Redact response text and record only bounded booleans/categories/counts.
-- [ ] Add `pnpm verify:m6`: prerequisites/residue, complete core/desktop suites, strict typecheck/build, all mock Electron flows, and diff checks. Real smoke remains a separate explicit command but must run successfully once before M6 closes.
+- [x] Add one generated nonvisual Electron flow using `MockAIProvider`: import, status, filters/Similar/Next, plan preview/no-write/confirm, one revision preview/no-write/confirm, grounded explanation, cancellation, local-workflow preservation, restart, source hashes, and runtime cleanup.
+- [x] Add an explicit opt-in real Electron smoke using the production 0.147.0 provider and current ChatGPT login. Use generated IDs/metadata only. Prove status, streamed event consumption, strict natural-language search, strict small set plan, exact thread ID/resume, and actual AbortSignal cancellation. Redact response text and record only bounded booleans/categories/counts.
+- [x] Add `pnpm verify:m6`: prerequisites/residue, complete core/desktop suites, strict typecheck/build, all mock Electron flows, and diff checks. Real smoke remains a separate explicit command but must run successfully once before M6 closes.
 - [ ] Perform one concise read-only normal-workflow review, fix concrete High/Medium findings with focused regressions, synchronize docs/evidence, inspect staged payload, commit, and push.
 
 ## M6 completion gate

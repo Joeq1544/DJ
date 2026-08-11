@@ -212,6 +212,14 @@ describe("LibraryScreen", () => {
     expect(screen.getByText("Untitled track")).toBeVisible();
   });
 
+  it("includes the inline Copilot region without replacing the library workspace", async () => {
+    renderLibrary();
+
+    expect(await screen.findByRole("region", { name: "Copilot" })).toBeVisible();
+    expect(screen.getByRole("table", { name: "Tracks" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Library navigation" })).toBeVisible();
+  });
+
   it("refreshes the core status after initial load", async () => {
     vi.useFakeTimers();
     const api = createApi();
@@ -397,6 +405,11 @@ describe("LibraryScreen", () => {
     expect(screen.getByRole("button", { name: "Import Rekordbox XML" })).toHaveFocus();
 
     const expectedTabOrder = [
+      screen.getByRole("button", { name: "Refresh Copilot status" }),
+      screen.getByRole("button", { name: "Sign in with ChatGPT" }),
+      screen.getByRole("tab", { name: "Search" }),
+      screen.getByRole("textbox", { name: "Ask Copilot" }),
+      screen.getByRole("button", { name: "Run Copilot" }),
       screen.getByRole("searchbox", { name: "Search library" }),
       screen.getByRole("spinbutton", { name: "Minimum BPM" }),
       screen.getByRole("spinbutton", { name: "Maximum BPM" }),

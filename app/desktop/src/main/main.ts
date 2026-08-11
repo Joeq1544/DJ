@@ -1,12 +1,15 @@
 import { app, BrowserWindow, dialog, ipcMain, session } from "electron";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import type { AssistantCoordinator } from "./assistant/coordinator";
+import { createAssistantRuntime } from "./assistant/runtime";
 import { CoreSupervisor } from "./core-supervisor";
 import { registerIpcHandlers } from "./ipc";
 import { installGracefulShutdown } from "./shutdown";
 import { createWindowOptions, installContentSecurityPolicy, installWindowSecurity } from "./window-security";
 
 let supervisor: CoreSupervisor | undefined;
+let assistantCoordinator: AssistantCoordinator | undefined;
 
 function installTestHook(): void {
   if (process.env.DJ_COPILOT_TEST_MODE !== "1") return;
@@ -38,6 +41,15 @@ async function createMainWindow(): Promise<void> {
     repositoryRoot,
   });
   await supervisor.start();
+  const assistantRuntime = await createAssistantRuntime({
+    environment: process.env,
+    workingDirectory: join(app.getPath("userData"), "assistant-workspace"),
+    client: () => {
+      if (!supervisor) throw new Error("Core service is unavailable");
+      return supervisor.getClient();
+    },
+  });
+  assistantCoordinator = assistantRuntime.coordinator;
   installTestHook();
   installContentSecurityPolicy(session.defaultSession, isDevelopment);
   const window = new BrowserWindow(createWindowOptions(preloadPath));
@@ -49,6 +61,7 @@ async function createMainWindow(): Promise<void> {
     repositoryRoot,
     rendererUrl,
     status: () => supervisor?.status() ?? { state: "degraded", message: "Core service is unavailable" },
+    assistant: assistantCoordinator,
     client: () => {
       if (!supervisor) throw new Error("Core service is unavailable");
       return supervisor.getClient();
@@ -60,5 +73,8 @@ async function createMainWindow(): Promise<void> {
 app.whenReady().then(createMainWindow);
 installGracefulShutdown(
   { on: (event, listener) => app.on(event, listener), quit: () => app.quit() },
-  async () => { await supervisor?.stop(); },
+  async () => {
+    assistantCoordinator?.shutdown();
+    await supervisor?.stop();
+  },
 );

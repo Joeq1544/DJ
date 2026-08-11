@@ -173,6 +173,25 @@ describe("M6 assistant contracts", () => {
     }).success).toBe(true);
     expect(assistantConfirmResultSchema.safeParse({ status: "conflict", currentRevision: 4 }).success).toBe(true);
     expect(assistantConfirmResultSchema.safeParse({
+      status: "unchanged",
+      snapshot: {
+        draftId: "draft-1",
+        currentRevision: 1,
+        contentRevision: 1,
+        title: "Sunset build",
+        plan,
+        entries: [],
+        bans: [],
+        knownDurationMs: 0,
+        unknownDurationCount: 0,
+        unmetConstraints: [],
+        canUndo: false,
+        canRedo: false,
+        versions: [],
+        viewingVersion: null,
+      },
+    }).success).toBe(true);
+    expect(assistantConfirmResultSchema.safeParse({
       status: "blocked",
       code: "expired",
       message: "This proposal expired. Ask Copilot again.",

@@ -13,6 +13,7 @@ import type {
   SetDraftSnapshot,
 } from "../../../../shared/contracts";
 import { AnalysisControls } from "../analysis/AnalysisControls";
+import { CopilotPanel } from "../assistant/CopilotPanel";
 import { DiscoveryFilters } from "../discovery/DiscoveryFilters";
 import { DiscoveryPanel, type DiscoverySeed } from "../discovery/DiscoveryPanel";
 import { ImportPanel } from "./ImportPanel";
@@ -567,6 +568,13 @@ export function LibraryScreen() {
       <div className="library-content">
         <ImportPanel importing={importing} onImport={() => { void importXml(); }} />
         <StatusPanel status={status} loading={loading} partialError={partialError} importMessage={importMessage} importError={importError} />
+        <CopilotPanel
+          api={desktopApi()?.assistant ?? null}
+          selectedTrack={discoverySeed}
+          draft={setSnapshot}
+          knownTracks={tracks ?? []}
+          onOpenDraft={setSetSnapshot}
+        />
         <AnalysisControls
           status={analysisStatus}
           loading={analysisLoading}

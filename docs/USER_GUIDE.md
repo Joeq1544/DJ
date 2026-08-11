@@ -1,11 +1,11 @@
 # DJ Copilot User Guide
 
-Status: M5 development app runnable; Codex assistance and personal release packaging remain in progress
+Status: M6 development app runnable; personal release packaging remains in progress
 Roadmap: M0–M7 personal MVP
 
-DJ Copilot is a personal companion to Rekordbox, not a replacement performance platform. M5 launches a desktop app, imports selected Rekordbox XML, browses and filters the app-owned library projection, analyzes selected local tracks, produces deterministic similar/next-track suggestions, builds persistent set drafts, learns bounded visible preferences, and exports self-contained Rekordbox/preference files without uploading or modifying audio.
+DJ Copilot is a personal companion to Rekordbox, not a replacement performance platform. M6 launches a desktop app, imports selected Rekordbox XML, browses and filters the app-owned library projection, analyzes selected local tracks, produces deterministic similar/next-track suggestions, builds persistent set drafts, learns bounded visible preferences, and adds optional natural-language Copilot search/planning/revision/explanation through the official Codex SDK without uploading or modifying audio.
 
-## Run the M5 development app
+## Run the M6 development app
 
 1. Install external FFmpeg and ffprobe 8.1.2, then from the repository run `pnpm setup` once and `pnpm dev`.
 2. Wait for the window to report **Library service ready**.
@@ -26,6 +26,9 @@ DJ Copilot is a personal companion to Rekordbox, not a replacement performance p
 17. In **Saved filters**, name the current complete view, then load or delete it later. A saved view that names a removed playlist reports the problem and leaves the current view unchanged.
 18. Next-track cards offer Accept, Reject, and Skip. The **Preference profile** stays in learning mode for fewer than five effective signals and cannot change rank; once active, personalized order is primary and each candidate shows its baseline rank/delta. Successful direct set edits also contribute visible evidence.
 19. **Prepare preference export** creates or replaces a bounded JSON summary only after confirmation. **Reset preferences** clearly discloses that it clears feedback and ratings while preserving tags, notes, saved filters, sets, analysis, and the imported library.
+20. The **Copilot** region begins with **Copilot status not checked** and launches no Codex helper merely because the app opened. Choose **Refresh Copilot status**, **Sign in with ChatGPT**, or submit a request when you want to use it. DJ Copilot reuses existing ChatGPT/Codex authentication and never asks for an API key.
+21. **Search** translates natural language into local filters, Similar, or Next; the resulting tracks and scores come from the local core. **Plan set** returns a generated-set proposal. **Revise draft** proposes one current-draft change. **Explain** streams text grounded in the selected track, recommendation, or draft and cites known local track IDs.
+22. A plan or revision labeled **Proposal — not applied** has not changed the database. Review it, then choose **Confirm proposal** or **Discard proposal**. Confirmation is single-use and rejects stale drafts; an already-satisfied change reports that no draft change was needed. Search and explanation never write. **Cancel** stops an active request without changing local state.
 
 An invalid or unsupported XML reports the problem while retaining the prior usable library. Analysis jobs/results are app-owned and persistent; an interrupted running job is queued after restart while a user-paused queue remains paused. Reimport keeps analysis for an unchanged local source, but changing its path/availability clears that track's old result so it can be analyzed again safely. One bad/corrupt file fails only its own row. Missing NumPy/FFmpeg disables analysis without disabling library browsing. If the local core stops once, the app attempts one restart and reuses SQLite state. If the service reaches the degraded state, quit and reopen DJ Copilot before trying again.
 
@@ -43,4 +46,4 @@ The deterministic demo input is `fixtures/rekordbox/phase0-library.xml`; it cont
 8. Use Codex for natural-language search, planning, revision, and explanation when available.
 9. Confirm export to a new Rekordbox-compatible XML destination and import it through Rekordbox.
 
-Rekordbox databases, imported source XML, and source audio are never modified. Raw audio stays local. The app never asks for an OpenAI API key. M5 uses a project virtual environment/host Python plus external FFmpeg in development; the self-contained personal build and distributable decoder arrive in M7. Discovery/set scans cap ordinary catalogs at 25,000 tracks, drafts at 100 positions, generated drafts at 50, and inspection at 100 positions with explicit truncation. Ranking and learned preference effects are deliberately deterministic, bounded, inspectable, and resettable. The current Homebrew GPL-configured FFmpeg is a personal development prerequisite, not a bundled app artifact.
+Rekordbox databases, imported source XML, and source audio are never modified. Raw audio stays local and is never sent to Codex. The app never asks for an OpenAI API key. M6 uses a project virtual environment/host Python plus external FFmpeg in development; the self-contained personal build and distributable decoder arrive in M7. Discovery/set scans cap ordinary catalogs at 25,000 tracks, drafts at 100 positions, generated drafts at 50, and inspection at 100 positions with explicit truncation. Ranking and learned preference effects are deliberately deterministic, bounded, inspectable, and resettable. The current Homebrew GPL-configured FFmpeg is a personal development prerequisite, not a bundled app artifact. Visual and native-interaction QA remains intentionally deferred until the complete M1–M7 app.

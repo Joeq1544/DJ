@@ -1,6 +1,6 @@
 # ADR-0009: Bounded Codex Assistance Without Production MCP
 
-- Status: Accepted
+- Status: Accepted and implemented in M6
 - Date: 2026-08-11
 - Owners: primary, codex-mcp specialist, desktop and UI implementers
 
@@ -27,3 +27,7 @@ The SDK and complete Darwin arm64 target tree remain external to the CJS main bu
 Codex remains an interpreter/explainer, never the search engine, optimizer, database owner, or export writer. Unknown IDs and malformed proposals fail before use. Search/explanation are read-only; set creation/revision require trusted-UI confirmation. Local workflows do not initialize Codex and continue through auth/network/provider failure.
 
 This design intentionally gives up autonomous tool loops and persistent AI chat history for M6. If real use shows that one read-only MCP tool materially improves a required workflow, add that exact tool in a superseding focused decision and exercise it through the real provider. Write MCP tools remain unnecessary because trusted main/core confirmation already owns durable actions.
+
+## Implementation evidence
+
+The final post-review gate passes 151 core tests, 219 desktop tests, strict TypeScript, the production build, and seven generated Electron flows. A separate redacted real existing-auth smoke passes exact SDK 0.147.0 status, structured search and plan on one resumed thread, AbortSignal cancellation, and production Electron-main behavior. Status is lazy and explicit, proposals remain single-use, valid no-ops return `unchanged`, and strict grounding accepts only supplied IDs/numbers including numbers copied from bounded metadata. The milestone reviewer returned READY with no unresolved High/Medium normal-workflow defect. Full packaged target-tree verification remains M7 work.

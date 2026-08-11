@@ -18,6 +18,8 @@
     "verify:m2": "bash scripts/verify-m2.sh",
     "verify:m3": "bash scripts/verify-m3.sh",
     "verify:m4": "bash scripts/verify-m4.sh",
-    "verify:m5": "bash scripts/verify-m5.sh"
+    "verify:m5": "bash scripts/verify-m5.sh",
+    "verify:m6": "bash scripts/verify-m6.sh",
+    "smoke:m6:real": "pnpm --dir app/desktop smoke:m6:real"
   }
 }

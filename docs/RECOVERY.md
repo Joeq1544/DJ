@@ -1,6 +1,6 @@
 # Recovery Guide
 
-Status: M0–M5 closed; M6 implementation planning is in progress
+Status: M0–M6 closed in the worktree; M6 green checkpoint push pending
 Last updated: 2026-08-11
 
 ## M0 green checkpoint
@@ -26,6 +26,8 @@ M3 checkpoints `5a5d59d`, `bb85aaa`, and `1e9d347` add and close deterministic d
 ## M5 implementation checkpoints
 
 Checkpoints `3ada231` and `035e1ba` add the deterministic preference scorer and complete trusted desktop/UI slice. Checkpoint `b5cbee6` adds schema-v4 persistence, strict services, atomic set feedback, and the generated personalization flow. After the reviewer-found stale-comparison correction, `pnpm verify:m5` passes 151 core tests, 137 desktop tests, strict TypeScript/build, and all six Electron flows. Opening schema v3 creates the first free `dj-copilot.pre-m5.sqlite3` sibling before v4 DDL; reopening v4 creates no new migration backup.
+
+The M6 closure checkpoint adds the official Codex-assisted slice without changing the SQLite schema or recovery format. Copilot requests, events, opaque thread IDs, and proposals are intentionally memory-only and expire; restarting the app discards them without affecting the library or drafts. A provider/auth/schema/cancellation failure performs no hidden write, and a draft proposal must be requested again after restart. Final M6 verification passes 151 core tests, 219 desktop tests, seven generated Electron flows, and a separate redacted real existing-auth smoke.
 
 ## Safe Git recovery
 

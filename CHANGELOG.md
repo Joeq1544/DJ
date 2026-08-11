@@ -10,6 +10,11 @@ All notable project changes are recorded here. The project has not yet produced 
 - Accepted ADR-0009 and a bounded M6 plan for natural-language filters/Similar/Next, confirmed generated set plans, one confirmed draft revision, grounded explanations, polling snapshots, and cancellation.
 - Chose zero production MCP tools: Codex interprets bounded path-free evidence while the existing Python core remains the only search, ranking, set, and durable-state owner.
 - Retired Phase 0 wrapper/bridge/containment machinery stays historical. M6 requires focused contracts, one generated mock Electron flow, one redacted real existing-auth Electron smoke, and no visual QA.
+- Added exact-helper existing-ChatGPT status/login, lazy official SDK orchestration, strict structured schemas, complete streamed snapshot handling, same-thread correction, deadlines/cancellation, stable errors, and a deterministic mock provider.
+- Added bounded main-owned context, search/Similar/Next routing, grounded explanations, generated-plan and one-revision proposals, polling, cancellation, and single-use confirmation without a production MCP server or Python protocol change.
+- Added the inline Copilot region with four modes, explicit status/sign-in actions, local evidence, proposal separation, conflicts/errors, last-good state, citations, cancellation, and focus restoration. Merely launching the Library now performs no Codex helper call.
+- The real smoke first exposed strict-output incompatibility in the generated draft-07 schema. The corrected root-object/required/nullable/typed-constant adapter now passes real structured search and same-thread set planning through exact SDK 0.147.0, plus real cancellation and production Electron-main behavior.
+- The one bounded review found and closed implicit mount status, mislabeled valid no-op confirmation, and numeric-title grounding defects. Final `pnpm verify:m6` passes 151 core tests, 219 desktop tests, strict typecheck/build, and seven generated Electron flows; the separate corrected real existing-auth smoke passes 1/1, and the reviewer returned READY. Visual QA remains deferred under D-045.
 
 ### 2026-08-11 — M5 personalization and library metadata planning
 

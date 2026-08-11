@@ -5,6 +5,15 @@ import {
   analysisQueueRequestSchema,
   analysisQueueStatusSchema,
   analysisStatusQuerySchema,
+  assistantAuthStatusSchema,
+  assistantCancelRequestSchema,
+  assistantCancelResultSchema,
+  assistantConfirmRequestSchema,
+  assistantConfirmResultSchema,
+  assistantPollRequestSchema,
+  assistantPollResultSchema,
+  assistantStartResultSchema,
+  assistantTaskRequestSchema,
   appStatusSchema,
   compareRecommendationsRequestSchema,
   compareRecommendationsResponseSchema,
@@ -48,6 +57,12 @@ import {
   trackMetadataSchema,
   trackMetadataUpdateRequestSchema,
   type AppStatus,
+  type AssistantAuthStatus,
+  type AssistantCancelResult,
+  type AssistantConfirmResult,
+  type AssistantPollResult,
+  type AssistantStartResult,
+  type AssistantTaskRequest,
   type CoreRequest,
   type DesktopApi,
 } from "../shared/contracts";
@@ -58,6 +73,15 @@ type IpcHandler = (event: { senderFrame: { url: string } | null }, payload?: unk
 
 interface CoreRequester {
   request(command: CoreRequest["command"], payload: unknown): Promise<unknown>;
+}
+
+interface AssistantBoundary {
+  getStatus(): Promise<AssistantAuthStatus>;
+  beginLogin(): Promise<AssistantAuthStatus>;
+  start(request: AssistantTaskRequest): AssistantStartResult;
+  poll(requestId: string, afterSequence: number): AssistantPollResult;
+  cancel(requestId: string): AssistantCancelResult;
+  confirm(requestId: string, proposalId: string): Promise<AssistantConfirmResult>;
 }
 
 export interface IpcDependencies {
@@ -72,6 +96,7 @@ export interface IpcDependencies {
   environment?: NodeJS.ProcessEnv;
   status(): AppStatus;
   client(): CoreRequester;
+  assistant?: AssistantBoundary;
   now?(): number;
   createConfirmationId?(): string;
   lstat?(path: string): Promise<{ isFile(): boolean; isSymbolicLink(): boolean }>;
@@ -122,6 +147,18 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
   const analysisResult = (result: unknown) => {
     const parsed = analysisQueueStatusSchema.safeParse(result);
     if (!parsed.success) throw new Error("Core response failed validation");
+    return parsed.data;
+  };
+  const assistantBoundary = () => {
+    if (!dependencies.assistant) throw new Error("Assistant is unavailable");
+    return dependencies.assistant;
+  };
+  const assistantResult = <Output>(
+    schema: { safeParse(value: unknown): { success: true; data: Output } | { success: false } },
+    result: unknown,
+  ): Output => {
+    const parsed = schema.safeParse(result);
+    if (!parsed.success) throw new Error("Assistant response failed validation");
     return parsed.data;
   };
   dependencies.ipcMain.handle("system:getStatus", async (event, payload) => {
@@ -311,6 +348,46 @@ export function registerIpcHandlers(dependencies: IpcDependencies): void {
     trust(event);
     noPayload(payload);
     return analysisResult(await dependencies.client().request("resume_analysis", {}));
+  });
+  dependencies.ipcMain.handle("assistant:getStatus", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    return assistantResult(assistantAuthStatusSchema, await assistantBoundary().getStatus());
+  });
+  dependencies.ipcMain.handle("assistant:beginLogin", async (event, payload) => {
+    trust(event);
+    noPayload(payload);
+    return assistantResult(assistantAuthStatusSchema, await assistantBoundary().beginLogin());
+  });
+  dependencies.ipcMain.handle("assistant:start", async (event, payload) => {
+    trust(event);
+    const request = assistantTaskRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    return assistantResult(assistantStartResultSchema, assistantBoundary().start(request.data));
+  });
+  dependencies.ipcMain.handle("assistant:poll", async (event, payload) => {
+    trust(event);
+    const request = assistantPollRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    return assistantResult(
+      assistantPollResultSchema,
+      assistantBoundary().poll(request.data.requestId, request.data.afterSequence),
+    );
+  });
+  dependencies.ipcMain.handle("assistant:cancel", async (event, payload) => {
+    trust(event);
+    const request = assistantCancelRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    return assistantResult(assistantCancelResultSchema, assistantBoundary().cancel(request.data.requestId));
+  });
+  dependencies.ipcMain.handle("assistant:confirm", async (event, payload) => {
+    trust(event);
+    const request = assistantConfirmRequestSchema.safeParse(payload);
+    if (!request.success) throw new Error(INVALID_PAYLOAD);
+    return assistantResult(
+      assistantConfirmResultSchema,
+      await assistantBoundary().confirm(request.data.requestId, request.data.proposalId),
+    );
   });
   dependencies.ipcMain.handle("sets:list", async (event, payload) => {
     trust(event);

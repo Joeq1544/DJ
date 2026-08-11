@@ -19,6 +19,8 @@
     "test:e2e:m3": "playwright test e2e/discovery-flow.spec.ts",
     "test:e2e:m4": "playwright test e2e/set-flow.spec.ts",
     "test:e2e:m5": "playwright test e2e/personalization-flow.spec.ts",
+    "test:e2e:m6": "playwright test e2e/assistant-flow.spec.ts",
+    "smoke:m6:real": "DJ_COPILOT_REAL_SMOKE=1 playwright test e2e/assistant-real-smoke.spec.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -28,6 +30,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.24.0",
     "@playwright/test": "1.62.1",
     "@testing-library/jest-dom": "7.0.1",
     "@testing-library/react": "16.3.2",

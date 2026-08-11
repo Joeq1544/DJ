@@ -18,7 +18,7 @@ Delivery note (2026-08-11): Joe explicitly deferred all visual QA until the full
 | M6 — Codex-assisted slice | Existing-auth natural-language search, set planning/revision, explanations, and only necessary MCP tools | Mock integration plus one real existing-auth smoke flow |
 | M7 — Personal release polish | Recovery, migrations, setup/limitations, accessibility pass, and runnable personal macOS build | Clean setup/build/manual workflow on Joe's Mac |
 
-Progress on 2026-08-11: M0–M4 are closed and pushed through `320d027`. M4's post-review nonvisual aggregate passed 119 core, 116 desktop, strict typecheck/build, and five Electron flows with reviewer READY. ADR-0008 and the bounded M5 plan freeze the personalization/library-metadata slice, and Task 1 is beginning. Visual, native-picker appearance, real Rekordbox import, and subjective personal-library checks stay deferred under D-045.
+Progress on 2026-08-11: M0–M5 are closed and pushed. M6 is implementation-complete and awaiting its closure push: post-review verification passed 151 core tests, 219 desktop tests, strict typecheck/build, seven generated Electron flows, and one separate real existing-auth Codex smoke; the reviewer returned READY. M7 packaging/recovery planning follows that checkpoint. Visual, native-picker appearance, real Rekordbox import, personal-library relevance, and subjective audio/set checks stay deferred under D-045.
 
 ## M1 scaffold contract
 
