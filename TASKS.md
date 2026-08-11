@@ -1,8 +1,8 @@
 # DJ Copilot Tasks
 
 Last updated: 2026-08-10
-Current milestone: M0 complete — M1 planning next
-Current state: M0 complete; M1 planning next
+Current milestone: M1 — App shell and real library slice
+Current state: M1 plan ready; implementation in progress
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -17,6 +17,16 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | M0-004 | primary | Incomplete P0-016 code is removed and the reviewed direct `server.py` Codex/MCP package passes 52 tests plus typecheck | done | Direct-registration red: 37/46 pass, 9 expected failures; green: 46/46 targeted and 52/52 full outside outer sandbox; `pnpm typecheck` exit 0; P0-016 reference scan empty | `1f1157054a59` | Older reviewed supervisor/process-group evidence retained; nested macOS sandbox probe requires execution outside the Codex workspace sandbox |
 | M0-005 | primary | Focused checks and one aggregate baseline pass; intended files are reviewed, committed, and pushed | done | Focused 11/11 script tests, 52/52 Codex/MCP tests, and typecheck pass; aggregate `scripts/verify-phase0.sh` passes 186/186 tests and three typechecks; staged diff/secret/media inspection passed | `1f1157054a59`, pushed to `origin/main` | No personal data, source audio, database, credential, cache, or binary was included |
 | M0-006 | primary | Green hash and recovery/evidence records are committed; `main` and `origin/main` agree | done | Recovery/evidence name `1f1157054a59`; after the baseline push, `git rev-list --left-right --count origin/main...main` returned `0 0` and status was clean; final sync is rerun after this closure commit | `1f1157054a59`, pushed to `origin/main` | M1 does not begin until its separate plan is written and approved |
+
+## M1 ledger
+
+| ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
+| --- | --- | --- | --- | --- | --- | --- |
+| M1-001 | primary | Root workspace, exact dependency pins, strict build/test commands, and shared DTO/runtime schemas exist | in-progress | `docs/superpowers/plans/2026-08-10-m1-app-shell-library.md` | pending | Host Python is 3.14.3; bundled CPython remains M7 work |
+| M1-002 | core implementer | Fixture and selected XML parse into an atomic app-owned SQLite revision with stable app IDs and ordered playlists | not-started | Focused Python parser/database/service tests | pending | Real Rekordbox variant compatibility remains opt-in evidence |
+| M1-003 | desktop implementer | Electron supervises the core and exposes only guarded typed preload operations | not-started | Main/preload/security/supervision tests | pending | Development paths must not become packaged-path claims |
+| M1-004 | UI implementer | Library and playlists are usable through accessible loading, empty, ready, degraded, and error states | not-started | Renderer behavior and keyboard tests | pending | Large-library virtualization waits for measured need |
+| M1-005 | primary | Production build and Electron fixture import/browse/restart flow pass; docs/evidence are current and checkpoint is pushed | not-started | `pnpm verify:m1`; bounded manual development launch | pending | Personal XML evidence is not passed unless explicitly selected |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
@@ -64,7 +74,7 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | ID | Milestone | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Scope reset and green foundation | done | Green checkpoint `1f1157054a59`; M0 evidence and recovery record |
-| M1 | App shell and real library slice | not-started | Separate plan after M0 |
+| M1 | App shell and real library slice | in-progress | `docs/superpowers/plans/2026-08-10-m1-app-shell-library.md` |
 | M2 | Local analysis slice | not-started | Separate plan after M1 |
 | M3 | Discovery and recommendation slice | not-started | Separate plan after M2 |
 | M4 | Set workflow slice | not-started | Separate plan after M3 |
