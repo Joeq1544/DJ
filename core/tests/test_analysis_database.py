@@ -75,6 +75,25 @@ def _import(*external_ids: str) -> RekordboxImport:
     return RekordboxImport(source_sha256="a" * 64, tracks=tracks, playlists=())
 
 
+def _track(external_id: str, path: str, availability: str = "available") -> ImportedTrack:
+    return ImportedTrack(
+        external_id=external_id,
+        title=f"Track {external_id}",
+        artist="Fixture Artist",
+        album=None,
+        genre=None,
+        bpm_milli=None,
+        musical_key=None,
+        duration_ms=1_000,
+        path=path,
+        availability=availability,
+    )
+
+
+def _library(*tracks: ImportedTrack, source_sha256: str = "b" * 64) -> RekordboxImport:
+    return RekordboxImport(source_sha256=source_sha256, tracks=tracks, playlists=())
+
+
 def _create_m1_database(path: Path) -> None:
     connection = sqlite3.connect(path)
     connection.executescript(
@@ -192,6 +211,160 @@ class AnalysisDatabaseRepositoryTests(unittest.TestCase):
             item.external_id: item.id
             for item in self.database.list_tracks(limit=200).items
         }
+
+    def _queue_claim_and_fingerprint(
+        self,
+        track_id: str,
+        *,
+        expected_path: str,
+        fingerprint: str,
+    ) -> None:
+        self.database.put_analysis_job(
+            track_id,
+            status="queued",
+            progress_ppm=0,
+            attempt_count=0,
+            error_code=None,
+            error_message=None,
+            fingerprint=None,
+            provider="fake-local",
+            provider_version="1.2.3",
+            pipeline_version="pipeline-v1",
+        )
+        self.assertEqual(
+            self.database.claim_next_analysis_job(),
+            (track_id, Path(expected_path)),
+        )
+        self.database.record_analysis_fingerprint(track_id, fingerprint)
+
+    def test_reimport_invalidates_claimed_analysis_when_path_or_availability_changes(self):
+        """Retaining jobs/features across either source-identity change must fail."""
+        original = _library(
+            _track("path-change", "/private/tmp/dj-copilot/old/../old.wav"),
+            _track("availability-change", "/private/tmp/dj-copilot/same.wav"),
+        )
+        self.database.import_library(original)
+        ids = {item.external_id: item.id for item in self.database.list_tracks(limit=10).items}
+        self._queue_claim_and_fingerprint(
+            ids["path-change"],
+            expected_path="/private/tmp/dj-copilot/old.wav",
+            fingerprint="fp-old-path",
+        )
+        self.database.put_track_features(ids["path-change"], _features("fp-cached-path"))
+        self._queue_claim_and_fingerprint(
+            ids["availability-change"],
+            expected_path="/private/tmp/dj-copilot/same.wav",
+            fingerprint="fp-old-availability",
+        )
+        self.database.put_track_features(
+            ids["availability-change"],
+            _features("fp-cached-availability"),
+        )
+
+        self.database.import_library(
+            _library(
+                _track("path-change", "/private/tmp/dj-copilot/new.wav"),
+                _track(
+                    "availability-change",
+                    "/private/tmp/dj-copilot/folder/../same.wav",
+                    "missing",
+                ),
+                source_sha256="c" * 64,
+            )
+        )
+
+        retained_ids = {
+            item.external_id: item.id for item in self.database.list_tracks(limit=10).items
+        }
+        self.assertEqual(retained_ids, ids)
+        self.assertIsNone(self.database.analysis_summary(ids["path-change"]))
+        self.assertIsNone(self.database.analysis_summary(ids["availability-change"]))
+        self.assertEqual(
+            tuple(
+                self.database.connection.execute(
+                    "SELECT (SELECT COUNT(*) FROM analysis_jobs), (SELECT COUNT(*) FROM track_features)"
+                ).fetchone()
+            ),
+            (0, 0),
+        )
+
+        self.database.finish_analysis_success(ids["path-change"], _features("fp-old-path"))
+        self.database.finish_analysis_success(
+            ids["availability-change"],
+            _features("fp-old-availability"),
+        )
+        self.assertEqual(
+            tuple(
+                self.database.connection.execute(
+                    "SELECT (SELECT COUNT(*) FROM analysis_jobs), (SELECT COUNT(*) FROM track_features)"
+                ).fetchone()
+            ),
+            (0, 0),
+        )
+
+    def test_late_success_for_removed_claimed_track_cannot_recreate_analysis_orphans(self):
+        """A completion racing after track removal must not create a feature orphan."""
+        self.database.import_library(
+            _library(_track("removed", "/private/tmp/dj-copilot/removed.wav"))
+        )
+        track_id = self.database.list_tracks(limit=10).items[0].id
+        self._queue_claim_and_fingerprint(
+            track_id,
+            expected_path="/private/tmp/dj-copilot/removed.wav",
+            fingerprint="fp-removed",
+        )
+
+        self.database.import_library(_library(source_sha256="d" * 64))
+        self.database.finish_analysis_success(track_id, _features("fp-removed"))
+
+        self.assertIsNone(self.database.analysis_summary(track_id))
+        self.assertEqual(
+            tuple(
+                self.database.connection.execute(
+                    """
+                    SELECT
+                        (SELECT COUNT(*) FROM analysis_jobs),
+                        (SELECT COUNT(*) FROM track_features),
+                        (SELECT COUNT(*) FROM track_features
+                         WHERE track_id NOT IN (SELECT id FROM tracks))
+                    """
+                ).fetchone()
+            ),
+            (0, 0, 0),
+        )
+
+    def test_unchanged_source_retains_claim_but_only_matching_fingerprint_can_finish(self):
+        """Invalidating normalized-identical sources or accepting stale fingerprints must fail."""
+        self.database.import_library(
+            _library(_track("one", "/private/tmp/dj-copilot/folder/../one.wav"))
+        )
+        track_id = self.database.list_tracks(limit=10).items[0].id
+        self._queue_claim_and_fingerprint(
+            track_id,
+            expected_path="/private/tmp/dj-copilot/one.wav",
+            fingerprint="fp-current",
+        )
+
+        self.database.import_library(
+            _library(
+                _track("one", "/private/tmp/dj-copilot/one.wav"),
+                source_sha256="e" * 64,
+            )
+        )
+
+        retained = self.database.analysis_summary(track_id)
+        self.assertEqual(retained.status, "running")
+        self.assertEqual(retained.attempt_count, 1)
+        self.database.finish_analysis_success(track_id, _features("fp-stale"))
+        refused = self.database.analysis_summary(track_id)
+        self.assertEqual(refused.status, "running")
+        self.assertIsNone(refused.features)
+
+        current = _features("fp-current")
+        self.database.finish_analysis_success(track_id, current)
+        finished = self.database.analysis_summary(track_id)
+        self.assertEqual(finished.status, "succeeded")
+        self.assertEqual(finished.features, current)
 
     def test_reimport_preserves_retained_analysis_and_removes_orphans(self):
         """Changing stable-ID retention or omitting orphan cleanup must fail."""

@@ -184,6 +184,61 @@ class AnalysisServiceTests(unittest.TestCase):
         self.assertIsNone(status["result"]["capabilities"]["providerVersion"])
         self._assert_path_free(status["result"])
 
+    def test_missing_numpy_keeps_health_and_existing_library_ready(self):
+        """Importing the provider without NumPy must not take down the core service."""
+        self._stop_service()
+        self._start_service(self.ffmpeg, self.ffprobe, without_site_packages=True)
+
+        health = self.request("health-no-numpy", "health", {})
+        tracks = self.request("tracks-no-numpy", "list_tracks", {"limit": 10})
+        status = self.request("status-no-numpy", "get_analysis_status", {})
+
+        self.assertEqual(health["result"], {"state": "ready"})
+        self.assertEqual(
+            {item["title"] for item in tracks["result"]["items"]},
+            {"Harmonic", "Silence"},
+        )
+        capabilities = status["result"]["capabilities"]
+        self.assertFalse(capabilities["available"])
+        self.assertIsNone(capabilities["providerVersion"])
+        self.assertEqual(
+            capabilities["unavailableReason"],
+            "Local audio analysis prerequisites are unavailable.",
+        )
+        self.assertLessEqual(len(capabilities["unavailableReason"]), 100)
+        self._assert_path_free(status["result"])
+
+    def test_missing_numpy_has_a_bounded_provider_reason(self):
+        """A missing NumPy install must produce a useful internal capability reason."""
+        environment = os.environ | {"PYTHONPATH": str(ROOT / "core")}
+        script = (
+            "import json\n"
+            "from dj_copilot.analysis.provider import FfmpegNumpyProvider\n"
+            f"provider = FfmpegNumpyProvider(ffmpeg_path={self.ffmpeg!r}, "
+            f"ffprobe_path={self.ffprobe!r})\n"
+            "capabilities = provider.capabilities()\n"
+            "print(json.dumps({\n"
+            "    'available': capabilities.available,\n"
+            "    'providerVersion': capabilities.provider_version,\n"
+            "    'reason': capabilities.unavailable_reason,\n"
+            "}))\n"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-S", "-B", "-c", script],
+            cwd=ROOT,
+            env=environment,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr[-1_000:])
+        capabilities = json.loads(completed.stdout)
+        self.assertFalse(capabilities["available"])
+        self.assertIsNone(capabilities["providerVersion"])
+        self.assertIn("numpy", capabilities["reason"].lower())
+        self.assertIn("2.4.4", capabilities["reason"])
+        self.assertLessEqual(len(capabilities["reason"]), 200)
+
     def test_sigterm_requeues_running_analysis_before_database_and_socket_close(self):
         self._stop_service()
         slow_ffprobe = self._slow_wrapper("slow-ffprobe", self.ffprobe)
@@ -221,16 +276,18 @@ class AnalysisServiceTests(unittest.TestCase):
                 response.extend(chunk)
         return json.loads(response)
 
-    def _start_service(self, ffmpeg, ffprobe):
+    def _start_service(self, ffmpeg, ffprobe, *, without_site_packages=False):
         environment = os.environ | {
             "PYTHONPATH": str(ROOT / "core"),
             "DJ_COPILOT_FFMPEG": str(ffmpeg),
             "DJ_COPILOT_FFPROBE": str(ffprobe),
         }
+        python_arguments = [sys.executable, "-B"]
+        if without_site_packages:
+            python_arguments.append("-S")
         self.process = subprocess.Popen(
             [
-                sys.executable,
-                "-B",
+                *python_arguments,
                 "-m",
                 "dj_copilot.service",
                 "--socket",

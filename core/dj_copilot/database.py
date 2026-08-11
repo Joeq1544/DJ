@@ -44,9 +44,19 @@ class LibraryDatabase:
         with self._lock:
             try:
                 self.connection.execute("BEGIN IMMEDIATE")
+                existing_tracks = {
+                    row["external_id"]: (
+                        row["id"],
+                        row["source_path"],
+                        row["availability"],
+                    )
+                    for row in self.connection.execute(
+                        "SELECT id, external_id, source_path, availability FROM tracks"
+                    )
+                }
                 track_ids = {
-                    row["external_id"]: row["id"]
-                    for row in self.connection.execute("SELECT id, external_id FROM tracks")
+                    external_id: existing[0]
+                    for external_id, existing in existing_tracks.items()
                 }
                 playlist_ids = {
                     row["import_key"]: row["id"]
@@ -64,8 +74,15 @@ class LibraryDatabase:
                 self.connection.execute("DELETE FROM tracks")
                 self.connection.execute("DELETE FROM playlists")
 
+                invalidated_track_ids: set[str] = set()
                 for track in imported.tracks:
                     track_id = track_ids.get(track.external_id, str(uuid.uuid4()))
+                    source_path = os.path.normpath(track.path)
+                    existing = existing_tracks.get(track.external_id)
+                    if existing is not None and (
+                        existing[1] != source_path or existing[2] != track.availability
+                    ):
+                        invalidated_track_ids.add(track_id)
                     self.connection.execute(
                         """
                         INSERT INTO tracks (
@@ -84,7 +101,7 @@ class LibraryDatabase:
                             track.musical_key,
                             track.duration_ms,
                             track.availability,
-                            os.path.normpath(track.path),
+                            source_path,
                         ),
                     )
                 for sequence, playlist in enumerate(imported.playlists):
@@ -102,6 +119,17 @@ class LibraryDatabase:
                             "INSERT INTO playlist_tracks (playlist_id, track_id, position) VALUES (?, ?, ?)",
                             (playlist_id, track_ids.get(external_id, self._track_id_for_external_id(external_id)), position),
                         )
+                if invalidated_track_ids:
+                    invalidated = tuple(sorted(invalidated_track_ids))
+                    placeholders = _placeholders(len(invalidated))
+                    self.connection.execute(
+                        f"DELETE FROM analysis_jobs WHERE track_id IN ({placeholders})",
+                        invalidated,
+                    )
+                    self.connection.execute(
+                        f"DELETE FROM track_features WHERE track_id IN ({placeholders})",
+                        invalidated,
+                    )
                 self.connection.execute("DELETE FROM analysis_jobs WHERE track_id NOT IN (SELECT id FROM tracks)")
                 self.connection.execute("DELETE FROM track_features WHERE track_id NOT IN (SELECT id FROM tracks)")
                 self.connection.execute(
@@ -442,6 +470,19 @@ class LibraryDatabase:
             feature_json = _encode_analysis_features(features_value)
             try:
                 self.connection.execute("BEGIN IMMEDIATE")
+                eligible = self.connection.execute(
+                    """
+                    SELECT 1
+                    FROM tracks
+                    JOIN analysis_jobs ON analysis_jobs.track_id = tracks.id
+                    WHERE tracks.id = ? AND analysis_jobs.status = 'running'
+                          AND analysis_jobs.fingerprint = ?
+                    """,
+                    (track_id, features_value.fingerprint),
+                ).fetchone()
+                if eligible is None:
+                    self.connection.commit()
+                    return
                 self.connection.execute(
                     """
                     INSERT INTO track_features (

@@ -72,7 +72,9 @@ class AnalysisProviderTests(unittest.TestCase):
             "DJ_COPILOT_ANALYSIS_TEST_DELAY_MS": delay_ms,
         }
         with patch.dict(os.environ, environment, clear=False):
-            with patch("core.dj_copilot.analysis.provider.time.sleep") as sleeper:
+            with patch(
+                "core.dj_copilot.analysis.provider._sleep_for_analysis_test_delay"
+            ) as sleeper:
                 self.provider().analyze(
                     source or self.silence,
                     progress=lambda _value: None,

@@ -14,7 +14,10 @@ import subprocess
 import time
 from typing import Callable, Protocol
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 
 PROVIDER = "ffmpeg-numpy-basic"
@@ -33,14 +36,18 @@ LIMITATIONS = (
     "Heuristic tempo and beat evidence; not a Rekordbox beat grid.",
     "Heuristic key/mode evidence; verify low-confidence results by ear.",
 )
-MAJOR_PROFILE = np.asarray(
-    (6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88),
-    dtype=np.float64,
-)
-MINOR_PROFILE = np.asarray(
-    (6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17),
-    dtype=np.float64,
-)
+if np is None:
+    MAJOR_PROFILE = None
+    MINOR_PROFILE = None
+else:
+    MAJOR_PROFILE = np.asarray(
+        (6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88),
+        dtype=np.float64,
+    )
+    MINOR_PROFILE = np.asarray(
+        (6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17),
+        dtype=np.float64,
+    )
 KEY_NAMES = ("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
 
 
@@ -224,7 +231,9 @@ class FfmpegNumpyProvider:
     def capabilities(self) -> ProviderCapabilities:
         reason: str | None = None
         try:
-            if np.__version__ != REQUIRED_NUMPY_VERSION:
+            if np is None:
+                reason = f"requires numpy {REQUIRED_NUMPY_VERSION}; numpy is unavailable"
+            elif np.__version__ != REQUIRED_NUMPY_VERSION:
                 reason = f"requires numpy {REQUIRED_NUMPY_VERSION}; found {np.__version__}"
             elif not self.ffmpeg_path:
                 reason = "ffmpeg executable not found"
@@ -452,7 +461,7 @@ class FfmpegNumpyProvider:
                     decoded_fraction = accumulator.sample_count / max(1.0, duration_seconds * DECODE_SAMPLE_RATE)
                     report(75_000 + round(min(1.0, decoded_fraction) * 850_000))
                     if self._analysis_test_delay_seconds > 0.0:
-                        time.sleep(self._analysis_test_delay_seconds)
+                        _sleep_for_analysis_test_delay(self._analysis_test_delay_seconds)
             returncode = process.wait(timeout=1.0)
         except BaseException:
             _terminate(process)
@@ -548,6 +557,10 @@ def _analysis_test_delay_seconds() -> float:
     if raw_value != str(delay_ms) or not 0 <= delay_ms <= 250:
         return 0.0
     return delay_ms / 1_000.0
+
+
+def _sleep_for_analysis_test_delay(delay_seconds: float) -> None:
+    time.sleep(delay_seconds)
 
 
 def _bounded_capture(
