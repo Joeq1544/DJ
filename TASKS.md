@@ -1,8 +1,8 @@
 # DJ Copilot Tasks
 
 Last updated: 2026-08-10
-Current milestone: M0 — Scope reset and green foundation
-Current state: M0 in progress
+Current milestone: M0 complete — M1 planning next
+Current state: M0 complete; M1 planning next
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -11,12 +11,12 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 
 | ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
 | --- | --- | --- | --- | --- | --- | --- |
-| M0-001 | primary | Approved personal scope is authoritative and Git ignores personal DJ data without hiding generated fixtures | done | Master-prompt amendment; approved design; updated `AGENTS.md`; direct `git check-ignore --no-index` behavior | uncommitted | Current tree remains intentionally uncommitted until the broken P0-016 baseline is restored |
-| M0-002 | primary | Product plan, current ledger, decisions, ADR-0002, known limitations, and changelog use the approved personal scope | done | `docs/PRODUCT_SPEC.md`; `docs/PHASE_PLAN.md`; D-040–D-042; accepted ADR-0002; KI-022/KI-045/KI-049 reclassified; KI-053 recorded | uncommitted | Historical blocked claims remain labeled as history rather than silently erased |
-| M0-003 | primary | Architecture, risk, testing, privacy, recovery, user guide, and evidence records agree on the personal trust model | done | Current `docs/ARCHITECTURE.md`, `docs/THREAT_MODEL.md`, `docs/PRIVACY.md`, `docs/TEST_STRATEGY.md`, `docs/RECOVERY.md`, `docs/USER_GUIDE.md`; historical evidence banner | uncommitted | Planned app controls remain requirements until their milestone records implementation evidence |
-| M0-004 | primary | Incomplete P0-016 code is removed and the reviewed direct `server.py` Codex/MCP package passes 52 tests plus typecheck | done | Direct-registration red: 37/46 pass, 9 expected failures; green: 46/46 targeted and 52/52 full outside outer sandbox; `pnpm typecheck` exit 0; P0-016 reference scan empty | uncommitted | Older reviewed supervisor/process-group evidence retained; nested macOS sandbox probe requires execution outside the Codex workspace sandbox |
-| M0-005 | primary | Focused checks and one aggregate baseline pass; intended files are reviewed, committed, and pushed | review | Focused 11/11 script tests, 52/52 Codex/MCP tests, and typecheck pass; aggregate `scripts/verify-phase0.sh` passes 186/186 tests and three typechecks; staged diff/secret/media inspection pending | pending | Push must not include personal data, source audio, databases, credentials, caches, or broken code |
-| M0-006 | primary | Green hash and recovery/evidence records are committed; `main` and `origin/main` agree | not-started | `git rev-list --left-right --count origin/main...main`; clean status | pending | M1 does not begin until its separate plan is written and approved |
+| M0-001 | primary | Approved personal scope is authoritative and Git ignores personal DJ data without hiding generated fixtures | done | Master-prompt amendment; approved design; updated `AGENTS.md`; direct `git check-ignore --no-index` behavior | `1f1157054a59` | Personal inputs remain local and ignored |
+| M0-002 | primary | Product plan, current ledger, decisions, ADR-0002, known limitations, and changelog use the approved personal scope | done | `docs/PRODUCT_SPEC.md`; `docs/PHASE_PLAN.md`; D-040–D-042; accepted ADR-0002; KI-022/KI-045/KI-049 reclassified; KI-053 recorded and resolved | `1f1157054a59` | Historical blocked claims remain labeled as history rather than silently erased |
+| M0-003 | primary | Architecture, risk, testing, privacy, recovery, user guide, and evidence records agree on the personal trust model | done | Current `docs/ARCHITECTURE.md`, `docs/THREAT_MODEL.md`, `docs/PRIVACY.md`, `docs/TEST_STRATEGY.md`, `docs/RECOVERY.md`, `docs/USER_GUIDE.md`; historical evidence banner | `1f1157054a59` | Planned app controls remain requirements until their milestone records implementation evidence |
+| M0-004 | primary | Incomplete P0-016 code is removed and the reviewed direct `server.py` Codex/MCP package passes 52 tests plus typecheck | done | Direct-registration red: 37/46 pass, 9 expected failures; green: 46/46 targeted and 52/52 full outside outer sandbox; `pnpm typecheck` exit 0; P0-016 reference scan empty | `1f1157054a59` | Older reviewed supervisor/process-group evidence retained; nested macOS sandbox probe requires execution outside the Codex workspace sandbox |
+| M0-005 | primary | Focused checks and one aggregate baseline pass; intended files are reviewed, committed, and pushed | done | Focused 11/11 script tests, 52/52 Codex/MCP tests, and typecheck pass; aggregate `scripts/verify-phase0.sh` passes 186/186 tests and three typechecks; staged diff/secret/media inspection passed | `1f1157054a59`, pushed to `origin/main` | No personal data, source audio, database, credential, cache, or binary was included |
+| M0-006 | primary | Green hash and recovery/evidence records are committed; `main` and `origin/main` agree | done | Recovery/evidence name `1f1157054a59`; after the baseline push, `git rev-list --left-right --count origin/main...main` returned `0 0` and status was clean; final sync is rerun after this closure commit | `1f1157054a59`, pushed to `origin/main` | M1 does not begin until its separate plan is written and approved |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
@@ -63,7 +63,7 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 
 | ID | Milestone | Status | Evidence |
 | --- | --- | --- | --- |
-| M0 | Scope reset and green foundation | in-progress | This ledger and M0 implementation plan |
+| M0 | Scope reset and green foundation | done | Green checkpoint `1f1157054a59`; M0 evidence and recovery record |
 | M1 | App shell and real library slice | not-started | Separate plan after M0 |
 | M2 | Local analysis slice | not-started | Separate plan after M1 |
 | M3 | Discovery and recommendation slice | not-started | Separate plan after M2 |

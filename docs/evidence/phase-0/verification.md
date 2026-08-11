@@ -93,12 +93,12 @@ full 52/52 package/typecheck and this 186-test root rerun pass.
 | Deterministic root verification | Pass | 186/186 tests and all three typechecks passed |
 | Whole-phase independent QA/security audit | Pass | Final read-only audit reproduced 186/186 tests and all three typechecks, identified one Medium documentation contradiction, and verified its correction. No unrecorded High/Medium finding remains; documented Codex/MCP/sentinel/containment findings continue to block the product gate |
 
-## Checkpoint status
+## Historical checkpoint status — 2026-08-09
 
-No green Phase 0 checkpoint or commit is recorded. The deterministic gate is
-green, but the product gate is red under the authoritative stop rule. Phase 1
-must not begin until ADR-0002 is accepted through new evidence or a documented,
-verified architecture adjustment satisfies the remaining gates.
+At the end of the historical gate, no green Phase 0 checkpoint or commit was
+recorded. The deterministic gate was green, but the then-authoritative product
+gate was red. The personal-use amendment below superseded that stop rule without
+rewriting the missing evidence as a pass.
 
 ## M0 baseline revalidation — 2026-08-10
 
@@ -121,3 +121,10 @@ No authenticated Codex request, real MCP call, personal-library access, or raw
 audio upload occurred. This green baseline therefore does not prove the missing
 real MCP, sentinel, ambient-isolation, or escaped-process containment claims
 listed in the historical gate.
+
+Green M0 checkpoint: `1f1157054a59` (`chore: establish personal DJ Copilot
+baseline`), pushed to `origin/main` on 2026-08-10. The staged manifest contained
+only reviewed text/code, generated XML/JSON fixtures, and fixture placeholders;
+no source audio, database, credential, cache, or binary was committed. After the
+push, `main` and `origin/main` reported `0 0` divergence and the worktree was
+clean. M1 remains unstarted pending its separate approved implementation plan.

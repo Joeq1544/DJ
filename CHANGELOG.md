@@ -14,6 +14,7 @@ All notable project changes are recorded here. The project has not yet produced 
 - Adopted frequent green GitHub checkpoints after substantial self-contained slices and completed milestones.
 - Preserved all completed Phase 0 research and verification reports as historical evidence.
 - Revalidated the M0 foundation with 11/11 focused project-script tests, 52/52 Codex/MCP tests, a clean package typecheck, and the 186-test aggregate gate with all three TypeScript typechecks.
+- Completed M0 at green checkpoint `1f1157054a59`, pushed it to `origin/main`, and left M1 unstarted pending its separate implementation plan.
 
 ### Historical Phase 0 — superseded gate
 

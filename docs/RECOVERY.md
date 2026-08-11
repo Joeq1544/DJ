@@ -1,11 +1,13 @@
 # Recovery Guide
 
-Status: M0 documentation-only repository
+Status: M0 green baseline; M1 not started
 Last updated: 2026-08-10
 
 ## M0 green checkpoint
 
-Until M0 creates its first project checkpoint, `c85d4ac` is the pre-project tracked base on `main`; nearly all research/spike work remains untracked. Task 6 replaces this temporary reference with the pushed M0 green hash.
+The first pushed project baseline is `1f1157054a59` on `main` (`chore: establish personal DJ Copilot baseline`). It contains the approved personal scope, project memory, historical research, generated fixtures, and the restored deterministic spike baseline. Use this hash as the comparison point for M1 work.
+
+Inspect the checkpoint summary with `git show --stat 1f1157054a59`. Compare a later task-ledger change without touching the worktree with `git diff 1f1157054a59 -- TASKS.md`.
 
 Before recovery, run `git status --short --branch` and identify tracked, project-created, and unrelated user-owned changes. Never infer that an untracked file is disposable.
 
@@ -30,4 +32,4 @@ Before app migrations ship, document the Application Support location, pre-migra
 1. Read the approved personal MVP design and current `TASKS.md`.
 2. Run the focused commands in the M0 plan.
 3. Run `scripts/verify-phase0.sh` only for the recorded M0 aggregate baseline or after shared spike-contract changes.
-4. Compare exact outcomes with `docs/evidence/phase-0/verification.md`.
+4. Compare exact outcomes with `docs/evidence/phase-0/verification.md` and checkpoint `1f1157054a59`.
