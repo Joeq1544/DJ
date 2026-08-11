@@ -15,6 +15,7 @@ from .analysis.provider import AnalysisFeatures
 from .discovery import TrackEvidence, TrackFilters, filter_evidence
 from .models import AnalysisSummary, ImportSummary, PlaylistTreeNode, RekordboxImport, StoredTrack, TrackPage
 from .rekordbox_xml import RekordboxImportError, parse_rekordbox_xml
+from .set_workflow import DraftError, DraftState, draft_state_from_payload, draft_state_to_payload
 
 
 _ANALYSIS_STATUSES = frozenset(("queued", "running", "paused", "succeeded", "failed"))
@@ -26,6 +27,22 @@ class TrackEvidencePage:
     items: tuple[TrackEvidence, ...]
     next_cursor: str | None
     truncated: bool
+
+
+@dataclass(frozen=True)
+class SetDraftRecord:
+    id: str
+    current_revision: int
+    content_revision: int
+    redo_tip_revision: int | None
+    state: DraftState
+
+
+@dataclass(frozen=True)
+class SetDraftVersion:
+    version: int
+    revision: int
+    label: str
 
 
 class LibraryDatabase:
@@ -47,9 +64,15 @@ class LibraryDatabase:
 
     def import_path(self, source_path: Path) -> ImportSummary:
         with self._lock:
-            return self.import_library(parse_rekordbox_xml(source_path))
+            imported = parse_rekordbox_xml(source_path)
+            return self.import_library(imported, source_path=Path(source_path).resolve())
 
-    def import_library(self, imported: RekordboxImport) -> ImportSummary:
+    def import_library(
+        self,
+        imported: RekordboxImport,
+        *,
+        source_path: Path | None = None,
+    ) -> ImportSummary:
         """Atomically replace the projection while retaining known application IDs."""
         with self._lock:
             try:
@@ -87,10 +110,10 @@ class LibraryDatabase:
                 invalidated_track_ids: set[str] = set()
                 for track in imported.tracks:
                     track_id = track_ids.get(track.external_id, str(uuid.uuid4()))
-                    source_path = os.path.normpath(track.path)
+                    track_source_path = os.path.normpath(track.path)
                     existing = existing_tracks.get(track.external_id)
                     if existing is not None and (
-                        existing[1] != source_path or existing[2] != track.availability
+                        existing[1] != track_source_path or existing[2] != track.availability
                     ):
                         invalidated_track_ids.add(track_id)
                     self.connection.execute(
@@ -111,7 +134,7 @@ class LibraryDatabase:
                             track.musical_key,
                             track.duration_ms,
                             track.availability,
-                            source_path,
+                            track_source_path,
                         ),
                     )
                 for sequence, playlist in enumerate(imported.playlists):
@@ -144,11 +167,14 @@ class LibraryDatabase:
                 self.connection.execute("DELETE FROM track_features WHERE track_id NOT IN (SELECT id FROM tracks)")
                 self.connection.execute(
                     """
-                    INSERT INTO library_state (singleton, revision, source_sha256)
-                    VALUES (1, ?, ?)
-                    ON CONFLICT(singleton) DO UPDATE SET revision = excluded.revision, source_sha256 = excluded.source_sha256
+                    INSERT INTO library_state (singleton, revision, source_sha256, source_path)
+                    VALUES (1, ?, ?, ?)
+                    ON CONFLICT(singleton) DO UPDATE SET
+                        revision = excluded.revision,
+                        source_sha256 = excluded.source_sha256,
+                        source_path = excluded.source_path
                     """,
-                    (revision, imported.source_sha256),
+                    (revision, imported.source_sha256, str(source_path) if source_path is not None else None),
                 )
                 self.connection.commit()
             except Exception:
@@ -241,6 +267,26 @@ class LibraryDatabase:
         with self._lock:
             return self._track_evidence_catalog(playlist_id=playlist_id)
 
+    def playlist_evidence(
+        self,
+        playlist_id: str,
+        *,
+        limit: int = 100,
+    ) -> tuple[tuple[TrackEvidence, ...], int]:
+        """Return ordered playlist occurrences plus the exact source position count."""
+        if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= 100:
+            raise RekordboxImportError("invalid_limit", "The playlist evidence limit must be from 1 to 100.")
+        with self._lock:
+            evidence, _ = self._track_evidence_catalog(
+                playlist_id=playlist_id,
+                preserve_playlist_occurrences=True,
+            )
+            total = self.connection.execute(
+                "SELECT COUNT(*) AS count FROM playlist_tracks WHERE playlist_id = ?",
+                (playlist_id,),
+            ).fetchone()["count"]
+            return evidence[:limit], total
+
     def get_track_evidence(self, track_id: str) -> TrackEvidence | None:
         """Return one current track and its path-free evidence by stable app ID."""
         with self._lock:
@@ -257,6 +303,301 @@ class LibraryDatabase:
                 (track_id,),
             ).fetchone()
             return Path(row["source_path"]) if row is not None else None
+
+    def get_import_source_path(self) -> Path | None:
+        """Return the private selected XML source retained for export alias checks."""
+        with self._lock:
+            row = self.connection.execute(
+                "SELECT source_path FROM library_state WHERE singleton = 1"
+            ).fetchone()
+            if row is None or row["source_path"] is None:
+                return None
+            return Path(row["source_path"])
+
+    def get_export_track(self, track_id: str):
+        """Resolve one current private track record for the XML export boundary."""
+        from .rekordbox_export import RekordboxExportTrack
+
+        with self._lock:
+            row = self.connection.execute(
+                """
+                SELECT external_id, title, artist, album, genre, bpm_milli, musical_key,
+                       duration_ms, source_path, availability FROM tracks WHERE id = ?
+                """,
+                (track_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return RekordboxExportTrack(
+                row["external_id"], row["title"], row["artist"], row["album"], row["genre"],
+                row["bpm_milli"], row["musical_key"], row["duration_ms"], row["source_path"], row["availability"],
+            )
+
+    def create_set_draft(self, state: DraftState) -> SetDraftRecord:
+        """Persist the initial validated immutable draft snapshot at revision one."""
+        snapshot_json = _encode_draft_snapshot(state)
+        draft_id = str(uuid.uuid4())
+        timestamp = self._timestamp()
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                self.connection.execute(
+                    """
+                    INSERT INTO set_drafts (
+                        id, current_revision, redo_tip_revision, next_revision, next_version, created_at, updated_at
+                    ) VALUES (?, 1, NULL, 2, 1, ?, ?)
+                    """,
+                    (draft_id, timestamp, timestamp),
+                )
+                self.connection.execute(
+                    """
+                    INSERT INTO set_draft_revisions (draft_id, revision, parent_revision, operation, snapshot_json, created_at)
+                    VALUES (?, 1, NULL, 'create', ?, ?)
+                    """,
+                    (draft_id, snapshot_json, timestamp),
+                )
+                self.connection.commit()
+            except Exception:
+                self.connection.rollback()
+                raise
+            return SetDraftRecord(draft_id, 1, 1, None, state)
+
+    def get_set_draft(self, draft_id: str, *, revision: int | None = None) -> SetDraftRecord:
+        with self._lock:
+            draft = self._set_draft_row(draft_id)
+            content_revision = draft["current_revision"] if revision is None else revision
+            if not _valid_set_revision(content_revision):
+                raise RekordboxImportError("not_found", "The requested set draft revision was not found.")
+            revision_row = self.connection.execute(
+                "SELECT snapshot_json FROM set_draft_revisions WHERE draft_id = ? AND revision = ?",
+                (draft_id, content_revision),
+            ).fetchone()
+            if revision_row is None:
+                raise RekordboxImportError("not_found", "The requested set draft revision was not found.")
+            return SetDraftRecord(
+                id=draft_id,
+                current_revision=draft["current_revision"],
+                content_revision=content_revision,
+                redo_tip_revision=draft["redo_tip_revision"],
+                state=_decode_draft_snapshot(revision_row["snapshot_json"]),
+            )
+
+    def list_set_drafts(self) -> tuple[SetDraftRecord, ...]:
+        with self._lock:
+            rows = self.connection.execute(
+                "SELECT id, current_revision, redo_tip_revision FROM set_drafts ORDER BY updated_at DESC, id"
+            )
+            results = []
+            for row in rows:
+                revision_row = self.connection.execute(
+                    "SELECT snapshot_json FROM set_draft_revisions WHERE draft_id = ? AND revision = ?",
+                    (row["id"], row["current_revision"]),
+                ).fetchone()
+                if revision_row is None:
+                    raise RuntimeError("set draft head is missing")
+                results.append(
+                    SetDraftRecord(
+                        row["id"], row["current_revision"], row["current_revision"], row["redo_tip_revision"],
+                        _decode_draft_snapshot(revision_row["snapshot_json"]),
+                    )
+                )
+            return tuple(results)
+
+    def append_set_draft_revision(
+        self,
+        draft_id: str,
+        expected_revision: int,
+        state: DraftState,
+        operation: str,
+    ) -> SetDraftRecord | None:
+        """Append one child revision, or return ``None`` for an optimistic conflict."""
+        snapshot_json = _encode_draft_snapshot(state)
+        if not isinstance(operation, str) or not operation or len(operation) > 64:
+            raise ValueError("invalid set draft operation")
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                draft = self._set_draft_row(draft_id)
+                if draft["current_revision"] != expected_revision:
+                    self.connection.commit()
+                    return None
+                current_snapshot = self.connection.execute(
+                    "SELECT snapshot_json FROM set_draft_revisions WHERE draft_id = ? AND revision = ?",
+                    (draft_id, expected_revision),
+                ).fetchone()
+                if current_snapshot is None:
+                    raise RuntimeError("set draft head is missing")
+                if current_snapshot["snapshot_json"] == snapshot_json:
+                    self.connection.commit()
+                    return SetDraftRecord(draft_id, expected_revision, expected_revision, draft["redo_tip_revision"], state)
+                revision = draft["next_revision"]
+                timestamp = self._timestamp()
+                self.connection.execute(
+                    """
+                    INSERT INTO set_draft_revisions (draft_id, revision, parent_revision, operation, snapshot_json, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (draft_id, revision, expected_revision, operation, snapshot_json, timestamp),
+                )
+                self.connection.execute(
+                    """
+                    UPDATE set_drafts
+                    SET current_revision = ?, redo_tip_revision = NULL, next_revision = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (revision, revision + 1, timestamp, draft_id),
+                )
+                self.connection.commit()
+                return SetDraftRecord(draft_id, revision, revision, None, state)
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def undo_set_draft(self, draft_id: str, expected_revision: int) -> SetDraftRecord | None:
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                draft = self._set_draft_row(draft_id)
+                if draft["current_revision"] != expected_revision:
+                    self.connection.commit()
+                    return None
+                current = self.connection.execute(
+                    "SELECT parent_revision, snapshot_json FROM set_draft_revisions WHERE draft_id = ? AND revision = ?",
+                    (draft_id, expected_revision),
+                ).fetchone()
+                if current is None:
+                    raise RuntimeError("set draft head is missing")
+                if current["parent_revision"] is None:
+                    self.connection.commit()
+                    return SetDraftRecord(draft_id, expected_revision, expected_revision, draft["redo_tip_revision"], _decode_draft_snapshot(current["snapshot_json"]))
+                parent_revision = current["parent_revision"]
+                parent = self.connection.execute(
+                    "SELECT snapshot_json FROM set_draft_revisions WHERE draft_id = ? AND revision = ?",
+                    (draft_id, parent_revision),
+                ).fetchone()
+                timestamp = self._timestamp()
+                self.connection.execute(
+                    "UPDATE set_drafts SET current_revision = ?, redo_tip_revision = ?, updated_at = ? WHERE id = ?",
+                    (parent_revision, draft["redo_tip_revision"] or expected_revision, timestamp, draft_id),
+                )
+                self.connection.commit()
+                return SetDraftRecord(draft_id, parent_revision, parent_revision, draft["redo_tip_revision"] or expected_revision, _decode_draft_snapshot(parent["snapshot_json"]))
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def redo_set_draft(self, draft_id: str, expected_revision: int) -> SetDraftRecord | None:
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                draft = self._set_draft_row(draft_id)
+                if draft["current_revision"] != expected_revision:
+                    self.connection.commit()
+                    return None
+                tip = draft["redo_tip_revision"]
+                if tip is None:
+                    self.connection.commit()
+                    return None
+                path = self.connection.execute(
+                    "SELECT revision, parent_revision, snapshot_json FROM set_draft_revisions WHERE draft_id = ? AND revision <= ? ORDER BY revision",
+                    (draft_id, tip),
+                ).fetchall()
+                by_revision = {row["revision"]: row for row in path}
+                cursor = tip
+                child = None
+                while cursor in by_revision and by_revision[cursor]["parent_revision"] is not None:
+                    parent = by_revision[cursor]["parent_revision"]
+                    if parent == expected_revision:
+                        child = by_revision[cursor]
+                        break
+                    cursor = parent
+                if child is None:
+                    self.connection.commit()
+                    return None
+                next_tip = None if child["revision"] == tip else tip
+                timestamp = self._timestamp()
+                self.connection.execute(
+                    "UPDATE set_drafts SET current_revision = ?, redo_tip_revision = ?, updated_at = ? WHERE id = ?",
+                    (child["revision"], next_tip, timestamp, draft_id),
+                )
+                self.connection.commit()
+                return SetDraftRecord(draft_id, child["revision"], child["revision"], next_tip, _decode_draft_snapshot(child["snapshot_json"]))
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def save_set_draft_version(self, draft_id: str, expected_revision: int, label: str) -> SetDraftVersion | None:
+        if not isinstance(label, str) or not 1 <= len(label) <= 100:
+            raise ValueError("invalid set draft version label")
+        with self._lock:
+            try:
+                self.connection.execute("BEGIN IMMEDIATE")
+                draft = self._set_draft_row(draft_id)
+                if draft["current_revision"] != expected_revision:
+                    self.connection.commit()
+                    return None
+                version = draft["next_version"]
+                if version > 100:
+                    raise DraftError(
+                        "version_limit",
+                        "A set draft can have at most 100 saved versions.",
+                    )
+                timestamp = self._timestamp()
+                self.connection.execute(
+                    "INSERT INTO set_draft_versions (draft_id, version, revision, label, created_at) VALUES (?, ?, ?, ?, ?)",
+                    (draft_id, version, expected_revision, label, timestamp),
+                )
+                self.connection.execute(
+                    "UPDATE set_drafts SET next_version = ?, updated_at = ? WHERE id = ?",
+                    (version + 1, timestamp, draft_id),
+                )
+                self.connection.commit()
+                return SetDraftVersion(version, expected_revision, label)
+            except Exception:
+                self.connection.rollback()
+                raise
+
+    def list_set_draft_versions(self, draft_id: str) -> tuple[SetDraftVersion, ...]:
+        with self._lock:
+            self._set_draft_row(draft_id)
+            return tuple(
+                SetDraftVersion(row["version"], row["revision"], row["label"])
+                for row in self.connection.execute(
+                    "SELECT version, revision, label FROM set_draft_versions WHERE draft_id = ? ORDER BY version",
+                    (draft_id,),
+                )
+            )
+
+    def set_draft_history_capabilities(self, draft_id: str) -> tuple[bool, bool]:
+        with self._lock:
+            draft = self._set_draft_row(draft_id)
+            parent = self.connection.execute(
+                "SELECT parent_revision FROM set_draft_revisions WHERE draft_id = ? AND revision = ?",
+                (draft_id, draft["current_revision"]),
+            ).fetchone()
+            return (parent is not None and parent["parent_revision"] is not None, draft["redo_tip_revision"] is not None)
+
+    def restore_set_draft_version(self, draft_id: str, expected_revision: int, version: int) -> SetDraftRecord | None:
+        with self._lock:
+            version_row = self.connection.execute(
+                "SELECT revision FROM set_draft_versions WHERE draft_id = ? AND version = ?",
+                (draft_id, version),
+            ).fetchone()
+            if version_row is None:
+                raise RekordboxImportError("not_found", "The requested set draft version was not found.")
+            source = self.get_set_draft(draft_id, revision=version_row["revision"])
+            return self.append_set_draft_revision(draft_id, expected_revision, source.state, "restore_version")
+
+    def _set_draft_row(self, draft_id: str) -> sqlite3.Row:
+        if not isinstance(draft_id, str) or not 1 <= len(draft_id) <= 128:
+            raise RekordboxImportError("not_found", "The requested set draft was not found.")
+        row = self.connection.execute(
+            "SELECT id, current_revision, redo_tip_revision, next_revision, next_version FROM set_drafts WHERE id = ?",
+            (draft_id,),
+        ).fetchone()
+        if row is None:
+            raise RekordboxImportError("not_found", "The requested set draft was not found.")
+        return row
 
     def put_analysis_job(
         self,
@@ -839,13 +1180,15 @@ class LibraryDatabase:
     def _create_schema(self) -> None:
         with self._lock:
             version = self.connection.execute("PRAGMA user_version").fetchone()[0]
-            if version > 2:
-                raise RuntimeError(f"database schema version {version} is newer than supported version 2")
+            if version > 3:
+                raise RuntimeError(f"database schema version {version} is newer than supported version 3")
             track_columns = {
                 row["name"] for row in self.connection.execute("PRAGMA table_info(tracks)")
             }
             if version == 0 and track_columns and "source_path" not in track_columns:
                 self.migration_backup_path = self._backup_before_m2()
+            elif version == 2:
+                self.migration_backup_path = self._backup_before_m4()
             try:
                 self.connection.execute("BEGIN IMMEDIATE")
                 self.connection.execute(
@@ -853,10 +1196,16 @@ class LibraryDatabase:
                     CREATE TABLE IF NOT EXISTS library_state (
                         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                         revision INTEGER NOT NULL,
-                        source_sha256 TEXT NOT NULL
+                        source_sha256 TEXT NOT NULL,
+                        source_path TEXT
                     )
                     """
                 )
+                current_state_columns = {
+                    row["name"] for row in self.connection.execute("PRAGMA table_info(library_state)")
+                }
+                if "source_path" not in current_state_columns:
+                    self.connection.execute("ALTER TABLE library_state ADD COLUMN source_path TEXT")
                 self.connection.execute(
                     """
                     CREATE TABLE IF NOT EXISTS tracks (
@@ -943,12 +1292,54 @@ class LibraryDatabase:
                     """
                 )
                 self.connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS set_drafts (
+                        id TEXT PRIMARY KEY,
+                        current_revision INTEGER NOT NULL,
+                        redo_tip_revision INTEGER,
+                        next_revision INTEGER NOT NULL,
+                        next_version INTEGER NOT NULL,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT NOT NULL
+                    )
+                    """
+                )
+                self.connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS set_draft_revisions (
+                        draft_id TEXT NOT NULL REFERENCES set_drafts(id) ON DELETE CASCADE,
+                        revision INTEGER NOT NULL,
+                        parent_revision INTEGER,
+                        operation TEXT NOT NULL,
+                        snapshot_json TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        PRIMARY KEY(draft_id, revision),
+                        FOREIGN KEY(draft_id, parent_revision)
+                            REFERENCES set_draft_revisions(draft_id, revision)
+                    )
+                    """
+                )
+                self.connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS set_draft_versions (
+                        draft_id TEXT NOT NULL,
+                        version INTEGER NOT NULL,
+                        revision INTEGER NOT NULL,
+                        label TEXT NOT NULL,
+                        created_at TEXT NOT NULL,
+                        PRIMARY KEY(draft_id, version),
+                        FOREIGN KEY(draft_id, revision)
+                            REFERENCES set_draft_revisions(draft_id, revision)
+                    )
+                    """
+                )
+                self.connection.execute(
                     "INSERT OR IGNORE INTO analysis_control (singleton, paused) VALUES (1, 0)"
                 )
                 self.connection.execute(
                     "UPDATE analysis_jobs SET status = 'queued' WHERE status = 'running'"
                 )
-                self.connection.execute("PRAGMA user_version = 2")
+                self.connection.execute("PRAGMA user_version = 3")
                 self.connection.commit()
             except Exception:
                 self.connection.rollback()
@@ -959,6 +1350,21 @@ class LibraryDatabase:
         while True:
             numbered = "" if suffix == 1 else f"-{suffix}"
             candidate = self.path.with_name(f"{self.path.stem}.pre-m2{numbered}.sqlite3")
+            if not candidate.exists():
+                break
+            suffix += 1
+        destination = sqlite3.connect(candidate)
+        try:
+            self.connection.backup(destination)
+        finally:
+            destination.close()
+        return candidate
+
+    def _backup_before_m4(self) -> Path:
+        suffix = 1
+        while True:
+            numbered = "" if suffix == 1 else f"-{suffix}"
+            candidate = self.path.with_name(f"{self.path.stem}.pre-m4{numbered}.sqlite3")
             if not candidate.exists():
                 break
             suffix += 1
@@ -990,6 +1396,30 @@ def _clamp_progress(value: int) -> int:
 
 def _placeholders(count: int) -> str:
     return ",".join("?" for _ in range(count))
+
+
+def _valid_set_revision(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 2_147_483_647
+
+
+def _encode_draft_snapshot(state: DraftState) -> str:
+    try:
+        payload = draft_state_to_payload(state)
+        encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+        # Validate the exact bytes that will be persisted before a transaction begins.
+        draft_state_from_payload(json.loads(encoded))
+        return encoded
+    except DraftError:
+        raise
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        raise DraftError("invalid_snapshot", "The draft snapshot is invalid.") from error
+
+
+def _decode_draft_snapshot(encoded: str) -> DraftState:
+    try:
+        return draft_state_from_payload(json.loads(encoded))
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        raise DraftError("invalid_snapshot", "The stored draft snapshot is invalid.") from error
 
 
 def _encode_analysis_features(features_value: AnalysisFeatures) -> str:

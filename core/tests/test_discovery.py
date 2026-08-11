@@ -17,6 +17,7 @@ from dj_copilot.discovery import (
     filter_evidence,
     find_similar_tracks,
     recommend_next_tracks,
+    score_transition,
 )
 from dj_copilot.models import AnalysisSummary, StoredTrack
 
@@ -461,6 +462,26 @@ class RecommendationTests(unittest.TestCase):
                     limitation = _component(candidate, component_name)
                     self.assertEqual(limitation.effect, "missing")
                     self.assertIn(limitation.reason, candidate.reasons)
+
+    def test_public_pair_scorer_reuses_the_exact_transition_v1_candidate(self):
+        expected = next(
+            item
+            for item in recommend_next_tracks(
+                self.catalog,
+                SEED_ID,
+                "build",
+                limit=20,
+            ).items
+            if item.track.id == self.roles["build"].track.id
+        )
+
+        actual = score_transition(
+            self.roles["seed"],
+            self.roles["build"],
+            "build",
+        )
+
+        self.assertEqual(actual, expected)
 
     def test_round_half_up_and_signed_half_away_from_zero_are_exact(self):
         reset_tie = _with_features(self.roles["reset"], energy_ppm=299_999)

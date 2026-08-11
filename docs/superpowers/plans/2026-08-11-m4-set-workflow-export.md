@@ -90,7 +90,7 @@ DraftState {
 }
 
 DraftEntry {
-  id: server-generated UUID
+  id: server-generated UUID identifying the current slot
   trackId: stable app track ID
   trackPinned: boolean
   positionPinned: boolean
@@ -99,7 +99,7 @@ DraftEntry {
 }
 ```
 
-Entry IDs are unique. Track IDs may repeat so imported playlist intent/order is not lost. A banned track cannot appear in current entries; banning one occurrence removes every current occurrence of that track. Newly supplied track IDs must exist in the current library. Historical snapshots retain stale IDs across reimport; reads resolve each to a current track or `resolution: "missing"`, and analysis/optimization/export report or reject unresolved state instead of fabricating metadata.
+Entry IDs are unique. Each entry is a slot record: `role`, `targetEnergyPpm`, `positionPinned`, and the slot ID stay at the same numeric slot during reorder/optimization, while the track assignment and its `trackPinned` flag move together. This makes slot-energy goals affect ordering instead of becoming an invariant property of a moving track. Insert creates a new null-goal slot and remove deletes a slot; either may shift unpinned later slots. Track IDs may repeat so imported playlist intent/order is not lost. A banned track cannot appear in current entries; banning one occurrence removes every current occurrence of that track. Newly supplied track IDs must exist in the current library. Historical snapshots retain stale IDs across reimport; reads resolve each to a current track or `resolution: "missing"`, and analysis/optimization/export report or reject unresolved state instead of fabricating metadata.
 
 Migration behavior:
 
@@ -145,7 +145,7 @@ save_version        label 1..100
 restore_version     version integer
 ```
 
-Every mutation requires `expectedRevision`; a mismatch returns `conflict` without writing. A no-op returns the existing snapshot. A track pin preserves inclusion, so its entry cannot be removed, banned, or replaced but may be manually reordered. A position pin also preserves the entry's exact numeric slot: it blocks moving that entry and any insert, move, remove, ban, or replacement that would shift or change that slot. Setting a position pin also sets the track pin; clearing it leaves the track pin unchanged. Optimization may move track-pinned entries but never moves or shifts a position-pinned entry. These two direct booleans implement the approved track-versus-position behavior without a segment model.
+Every mutation requires `expectedRevision`; a mismatch returns `conflict` without writing. A no-op returns the existing snapshot. A track pin travels with its track assignment and preserves inclusion, so that track occurrence cannot be removed, banned, or replaced but may be manually reordered. A position pin preserves the exact slot and its current assigned track: it blocks any insert, move, remove, ban, or replacement that would change or shift that slot. Setting a position pin also sets the current assignment's track pin; clearing it leaves the track pin unchanged. Optimization may move track-pinned assignments but never changes or shifts a position-pinned slot. Manual reorder and optimization move track assignments between slot records, leaving each numeric slot's role/energy goal in place. These two direct booleans implement the approved track-versus-position behavior without a segment model.
 
 Every state-changing edit appends a complete validated snapshot whose parent is the current revision. Undo moves to the parent and records the prior head as `redo_tip_revision`; redo walks one step from the current revision toward that tip. A new edit after undo clears redo but does not delete history. Saving adds an immutable numbered pointer without changing revision/undo state. Restoring a saved version appends a new current child, so restore itself is undoable. Viewing a historical version is read-only.
 
@@ -163,7 +163,7 @@ Replacement alternatives:
 - rank by the rounded mean of available affected-edge/energy scores, mean confidence, normalized title, artist, then app ID;
 - return at most ten candidates, scan truncation, and unchanged edge component evidence.
 
-`set-order-v1` is four deterministic left-to-right adjacent-swap passes. It never adds/removes/replaces entries or changes bans/goals. Skip a swap when either entry is position-pinned; a track pin preserves inclusion but does not freeze order. The objective is the rounded mean of all adjacent transition scores plus every available slot-energy closeness term; confidence is the second comparison key. Accept only a strict lexicographic score/confidence improvement, making the result non-worsening and idempotent at a local optimum. Return before/after objectives and edge evidence. This is intentionally a bounded local optimizer, not a global solver.
+`set-order-v1` is four deterministic left-to-right adjacent-swap passes. It never adds/removes/replaces track assignments or changes bans/goals. Skip a swap when either slot is position-pinned; a track pin preserves inclusion but does not freeze order. Swap the track ID and track-pin flag only, leaving slot IDs, roles, target energies, and position pins fixed. The objective is the rounded mean of all adjacent transition scores plus every available slot-energy closeness term; confidence is the second comparison key. Accept only a strict lexicographic score/confidence improvement, making the result non-worsening and idempotent at a local optimum. Return before/after objectives and edge evidence. This is intentionally a bounded local optimizer, not a global solver.
 
 `sets.inspect` accepts either `{ kind: "draft", draftId, revision? }` or `{ kind: "playlist", playlistId }`, inspects the first 100 ordered positions, and returns `sourcePositionCount`, `inspectedPositionCount`, and `inputTruncated` before the following bounded details:
 

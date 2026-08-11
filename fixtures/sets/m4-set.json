@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "description": "Generated, non-copyrighted M4 set workflow fixture using the M3 library evidence.",
+  "snapshot": {
+    "title": "Generated M4 Practice Set",
+    "plan": {
+      "intent": "smooth",
+      "targetDurationMs": 1200000,
+      "maxArtistRepeats": 3,
+      "candidateFilters": {
+        "text": null,
+        "playlistId": null,
+        "bpmMinMilli": null,
+        "bpmMaxMilli": null,
+        "musicalKey": null,
+        "keyRelation": null,
+        "genre": null,
+        "energyMinPpm": null,
+        "energyMaxPpm": null,
+        "analysisState": "any",
+        "availability": "any"
+      }
+    },
+    "entries": [
+      {
+        "id": "20000000-0000-4000-8000-000000000001",
+        "trackId": "00000000-0000-4000-8000-000000000001",
+        "trackPinned": true,
+        "positionPinned": false,
+        "role": "warmup",
+        "targetEnergyPpm": 450000
+      },
+      {
+        "id": "20000000-0000-4000-8000-000000000002",
+        "trackId": "00000000-0000-4000-8000-000000000007",
+        "trackPinned": true,
+        "positionPinned": true,
+        "role": "peak",
+        "targetEnergyPpm": 850000
+      },
+      {
+        "id": "20000000-0000-4000-8000-000000000003",
+        "trackId": "00000000-0000-4000-8000-000000000002",
+        "trackPinned": false,
+        "positionPinned": false,
+        "role": "groove",
+        "targetEnergyPpm": null
+      },
+      {
+        "id": "20000000-0000-4000-8000-000000000004",
+        "trackId": "00000000-0000-4000-8000-000000000002",
+        "trackPinned": false,
+        "positionPinned": false,
+        "role": null,
+        "targetEnergyPpm": null
+      }
+    ],
+    "bans": [
+      "00000000-0000-4000-8000-000000000006"
+    ]
+  },
+  "generation": {
+    "seed_track_id": "00000000-0000-4000-8000-000000000001",
+    "max_tracks": 5,
+    "artist_cap": 1,
+    "expected_first_track_id": "00000000-0000-4000-8000-000000000001",
+    "expected_distinct_known_artist_count": 2
+  }
+}

@@ -293,6 +293,24 @@ def recommend_next_tracks(
     )
 
 
+def score_transition(
+    from_evidence: TrackEvidence,
+    to_evidence: TrackEvidence,
+    intent: DiscoveryIntent,
+) -> DiscoveryCandidate:
+    """Score one ordered pair with the exact transition-v1 component rules."""
+    _validate_catalog((from_evidence,))
+    _validate_catalog((to_evidence,))
+    if not isinstance(intent, str) or intent not in _INTENTS:
+        _invalid("The discovery intent is invalid.")
+    return _score_candidate(
+        from_evidence,
+        to_evidence,
+        _TRANSITION_WEIGHTS[intent],
+        intent,
+    )
+
+
 def _validate_discovery_request(
     catalog: tuple[TrackEvidence, ...],
     seed_track_id: str,
@@ -796,4 +814,5 @@ __all__ = (
     "filter_evidence",
     "find_similar_tracks",
     "recommend_next_tracks",
+    "score_transition",
 )

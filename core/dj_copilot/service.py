@@ -33,6 +33,11 @@ from .models import (
     TrackPage,
 )
 from .rekordbox_xml import RekordboxImportError
+from .rekordbox_export import RekordboxExportError, RekordboxExportSnapshot, RekordboxExportTrack, preview_rekordbox_export, write_rekordbox_export
+from .set_workflow import (
+    DraftError, DraftPlan, DraftState, apply_draft_mutation, create_draft,
+    find_replacements, generate_draft, inspect_set,
+)
 
 
 MAX_LINE_BYTES = 1_048_576
@@ -127,6 +132,8 @@ def _handle_connection(
         return _error_response(request_id, error.code, error.message)
     except RekordboxImportError as error:
         return _error_response(request_id, error.code, error.message)
+    except DraftError as error:
+        return _error_response(request_id, error.code, error.message)
     except Exception:
         return _error_response(request_id, "internal_error", "The core service could not process the request.")
 
@@ -174,13 +181,21 @@ def _validate_request(raw_request: Any) -> tuple[str, str, dict[str, Any]]:
         "resume_analysis",
         "find_similar_tracks",
         "recommend_next_tracks",
+        "list_set_drafts",
+        "create_set_draft",
+        "get_set_draft",
+        "mutate_set_draft",
+        "find_set_replacements",
+        "analyze_set",
+        "preview_set_export",
+        "export_set_draft",
     }
     if command not in allowed_commands:
         raise RequestError("unknown_command", "The requested core command is not supported.")
     expected_top_level = {"version", "id", "command", "payload"}
     if set(raw_request) != expected_top_level:
         raise RequestError("invalid_request", "The request contains unsupported fields.")
-    if command in {"health", "get_playlist_tree", "pause_analysis", "resume_analysis"}:
+    if command in {"health", "get_playlist_tree", "pause_analysis", "resume_analysis", "list_set_drafts"}:
         if payload:
             raise RequestError("invalid_request", "This command does not accept a payload.")
     elif command == "import_library":
@@ -197,6 +212,18 @@ def _validate_request(raw_request: Any) -> tuple[str, str, dict[str, Any]]:
         _validate_analysis_track_ids_payload(payload, optional=False)
     elif command == "get_analysis_status":
         _validate_analysis_track_ids_payload(payload, optional=True)
+    elif command == "create_set_draft":
+        _validate_set_create_payload(payload)
+    elif command == "get_set_draft":
+        _validate_set_get_payload(payload)
+    elif command == "mutate_set_draft":
+        _validate_set_mutation_payload(payload)
+    elif command == "find_set_replacements":
+        _validate_set_replacements_payload(payload)
+    elif command == "analyze_set":
+        _validate_set_inspect_payload(payload)
+    elif command in {"preview_set_export", "export_set_draft"}:
+        _validate_set_export_payload(payload)
     return request_id, command, payload
 
 
@@ -309,6 +336,31 @@ def _filters_from_wire(payload: dict[str, Any]) -> TrackFilters:
     )
 
 
+def _draft_plan_from_wire(payload: dict[str, Any]) -> DraftPlan:
+    return DraftPlan(
+        intent=payload["intent"],
+        target_duration_ms=payload["targetDurationMs"],
+        max_artist_repeats=payload["maxArtistRepeats"],
+        candidate_filters=_filters_from_wire(payload["candidateFilters"]),
+    )
+
+
+def _mutation_from_wire(mutation: dict[str, Any]) -> dict[str, Any]:
+    key_map = {
+        "trackId": "track_id", "toIndex": "to_index", "entryId": "entry_id",
+        "replacementTrackId": "replacement_track_id", "targetEnergyPpm": "target_energy_ppm",
+    }
+    result = {key_map.get(key, key): value for key, value in mutation.items()}
+    if result["type"] == "set_plan":
+        plan = result["plan"]
+        result["plan"] = {
+            "intent": plan["intent"], "target_duration_ms": plan["targetDurationMs"],
+            "max_artist_repeats": plan["maxArtistRepeats"],
+            "candidate_filters": _filters_from_wire(plan["candidateFilters"]),
+        }
+    return result
+
+
 def _validate_analysis_track_ids_payload(payload: dict[str, Any], *, optional: bool) -> None:
     if optional and not payload:
         return
@@ -321,6 +373,134 @@ def _validate_analysis_track_ids_payload(payload: dict[str, Any], *, optional: b
         raise RequestError("invalid_request", "Analysis trackIds must be non-empty strings.")
     if len(set(track_ids)) != len(track_ids):
         raise RequestError("invalid_request", "Analysis trackIds must be unique.")
+
+
+def _valid_id(value: object) -> bool:
+    return isinstance(value, str) and 1 <= len(value) <= 128
+
+
+def _valid_revision(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 2_147_483_647
+
+
+def _validate_set_plan(payload: object) -> None:
+    if not isinstance(payload, dict) or set(payload) != {"intent", "targetDurationMs", "maxArtistRepeats", "candidateFilters"}:
+        raise RequestError("invalid_request", "The set draft plan is invalid.")
+    if payload["intent"] not in _DISCOVERY_INTENTS:
+        raise RequestError("invalid_request", "The set draft plan intent is invalid.")
+    target = payload["targetDurationMs"]
+    if target is not None and (not isinstance(target, int) or isinstance(target, bool) or not 900_000 <= target <= 28_800_000):
+        raise RequestError("invalid_request", "The set draft target duration is invalid.")
+    repeats = payload["maxArtistRepeats"]
+    if repeats is not None and (not isinstance(repeats, int) or isinstance(repeats, bool) or not 1 <= repeats <= 20):
+        raise RequestError("invalid_request", "The set draft artist repeat limit is invalid.")
+    filters = payload["candidateFilters"]
+    if not isinstance(filters, dict) or set(filters) - _FILTER_FIELDS:
+        raise RequestError("invalid_request", "The set draft candidate filters are invalid.")
+    _validate_filters_payload(filters)
+
+
+def _validate_set_create_payload(payload: dict[str, Any]) -> None:
+    if set(payload) != {"title", "plan", "source"} or not isinstance(payload.get("title"), str) or not 1 <= len(payload["title"]) <= 200:
+        raise RequestError("invalid_request", "The set draft create request is invalid.")
+    _validate_set_plan(payload["plan"])
+    source = payload["source"]
+    if not isinstance(source, dict) or not isinstance(source.get("kind"), str):
+        raise RequestError("invalid_request", "The set draft source is invalid.")
+    kind = source["kind"]
+    if kind == "empty" and set(source) == {"kind"}:
+        return
+    if kind == "tracks" and set(source) == {"kind", "trackIds"}:
+        track_ids = source["trackIds"]
+        if isinstance(track_ids, list) and 1 <= len(track_ids) <= 100 and all(_valid_id(track_id) for track_id in track_ids) and len(set(track_ids)) == len(track_ids):
+            return
+    if kind == "playlist" and set(source) == {"kind", "playlistId"} and _valid_id(source["playlistId"]):
+        return
+    if kind == "generated" and set(source) in ({"kind", "maxTracks"}, {"kind", "maxTracks", "seedTrackId"}):
+        if (
+            isinstance(source["maxTracks"], int)
+            and not isinstance(source["maxTracks"], bool)
+            and 1 <= source["maxTracks"] <= 50
+            and ("seedTrackId" not in source or _valid_id(source["seedTrackId"]))
+        ):
+            return
+    raise RequestError("invalid_request", "The set draft source is invalid.")
+
+
+def _validate_set_get_payload(payload: dict[str, Any]) -> None:
+    if set(payload) not in ({"draftId"}, {"draftId", "revision"}) or not _valid_id(payload.get("draftId")):
+        raise RequestError("invalid_request", "The set draft request is invalid.")
+    if "revision" in payload and not _valid_revision(payload["revision"]):
+        raise RequestError("invalid_request", "The set draft revision is invalid.")
+
+
+def _validate_set_mutation_payload(payload: dict[str, Any]) -> None:
+    if set(payload) != {"draftId", "expectedRevision", "mutation"} or not _valid_id(payload.get("draftId")) or not _valid_revision(payload.get("expectedRevision")):
+        raise RequestError("invalid_request", "The set draft mutation request is invalid.")
+    mutation = payload["mutation"]
+    if not isinstance(mutation, dict) or not isinstance(mutation.get("type"), str):
+        raise RequestError("invalid_request", "The set draft mutation is invalid.")
+    mutation_type = mutation["type"]
+    exact: dict[str, set[str]] = {
+        "rename": {"type", "title"}, "set_plan": {"type", "plan"}, "insert_track": {"type", "trackId", "toIndex"},
+        "move_entry": {"type", "entryId", "toIndex"}, "set_track_pin": {"type", "entryId", "pinned"},
+        "set_position_pin": {"type", "entryId", "pinned"}, "remove_entry": {"type", "entryId"},
+        "ban_entry": {"type", "entryId"}, "unban_track": {"type", "trackId"},
+        "replace_entry": {"type", "entryId", "replacementTrackId"}, "set_entry_goal": {"type", "entryId", "role", "targetEnergyPpm"},
+        "optimize": {"type"}, "undo": {"type"}, "redo": {"type"}, "save_version": {"type", "label"}, "restore_version": {"type", "version"},
+    }
+    if mutation_type not in exact or set(mutation) != exact[mutation_type]:
+        raise RequestError("invalid_request", "The set draft mutation is invalid.")
+    if mutation_type == "rename" and (not isinstance(mutation["title"], str) or not 1 <= len(mutation["title"]) <= 200):
+        raise RequestError("invalid_request", "The set draft title is invalid.")
+    if mutation_type == "set_plan":
+        _validate_set_plan(mutation["plan"])
+    if mutation_type in {"insert_track", "unban_track"} and not _valid_id(mutation.get("trackId")):
+        raise RequestError("invalid_request", "The set draft track ID is invalid.")
+    if mutation_type in {"move_entry", "set_track_pin", "set_position_pin", "remove_entry", "ban_entry", "replace_entry", "set_entry_goal"} and not _valid_id(mutation.get("entryId")):
+        raise RequestError("invalid_request", "The set draft entry ID is invalid.")
+    if mutation_type == "insert_track" and (not isinstance(mutation["toIndex"], int) or isinstance(mutation["toIndex"], bool) or not 0 <= mutation["toIndex"] <= 100):
+        raise RequestError("invalid_request", "The set draft index is invalid.")
+    if mutation_type == "move_entry" and (not isinstance(mutation["toIndex"], int) or isinstance(mutation["toIndex"], bool) or not 0 <= mutation["toIndex"] <= 99):
+        raise RequestError("invalid_request", "The set draft index is invalid.")
+    if mutation_type in {"set_track_pin", "set_position_pin"} and not isinstance(mutation["pinned"], bool):
+        raise RequestError("invalid_request", "The set draft pin is invalid.")
+    if mutation_type == "replace_entry" and not _valid_id(mutation["replacementTrackId"]):
+        raise RequestError("invalid_request", "The replacement track ID is invalid.")
+    if mutation_type == "set_entry_goal":
+        if mutation["role"] is not None and mutation["role"] not in {"warmup", "groove", "build", "peak", "singalong", "reset", "bridge", "closer"}:
+            raise RequestError("invalid_request", "The set draft role is invalid.")
+        goal = mutation["targetEnergyPpm"]
+        if goal is not None and (not isinstance(goal, int) or isinstance(goal, bool) or not 0 <= goal <= 1_000_000):
+            raise RequestError("invalid_request", "The set draft energy goal is invalid.")
+    if mutation_type == "save_version" and (not isinstance(mutation["label"], str) or not 1 <= len(mutation["label"]) <= 100):
+        raise RequestError("invalid_request", "The set draft version label is invalid.")
+    if mutation_type == "restore_version" and not _valid_revision(mutation["version"]):
+        raise RequestError("invalid_request", "The set draft version is invalid.")
+
+
+def _validate_set_replacements_payload(payload: dict[str, Any]) -> None:
+    _validate_set_get_payload({key: value for key, value in payload.items() if key != "entryId"})
+    if set(payload) not in ({"draftId", "entryId"}, {"draftId", "entryId", "revision"}) or not _valid_id(payload.get("entryId")):
+        raise RequestError("invalid_request", "The set replacement request is invalid.")
+
+
+def _validate_set_inspect_payload(payload: dict[str, Any]) -> None:
+    if payload.get("kind") == "draft" and set(payload) in ({"kind", "draftId"}, {"kind", "draftId", "revision"}):
+        _validate_set_get_payload({key: value for key, value in payload.items() if key != "kind"})
+        return
+    if payload.get("kind") == "playlist" and set(payload) == {"kind", "playlistId"} and _valid_id(payload["playlistId"]):
+        return
+    raise RequestError("invalid_request", "The set inspection request is invalid.")
+
+
+def _validate_set_export_payload(payload: dict[str, Any]) -> None:
+    if set(payload) != {"draftId", "expectedRevision", "destinationPath", "expectedDestinationState"} or not _valid_id(payload.get("draftId")) or not _valid_revision(payload.get("expectedRevision")):
+        raise RequestError("invalid_request", "The set export request is invalid.")
+    if not isinstance(payload["destinationPath"], str) or not 1 <= len(payload["destinationPath"]) <= 4_096:
+        raise RequestError("invalid_request", "The export destination path is invalid.")
+    if payload["expectedDestinationState"] not in {"absent", "regular_file"}:
+        raise RequestError("invalid_request", "The expected export destination state is invalid.")
 
 
 def _dispatch(
@@ -378,6 +558,112 @@ def _dispatch(
             return _recommendation_wire(result)
         except DiscoveryError as error:
             raise RequestError(error.code, error.message) from error
+    if command == "list_set_drafts":
+        return {"items": [_set_draft_list_item(record, database) for record in database.list_set_drafts()]}
+    if command == "create_set_draft":
+        catalog, truncated = database.discovery_catalog()
+        plan = _draft_plan_from_wire(payload["plan"])
+        source = payload["source"]
+        generated_notices = None
+        try:
+            if source["kind"] == "empty":
+                state = create_draft(payload["title"], plan, (), catalog, allow_repeated_tracks=False)
+            elif source["kind"] == "tracks":
+                state = create_draft(payload["title"], plan, tuple(source["trackIds"]), catalog, allow_repeated_tracks=False)
+            elif source["kind"] == "playlist":
+                evidence, source_position_count = database.playlist_evidence(source["playlistId"])
+                if source_position_count > 100:
+                    raise DraftError(
+                        "playlist_too_large",
+                        "A set draft can contain at most 100 playlist entries.",
+                    )
+                state = create_draft(payload["title"], plan, tuple(item.track.id for item in evidence), catalog, allow_repeated_tracks=True)
+            else:
+                generated = generate_draft(payload["title"], plan, catalog, max_tracks=source["maxTracks"], seed_track_id=source.get("seedTrackId"), scan_truncated=truncated)
+                state = generated.state
+                generated_notices = generated.unmet_constraints
+            record = database.create_set_draft(state)
+            snapshot = _set_draft_snapshot_wire(record, database)
+            if generated_notices is not None:
+                snapshot["unmetConstraints"] = [
+                    {"code": notice.code, "message": notice.message}
+                    for notice in generated_notices
+                ]
+            return snapshot
+        except (DraftError, RekordboxImportError) as error:
+            raise RequestError(error.code, error.message) from error
+    if command == "get_set_draft":
+        return _set_draft_snapshot_wire(database.get_set_draft(payload["draftId"], revision=payload.get("revision")), database)
+    if command == "mutate_set_draft":
+        record = database.get_set_draft(payload["draftId"])
+        mutation = payload["mutation"]
+        if mutation["type"] == "undo":
+            updated = database.undo_set_draft(record.id, payload["expectedRevision"])
+        elif mutation["type"] == "redo":
+            updated = database.redo_set_draft(record.id, payload["expectedRevision"])
+        elif mutation["type"] == "save_version":
+            saved = database.save_set_draft_version(record.id, payload["expectedRevision"], mutation["label"])
+            if saved is None:
+                return {"status": "conflict", "currentRevision": database.get_set_draft(record.id).current_revision}
+            return {"status": "updated", "snapshot": _set_draft_snapshot_wire(database.get_set_draft(record.id), database)}
+        elif mutation["type"] == "restore_version":
+            updated = database.restore_set_draft_version(record.id, payload["expectedRevision"], mutation["version"])
+        else:
+            catalog, _ = database.discovery_catalog()
+            updated_state = apply_draft_mutation(record.state, _mutation_from_wire(mutation), catalog)
+            updated = database.append_set_draft_revision(record.id, payload["expectedRevision"], updated_state, mutation["type"])
+        if updated is None:
+            return {"status": "conflict", "currentRevision": database.get_set_draft(record.id).current_revision}
+        return {"status": "updated", "snapshot": _set_draft_snapshot_wire(updated, database)}
+    if command == "find_set_replacements":
+        record = database.get_set_draft(payload["draftId"], revision=payload.get("revision"))
+        catalog, truncated = database.discovery_catalog()
+        result = find_replacements(record.state, payload["entryId"], catalog, scan_truncated=truncated)
+        return _replacement_wire(result)
+    if command == "analyze_set":
+        if payload["kind"] == "draft":
+            record = database.get_set_draft(payload["draftId"], revision=payload.get("revision"))
+            state = record.state
+            source_position_count = len(state.entries)
+            include_entry_ids = True
+        else:
+            playlist_evidence, source_position_count = database.playlist_evidence(payload["playlistId"])
+            catalog, _ = database.discovery_catalog()
+            state = create_draft(
+                "Imported playlist",
+                DraftPlan(intent="smooth"),
+                tuple(item.track.id for item in playlist_evidence),
+                catalog,
+                allow_repeated_tracks=True,
+            )
+            include_entry_ids = False
+        catalog, truncated = database.discovery_catalog()
+        return _inspection_wire(
+            inspect_set(
+                state,
+                catalog,
+                source_position_count=source_position_count,
+                scan_truncated=truncated,
+            ),
+            include_entry_ids=include_entry_ids,
+        )
+    if command in {"preview_set_export", "export_set_draft"}:
+        record = database.get_set_draft(payload["draftId"])
+        if record.current_revision != payload["expectedRevision"]:
+            return {"status": "blocked", "reasons": [{"code": "conflict", "message": "The set draft changed before export."}], "destinationState": "unchanged"}
+        source = database.get_import_source_path()
+        if source is None:
+            return {"status": "blocked", "reasons": [{"code": "reimport_required", "message": "Reimport the Rekordbox XML before exporting this set."}], "destinationState": "unchanged"}
+        snapshot = RekordboxExportSnapshot(record.state.title, str(source), tuple(database.get_export_track(entry.track_id) for entry in record.state.entries))
+        try:
+            if command == "preview_set_export":
+                preview = preview_rekordbox_export(snapshot, Path(payload["destinationPath"]), payload["expectedDestinationState"])
+                known, unknown = _draft_durations(record.state, database)
+                return {"status": "ready", "draftId": record.id, "revision": record.current_revision, "playlistName": preview.playlist_name, "trackCount": preview.track_count, "knownDurationMs": known, "unknownDurationCount": unknown, "warnings": [], "expectedDestinationState": preview.expected_destination_state}
+            result = write_rekordbox_export(snapshot, Path(payload["destinationPath"]), payload["expectedDestinationState"])
+            return {"status": "exported", "draftId": record.id, "revision": record.current_revision, "playlistName": result.playlist_name, "trackCount": result.track_count, "overwritten": result.overwritten, "format": result.format, "destinationState": result.destination_state}
+        except RekordboxExportError as error:
+            return {"status": "blocked", "reasons": [{"code": error.code, "message": error.message}], "destinationState": error.destination_state}
     try:
         if command == "queue_analysis":
             return _analysis_queue_wire(manager.queue_tracks(tuple(payload["trackIds"])))
@@ -456,6 +742,103 @@ def _discovery_track_wire(track: DiscoveryTrack) -> dict[str, Any]:
         "durationMs": track.duration_ms,
         "availability": track.availability,
     }
+
+
+def _set_draft_snapshot_wire(record, database: LibraryDatabase) -> dict[str, Any]:
+    catalog, _ = database.discovery_catalog()
+    evidence_by_id = {item.track.id: item for item in catalog}
+    entries = []
+    known_duration = 0
+    unknown_duration = 0
+    for entry in record.state.entries:
+        evidence = evidence_by_id.get(entry.track_id)
+        if evidence is None:
+            entries.append({"id": entry.id, "trackId": entry.track_id, "track": None, "resolution": "missing", "bpmMilli": None, "musicalKey": None, "energyPpm": None, "trackPinned": entry.track_pinned, "positionPinned": entry.position_pinned, "role": entry.role, "targetEnergyPpm": entry.target_energy_ppm})
+            unknown_duration += 1
+            continue
+        features = evidence.analysis.features if evidence.analysis is not None and evidence.analysis.status == "succeeded" else None
+        duration = evidence.track.duration_ms
+        if duration is None:
+            unknown_duration += 1
+        else:
+            known_duration += duration
+        entries.append({"id": entry.id, "trackId": entry.track_id, "track": _discovery_track_wire(DiscoveryTrack(evidence.track.id, evidence.track.title, evidence.track.artist, evidence.track.album, evidence.track.genre, evidence.track.bpm_milli, evidence.track.musical_key, evidence.track.duration_ms, evidence.track.availability)), "resolution": "resolved", "bpmMilli": features.bpm_milli if features is not None else evidence.track.bpm_milli, "musicalKey": features.musical_key if features is not None else evidence.track.musical_key, "energyPpm": features.energy_ppm if features is not None else None, "trackPinned": entry.track_pinned, "positionPinned": entry.position_pinned, "role": entry.role, "targetEnergyPpm": entry.target_energy_ppm})
+    can_undo, can_redo = database.set_draft_history_capabilities(record.id)
+    versions = database.list_set_draft_versions(record.id)
+    viewing_version = None
+    if record.content_revision != record.current_revision:
+        matching_versions = [
+            item.version for item in versions if item.revision == record.content_revision
+        ]
+        viewing_version = max(matching_versions, default=None)
+    return {"draftId": record.id, "currentRevision": record.current_revision, "contentRevision": record.content_revision, "title": record.state.title, "plan": {"intent": record.state.plan.intent, "targetDurationMs": record.state.plan.target_duration_ms, "maxArtistRepeats": record.state.plan.max_artist_repeats, "candidateFilters": _filters_to_wire(record.state.plan.candidate_filters)}, "entries": entries, "bans": list(record.state.bans), "knownDurationMs": known_duration, "unknownDurationCount": unknown_duration, "unmetConstraints": _current_unmet_constraints(record.state, evidence_by_id, known_duration, unknown_duration), "canUndo": can_undo, "canRedo": can_redo, "versions": [{"version": item.version, "revision": item.revision, "label": item.label} for item in versions], "viewingVersion": viewing_version}
+
+
+def _current_unmet_constraints(
+    state: DraftState,
+    evidence_by_id: dict[str, TrackEvidence],
+    known_duration_ms: int,
+    unknown_duration_count: int,
+) -> list[dict[str, str]]:
+    notices: list[dict[str, str]] = []
+    if state.plan.target_duration_ms is not None and (
+        known_duration_ms < state.plan.target_duration_ms or unknown_duration_count > 0
+    ):
+        notices.append({
+            "code": "target_duration",
+            "message": "Known track duration does not reach the requested target.",
+        })
+    if state.plan.max_artist_repeats is not None:
+        artist_counts: dict[str, int] = {}
+        for entry in state.entries:
+            evidence = evidence_by_id.get(entry.track_id)
+            artist = evidence.track.artist if evidence is not None else None
+            normalized = artist.strip().casefold() if artist is not None else ""
+            if normalized:
+                artist_counts[normalized] = artist_counts.get(normalized, 0) + 1
+        if any(count > state.plan.max_artist_repeats for count in artist_counts.values()):
+            notices.append({
+                "code": "max_artist_repeats",
+                "message": "The current set exceeds the maximum repeats for a known artist.",
+            })
+    return notices
+
+
+def _filters_to_wire(filters: TrackFilters) -> dict[str, Any]:
+    values = {"text": filters.text, "playlistId": filters.playlist_id, "bpmMinMilli": filters.bpm_min_milli, "bpmMaxMilli": filters.bpm_max_milli, "musicalKey": filters.musical_key, "keyRelation": filters.key_relation, "genre": filters.genre, "energyMinPpm": filters.energy_min_ppm, "energyMaxPpm": filters.energy_max_ppm, "analysisState": filters.analysis_state, "availability": filters.availability}
+    return {key: value for key, value in values.items() if value is not None and not (key in {"analysisState", "availability"} and value == "any")}
+
+
+def _set_draft_list_item(record, database: LibraryDatabase) -> dict[str, Any]:
+    snapshot = _set_draft_snapshot_wire(record, database)
+    return {"draftId": record.id, "currentRevision": record.current_revision, "title": record.state.title, "trackCount": len(record.state.entries), "knownDurationMs": snapshot["knownDurationMs"], "unknownDurationCount": snapshot["unknownDurationCount"]}
+
+
+def _draft_durations(state: DraftState, database: LibraryDatabase) -> tuple[int, int]:
+    catalog, _ = database.discovery_catalog()
+    durations = {item.track.id: item.track.duration_ms for item in catalog}
+    known = 0
+    unknown = 0
+    for entry in state.entries:
+        duration = durations.get(entry.track_id)
+        if duration is None:
+            unknown += 1
+        else:
+            known += duration
+    return known, unknown
+
+
+def _replacement_wire(result) -> dict[str, Any]:
+    return {"scannedCount": result.scanned_count, "scanTruncated": result.scan_truncated, "items": [{"track": _discovery_track_wire(item.track), "scorePpm": item.score_ppm, "confidencePpm": item.confidence_ppm, "goalScorePpm": item.goal_score_ppm, "affectedTransitions": [_transition_wire(edge) for edge in item.affected_edges]} for item in result.items]}
+
+
+def _transition_wire(edge) -> dict[str, Any]:
+    return {"fromPosition": edge.from_position, "toPosition": edge.to_position, "scorePpm": edge.candidate.score_ppm, "confidencePpm": edge.candidate.confidence_ppm, "utilitySignedPpm": edge.utility_signed_ppm, "reasons": list(edge.candidate.reasons), "components": [_score_component_wire(component) for component in edge.candidate.components]}
+
+
+def _inspection_wire(result, *, include_entry_ids: bool = True) -> dict[str, Any]:
+    direction = {"steady": "flat", "missing": "unknown"}
+    return {"sourcePositionCount": result.source_position_count, "inspectedPositionCount": result.inspected_position_count, "inputTruncated": result.input_truncated, "knownDurationMs": result.known_duration_ms, "unknownDurationCount": result.unknown_duration_count, "points": [{"position": point.position, "entryId": point.entry_id if include_entry_ids else None, "trackId": point.track_id, "track": _discovery_track_wire(point.track) if point.track is not None else None, "resolution": "resolved" if point.resolution == "current" else "missing", "bpmMilli": point.effective_bpm_milli, "musicalKey": point.effective_musical_key, "energyPpm": point.local_energy_ppm, "energyDirection": direction.get(point.energy_direction, point.energy_direction), "bpmDirection": direction.get(point.bpm_direction, point.bpm_direction)} for point in result.points], "transitions": [_transition_wire(edge) for edge in result.transitions], "warnings": [{"code": warning.code, "message": warning.message} for warning in result.warnings], "matchedWarningCount": result.matched_warning_count, "warningsTruncated": result.warnings_truncated, "scannedCount": result.scanned_count, "scanTruncated": result.scan_truncated, "organizationLabel": result.organization_label, "organizationSuggestions": [{"kind": "not_in_playlist" if suggestion.kind == "unassigned" else suggestion.kind, "label": suggestion.name, "evidence": suggestion.evidence, "trackIds": list(suggestion.track_ids), "matchedTrackCount": suggestion.matched_track_count, "trackIdsTruncated": suggestion.track_ids_truncated} for suggestion in result.organization_suggestions], "matchedSuggestionCount": result.matched_suggestion_count, "suggestionsTruncated": result.suggestions_truncated}
 
 
 def _score_component_wire(component: ScoreComponent) -> dict[str, Any]:
