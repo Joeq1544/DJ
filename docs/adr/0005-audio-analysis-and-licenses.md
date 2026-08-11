@@ -54,6 +54,12 @@ unsafe model. Real-music quality remains later, user-authorized evidence.
 
 Phase 3 proves resumable staged jobs, supported codecs, concurrency/thermal behavior, provider degradation, cache invalidation and per-track crashes. Phase 9 proves packaged native libraries/assets, integrity inventory, SBOM/notices and clean-machine behavior.
 
+## M2 development selection
+
+On 2026-08-11 M2 selected an external FFmpeg/ffprobe 8.1.2 executable plus `numpy==2.4.4` for the first production baseline. FFprobe supplies bounded machine-readable container/audio-stream metadata; FFmpeg decodes one local audio stream to chunked mono PCM; NumPy implements transparent feature calculations without a model or downloaded dataset. Tempo/beat and key/mode are heuristic evidence with confidence and explicit limitations, not accuracy claims. Structure, classifier, and embedding stages remain unavailable capabilities.
+
+The measured `/opt/homebrew/bin/ffmpeg` build enables GPL components and reports GPL terms. It may be invoked as Joe's external development prerequisite but is not copied or bundled. M7 must select and verify a reproducible distributable decoder—such as a non-GPL FFmpeg configuration with the required LGPL source/configuration/notices—before packaging. Exact sources, local versions, wheel metadata, and unresolved packaging work are recorded in `../evidence/m2-dependency-selection.md`.
+
 ## Consequences
 
 Every feature stores provider/model/pipeline version, confidence, and provenance. Stages retry/cache independently and never overwrite source audio or explicit Rekordbox/user evidence.

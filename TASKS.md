@@ -28,6 +28,16 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 | M1-004 | UI implementer | Library and playlists are usable through accessible loading, empty, ready, degraded, and error states | done | 16/16 renderer behavior and keyboard tests; production renderer build | `16512c2`, `dec0698`, pushed | Large-library virtualization waits for measured need |
 | M1-005 | primary | Production build and Electron fixture import/browse/restart flow pass; docs/evidence are current and checkpoint is pushed | done | `pnpm verify:m1`: 23 core + 47 desktop + 2 Electron flows; independent review found no code defect; visual QA explicitly deferred by Joe to the completed app | `dec0698`, pushed | Personal XML evidence is not passed unless explicitly selected |
 
+## M2 ledger
+
+| ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
+| --- | --- | --- | --- | --- | --- | --- |
+| M2-001 | audio implementer | Generated fixtures and the versioned FFmpeg/NumPy provider produce bounded metadata, BPM/beat, key/mode, loudness/energy, rhythm/timbre, provenance, confidence, and honest unknowns without changing audio | not-started | `core.tests.test_analysis_provider`; historical audio spike regression | plan pending push | Heuristic music accuracy remains an explicit limitation until Joe's final test period |
+| M2-002 | core implementer | App-owned SQLite persists private paths, jobs, cache keys, progress, results, pause/resume, per-file failure, and restart recovery without leaking paths | not-started | analysis database and manager focused suites | plan pending push | Additive development schema still needs M7 backup/migration packaging evidence |
+| M2-003 | desktop-boundary implementer | Four fixed analysis operations cross strict Python/Zod/IPC/preload contracts while library operations remain responsive and usable without the provider | not-started | Python service, desktop contract, IPC, preload, and typecheck evidence | plan pending push | External FFmpeg/NumPy availability must degrade honestly |
+| M2-004 | UI implementer | Users can select tracks, start/retry, pause/resume, monitor progress/failures, and inspect local features plus confidence/provenance accessibly | not-started | focused renderer behavior tests and production renderer build | plan pending push | Visual QA is deferred under D-045 |
+| M2-005 | primary | Generated-audio desktop flow proves pause, core restart, persisted resume, valid/failed isolation, feature display, current docs, review, and pushed checkpoint | not-started | `pnpm verify:m2`; one final read-only review | plan pending push | Current GPL-configured Homebrew FFmpeg is development-only and must not be bundled |
+
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
 The rows below preserve what the original commercial-style gate proved and did not prove. They are evidence history, not current MVP blockers.
@@ -75,7 +85,7 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | --- | --- | --- | --- |
 | M0 | Scope reset and green foundation | done | Green checkpoint `1f1157054a59`; M0 evidence and recovery record |
 | M1 | App shell and real library slice | done | Green checkpoint `dec0698`; `docs/evidence/m1-app-shell-library.md` |
-| M2 | Local analysis slice | in-progress | Bounded plan being written after M1 closure |
+| M2 | Local analysis slice | in-progress | `docs/superpowers/plans/2026-08-11-m2-local-analysis.md` |
 | M3 | Discovery and recommendation slice | not-started | Separate plan after M2 |
 | M4 | Set workflow slice | not-started | Separate plan after M3 |
 | M5 | Personalization slice | not-started | Separate plan after M4 |
