@@ -51,6 +51,7 @@ class AudioAnalysisSpikeTests(unittest.TestCase):
         )
         self.assertIn("clicks.wav", result.stdout)
         self.clicks = self.root / "clicks.wav"
+        self.harmonic = self.root / "harmonic.wav"
         self.silence = self.root / "silence.wav"
         self.corrupt = self.root / "corrupt.wav"
 
@@ -65,6 +66,11 @@ class AudioAnalysisSpikeTests(unittest.TestCase):
             self.assertEqual(source.getframerate(), 48_000)
             self.assertEqual(source.getnframes(), 768_000)
         self.assertEqual(self.silence.stat().st_size, 192_044)
+        with wave.open(str(self.harmonic), "rb") as source:
+            self.assertEqual(source.getnchannels(), 1)
+            self.assertEqual(source.getsampwidth(), 2)
+            self.assertEqual(source.getframerate(), 48_000)
+            self.assertEqual(source.getnframes(), 768_000)
         self.assertLess(self.corrupt.stat().st_size, 44)
         self.assertEqual(sha256(self.clicks), "836f499bdd1c829a55eb0838023eba10f9a884f623a891c6999bffe132f84774")
 
@@ -77,6 +83,9 @@ class AudioAnalysisSpikeTests(unittest.TestCase):
         silence_chunks = generator.iter_silence_chunks(2, chunk_frames=997)
         self.assertFalse(isinstance(silence_chunks, (list, tuple)))
         self.assertLessEqual(len(next(silence_chunks)), 997)
+        harmonic_chunks = generator.iter_harmonic_chunks(chunk_frames=997)
+        self.assertFalse(isinstance(harmonic_chunks, (list, tuple)))
+        self.assertLessEqual(len(next(harmonic_chunks)), 997)
 
     def test_streaming_measurement_matches_known_click_fixture(self):
         """Wrong PCM scaling, duration, interval, or tempo must change this result."""
