@@ -1,6 +1,6 @@
 # Recovery Guide
 
-Status: M2 complete at pushed implementation checkpoint `a66e0d6` and closure-record checkpoint `cb857a2`; independent reviewer READY
+Status: M0–M3 closed; M4 review corrections, post-review aggregate, and reviewer confirmation green; closure checkpoint pending
 Last updated: 2026-08-11
 
 ## M0 green checkpoint
@@ -19,6 +19,10 @@ Checkpoint `16512c2` on `main` contains the exact workspace lock, production XML
 
 Checkpoints `b700d7d`, `d1dad4b`, and `da730ba` add the versioned FFmpeg/NumPy provider, schema-v2 durable queue, strict desktop boundary, and analysis workstation. Checkpoint `e803c1d` adds the generated-audio restart/recovery gate and setup scripts; `5920c4b` corrects strict E2E tuple typing. Post-review checkpoint `a66e0d6` rejects stale/orphan completion across reimport and keeps the core/library usable when NumPy is absent. The post-review `pnpm verify:m2` run passed 56 core tests, 62 desktop tests, strict TypeScript, production builds, and three Electron flows. Exact results and fixture hashes are in `evidence/m2-local-analysis.md`.
 
+## M3 and M4 implementation checkpoints
+
+M3 checkpoints `5a5d59d`, `bb85aaa`, and `1e9d347` add and close deterministic discovery. M4 checkpoints `3f87261`, `abad8c3`, `82bbf94`, and `dd741d6` add official XML compatibility/export, schema-v3 drafts, the desktop workspace, and the complete import-to-export flow. After review corrections, `pnpm verify:m4` passed 119 core tests, 116 desktop tests, strict TypeScript, production builds, and all five Electron flows; the correction checkpoint is recorded here after it is pushed.
+
 ## Safe Git recovery
 
 - Do not use `git reset --hard`, broad checkout/restore commands, forced pushes, or recursive deletion against a dirty workspace.
@@ -33,9 +37,11 @@ The core database is `dj-copilot.sqlite3` under the path Electron reports as `ap
 
 Opening an M1 database with M2 creates the first free sibling backup named from `dj-copilot.pre-m2.sqlite3` (then `dj-copilot.pre-m2-2.sqlite3`, and so on) before any schema-v2 DDL. Running analysis work requeues on orderly stop or restart; an explicitly paused queue stays paused. Successful current results and stable per-track failures remain in SQLite and reload with the library. A later import keeps them only when the stable track's normalized source path and availability are unchanged; a changed/unavailable source clears that track's analysis so an old worker result cannot be attached. Retry a failed or invalidated row after fixing its local source/prerequisite; do not delete the database to clear one job. Before changing or removing app state, close DJ Copilot, identify its exact user-data path, and copy both the database and any pre-M2 backup outside the repository.
 
-## Database and export recovery requirements
+Opening a schema-v2 database with M4 creates the first free `dj-copilot.pre-m4.sqlite3` sibling (then `dj-copilot.pre-m4-2.sqlite3`, and so on) before schema-v3 DDL. Draft heads, revision history, and saved versions are app-owned SQLite data; quitting and reopening reloads them. An optimistic-revision conflict reloads the current head rather than overwriting another edit. Undo/redo and version restore append or move through recorded app history and never change Rekordbox. If an older/directly seeded library has no remembered selected XML source, reimport through **Import Rekordbox XML** before exporting.
 
-Before app migrations ship, document the Application Support location, pre-migration backup, integrity check, restore path, and forward migration result. Never operate on Rekordbox databases. Before export ships, document temporary-file reparse and safe destination replacement.
+## Export recovery
+
+Export never edits the imported XML or a Rekordbox database. Preparation rejects stale/unavailable entries, a source alias, symlinks/non-regular destinations, and changed absent/regular-file state. Confirmation writes a mode-`0600` temporary sibling beside the chosen `.xml`, syncs and reparses it, compares exact collection/playlist order, rechecks destination state, and only then uses atomic replacement. Failures before replacement report the destination unchanged and remove the temporary sibling; a replacement/transport failure is reported as unknown rather than falsely claiming preservation. Inspect the destination before retrying an unknown outcome. A confirmed overwrite is intentionally not recoverable from DJ Copilot, so choose a new destination or keep your own copy when the prior file matters.
 
 ## Reproduce M0
 

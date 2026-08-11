@@ -155,6 +155,31 @@ class SetServiceDispatchTests(unittest.TestCase):
         )
         self.assertTrue(all(point["entryId"] is None for point in inspection["points"]))
 
+    def test_stale_mutation_conflicts_before_validating_removed_entry_against_new_head(self):
+        manager = object()
+        created = _dispatch(
+            "create_set_draft",
+            {"title": "Concurrent", "plan": PLAN, "source": {"kind": "tracks", "trackIds": self.track_ids}},
+            self.database,
+            manager,
+        )
+        entry_id = created["entries"][0]["id"]
+        removed = _dispatch(
+            "mutate_set_draft",
+            {"draftId": created["draftId"], "expectedRevision": 1, "mutation": {"type": "remove_entry", "entryId": entry_id}},
+            self.database,
+            manager,
+        )
+        stale = _dispatch(
+            "mutate_set_draft",
+            {"draftId": created["draftId"], "expectedRevision": 1, "mutation": {"type": "set_entry_goal", "entryId": entry_id, "role": "peak", "targetEnergyPpm": 900_000}},
+            self.database,
+            manager,
+        )
+
+        self.assertEqual(removed["snapshot"]["currentRevision"], 2)
+        self.assertEqual(stale, {"status": "conflict", "currentRevision": 2})
+
     def test_generated_constraints_and_saved_version_identity_remain_honest(self):
         manager = object()
         generated = _dispatch(

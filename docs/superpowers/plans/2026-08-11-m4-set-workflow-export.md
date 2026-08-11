@@ -338,7 +338,7 @@ Tasks 1 and 2 are independent and may run in parallel.
 
 - [x] Write red tests for backup-before-DDL, v1/v2/v3 startup paths, source-path persistence, atomic revisions/conflicts, undo/redo branching, live/current versus historical/content revisions, view-concurrent-edit-restore conflict, version restore, reimport stale resolution, create variants, all strict commands, path-free responses, private export snapshots, and failure preservation.
 - [x] Implement the three tables and eight fixed commands using Task 1/2 pure functions. Keep the Python core the sole SQLite owner; transactions append/advance state atomically.
-- [x] Run focused migration/repository/service suites, then `python3 -B -m unittest discover -s core/tests -v` outside the outer sandbox when Unix sockets require permission (11/11 focused and 117/117 complete core passed).
+- [x] Run focused migration/repository/service suites, then `python3 -B -m unittest discover -s core/tests -v` outside the outer sandbox when Unix sockets require permission (post-review repository/service 13/13 and complete core 119/119 passed).
 
 ### Task 4: Strict desktop boundary and confirmation state
 
@@ -395,10 +395,10 @@ Tasks 3 and 4 begin only after Task 1/2 domain/wire shapes are stable. Their fil
 - Modify: architecture, evaluation, phase, test, recovery, privacy, user-guide, licensing, and ADR-0004 records where actual behavior changes them
 - Mark this plan's steps with actual evidence
 
-- [ ] Through production UI/IPC/core behavior, generate/import a temporary official numeric-KeyType library, create a draft, reorder, exercise both track and position pins, ban, replace, edit goals, optimize, undo/redo, save/restore a version, inspect progression/warnings/organization, prepare/cancel export, confirm export, reload, and independently import/reparse the exported XML.
-- [ ] Assert exact track/playlist order including one repeat, current-library IDs only, source XML/media/sentinel hashes, validated overwrite behavior, no temporary sibling, and runtime/user-data cleanup. Do not capture screenshots.
-- [ ] `pnpm verify:m4` runs exact dependencies, complete core/desktop suites, strict typecheck, production build, all M1–M4 Electron flows, shell/tracked-residue/diff checks.
-- [ ] Perform one concise read-only milestone review of normal-workflow correctness/evidence only. Fix concrete High/Medium findings with focused regressions; do not create repeated review loops.
+- [x] Through production UI/IPC/core behavior, generate/import a temporary official numeric-KeyType library, inspect its playlist, create a draft, reorder, exercise both track and position pins, ban, replace, edit goals, optimize, undo/redo, save/view/restore a version, inspect progression/warnings/organization, prepare/cancel export, confirm new and overwrite exports, reload, and independently import/reparse the exported XML.
+- [x] Assert exact track/playlist order including one repeat, current-library IDs only, source XML/media/sentinel hashes, validated overwrite behavior, no temporary sibling, and runtime/user-data cleanup. No screenshots were captured.
+- [x] Post-review `pnpm verify:m4` passed with exact dependencies, 119/119 core tests, 116/116 desktop tests, strict typecheck, production build, all five M1–M4 Electron flows, shell/tracked-residue/diff checks.
+- [x] Perform one concise read-only milestone review of normal-workflow correctness/evidence only. The original reviewer returned READY after focused corrections, 13/13 history/service tests, 12/12 renderer correction tests, and the synchronized post-review aggregate; no repeated review loop was created.
 - [ ] Record actual evidence, inspect the staged payload for personal data/audio/databases/credentials/logs/caches, commit green checkpoints, and push `main` to `origin`.
 
 ## M4 completion gate

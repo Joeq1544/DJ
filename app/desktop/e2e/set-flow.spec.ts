@@ -84,14 +84,20 @@ async function stubDialogs(application: ElectronApplication, openPath: string, s
   }, savePath ?? "");
 }
 
+let lastUpdateMessage = "";
+
 async function updated(page: Page): Promise<void> {
-  await expect(page.getByText("Draft updated.")).toBeVisible();
+  const status = page.locator(".set-workspace > p[aria-live='polite']").first();
+  await expect.poll(async () => (await status.textContent())?.trim() ?? "").toMatch(/^Draft updated:/u);
+  await expect.poll(async () => (await status.textContent())?.trim() ?? "").not.toBe(lastUpdateMessage);
+  lastUpdateMessage = (await status.textContent())?.trim() ?? "";
 }
 
 test.beforeAll(async () => { await execFileAsync("pnpm", ["build"], { cwd: desktopDirectory }); });
 
 test("runs the M4 set workflow through UI, preload, IPC, and core without changing the source library", async () => {
   test.setTimeout(120_000);
+  lastUpdateMessage = "";
   const root = await mkdtemp(join(tmpdir(), "dj-copilot-m4-e2e-"));
   const userDataPath = join(root, "user-data");
   const exportPath = join(root, "exported-set.xml");
@@ -108,6 +114,7 @@ test("runs the M4 set workflow through UI, preload, IPC, and core without changi
     await page.getByRole("button", { name: "Inspect selected playlist" }).click();
     await expect(page.getByText("Suggestions only—nothing has changed in Rekordbox.")).toBeVisible();
     await page.getByRole("button", { name: "Create from playlist" }).click();
+    const workspace = page.locator(".set-workspace");
     const draftTracks = page.getByRole("list", { name: "Draft tracks" });
     await expect(draftTracks).toHaveCount(1);
     await expect(draftTracks.getByRole("listitem")).toHaveCount(5);
@@ -127,12 +134,21 @@ test("runs the M4 set workflow through UI, preload, IPC, and core without changi
     await page.getByRole("button", { name: "Undo" }).click(); await updated(page);
     await page.getByRole("button", { name: "Redo" }).click(); await updated(page);
     await page.getByRole("button", { name: "Save version" }).click(); await updated(page);
+    await workspace.getByLabel("Set title").fill("Changed after saved version");
+    await workspace.getByLabel("Set title").blur(); await updated(page);
+    await expect.poll(() => page.evaluate(async () => {
+      const api = Reflect.get(globalThis, "djCopilot") as { sets: { list(): Promise<{ items: { title: string }[] }> } };
+      return (await api.sets.list()).items[0]?.title;
+    })).toBe("Changed after saved version");
     await page.getByLabel("Saved versions").selectOption({ index: 1 });
     await page.getByRole("button", { name: "View selected version" }).click();
     await expect(page.getByText("Viewing a saved version. Restore it to edit the current draft.")).toBeVisible();
+    await expect(workspace.getByLabel("Set title")).toHaveValue("New set");
     await page.getByRole("button", { name: "View current draft" }).click();
     await expect(page.getByText("Viewing current draft.")).toBeVisible();
+    await expect(workspace.getByLabel("Set title")).toHaveValue("Changed after saved version");
     await page.getByRole("button", { name: "Restore version" }).click(); await updated(page);
+    await expect(workspace.getByLabel("Set title")).toHaveValue("New set");
     await page.getByRole("button", { name: "Inspect set" }).click();
     await expect(page.getByText("Suggestions only—nothing has changed in Rekordbox.")).toBeVisible();
 

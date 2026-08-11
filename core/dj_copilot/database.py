@@ -409,11 +409,15 @@ class LibraryDatabase:
         expected_revision: int,
         state: DraftState,
         operation: str,
+        *,
+        force_append: bool = False,
     ) -> SetDraftRecord | None:
         """Append one child revision, or return ``None`` for an optimistic conflict."""
         snapshot_json = _encode_draft_snapshot(state)
         if not isinstance(operation, str) or not operation or len(operation) > 64:
             raise ValueError("invalid set draft operation")
+        if type(force_append) is not bool:
+            raise ValueError("invalid force-append flag")
         with self._lock:
             try:
                 self.connection.execute("BEGIN IMMEDIATE")
@@ -427,7 +431,7 @@ class LibraryDatabase:
                 ).fetchone()
                 if current_snapshot is None:
                     raise RuntimeError("set draft head is missing")
-                if current_snapshot["snapshot_json"] == snapshot_json:
+                if current_snapshot["snapshot_json"] == snapshot_json and not force_append:
                     self.connection.commit()
                     return SetDraftRecord(draft_id, expected_revision, expected_revision, draft["redo_tip_revision"], state)
                 revision = draft["next_revision"]
@@ -586,7 +590,13 @@ class LibraryDatabase:
             if version_row is None:
                 raise RekordboxImportError("not_found", "The requested set draft version was not found.")
             source = self.get_set_draft(draft_id, revision=version_row["revision"])
-            return self.append_set_draft_revision(draft_id, expected_revision, source.state, "restore_version")
+            return self.append_set_draft_revision(
+                draft_id,
+                expected_revision,
+                source.state,
+                "restore_version",
+                force_append=True,
+            )
 
     def _set_draft_row(self, draft_id: str) -> sqlite3.Row:
         if not isinstance(draft_id, str) or not 1 <= len(draft_id) <= 128:

@@ -184,6 +184,16 @@ class SetDraftHistoryRepositoryTests(unittest.TestCase):
         self.assertEqual((restored.current_revision, restored.state.title), (3, "Initial Set"))
         self.assertEqual([(item.version, item.revision, item.label) for item in self.database.list_set_draft_versions(created.id)], [(1, 1, "Baseline")])
 
+    def test_restoring_an_identical_saved_head_still_appends_an_undoable_revision(self):
+        created = self.database.create_set_draft(self.state)
+        saved = self.database.save_set_draft_version(created.id, 1, "Baseline")
+        restored = self.database.restore_set_draft_version(created.id, 1, saved.version)
+
+        self.assertEqual((restored.current_revision, restored.state), (2, self.state))
+        self.assertEqual(self.database.set_draft_history_capabilities(created.id), (True, False))
+        undone = self.database.undo_set_draft(created.id, 2)
+        self.assertEqual((undone.current_revision, undone.state), (1, self.state))
+
     def test_saved_versions_are_bounded_to_100(self):
         created = self.database.create_set_draft(self.state)
 

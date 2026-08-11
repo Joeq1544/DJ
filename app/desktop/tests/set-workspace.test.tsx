@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { DesktopApi, SetDraftInspectResult, SetDraftSnapshot } from "../src/shared/contracts";
@@ -75,13 +75,30 @@ describe("Set workspace", () => {
 
   it("views a saved version read-only, returns to current, and restores against the current head", async () => {
     const user = userEvent.setup(); const desktop = api();
-    const historical = { ...snapshot, contentRevision: 2, viewingVersion: 1, title: "Before peak" } as SetDraftSnapshot;
+    const historical = {
+      ...snapshot,
+      contentRevision: 2,
+      viewingVersion: 1,
+      title: "Before peak",
+      plan: { ...snapshot.plan, targetDurationMs: 1_800_000, maxArtistRepeats: 1 },
+      entries: snapshot.entries.map((entry, index) => index === 0 ? { ...entry, targetEnergyPpm: 100_000 } : entry),
+    } as SetDraftSnapshot;
     vi.mocked(desktop.sets.get).mockResolvedValueOnce(historical).mockResolvedValueOnce(snapshot).mockResolvedValueOnce(historical);
     render(<SetWorkspace api={desktop} snapshot={snapshot} availableTracks={[]} onSnapshot={vi.fn()} onClose={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: "Prepare Rekordbox XML export" }));
+    expect(await screen.findByRole("button", { name: "Confirm export" })).toBeEnabled();
     await user.selectOptions(screen.getByRole("combobox", { name: "Saved versions" }), "1");
     await user.click(screen.getByRole("button", { name: "View selected version" }));
     expect(desktop.sets.get).toHaveBeenNthCalledWith(1, { draftId: "draft-1", revision: 2 });
     expect(await screen.findByText("Viewing a saved version. Restore it to edit the current draft.")).toBeVisible();
+    expect(screen.getByRole("spinbutton", { name: "Target duration (minutes)" })).toHaveValue(30);
+    expect(screen.getByRole("spinbutton", { name: "Maximum artist repeats" })).toHaveValue(1);
+    expect(screen.getByRole("spinbutton", { name: "Target energy for First (%)" })).toHaveValue(10);
+    expect(screen.getByRole("button", { name: "Prepare Rekordbox XML export" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Confirm export" })).not.toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
+    fireEvent.keyDown(window, { key: "z", metaKey: true, shiftKey: true });
+    expect(desktop.sets.mutate).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "View current draft" }));
     expect(desktop.sets.get).toHaveBeenNthCalledWith(2, { draftId: "draft-1" });
     await user.click(screen.getByRole("button", { name: "View selected version" }));

@@ -602,6 +602,8 @@ def _dispatch(
     if command == "mutate_set_draft":
         record = database.get_set_draft(payload["draftId"])
         mutation = payload["mutation"]
+        if payload["expectedRevision"] != record.current_revision:
+            return {"status": "conflict", "currentRevision": record.current_revision}
         if mutation["type"] == "undo":
             updated = database.undo_set_draft(record.id, payload["expectedRevision"])
         elif mutation["type"] == "redo":

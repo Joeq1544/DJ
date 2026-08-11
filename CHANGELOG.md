@@ -4,6 +4,22 @@ All notable project changes are recorded here. The project has not yet produced 
 
 ## Unreleased
 
+### 2026-08-11 — M4 set workflow and Rekordbox export slice
+
+- Added schema-v3 persistent set drafts with immutable snapshots, optimistic revisions, branch-aware undo/redo, saved-version view/restore, repeats, track/position pins, bans, roles, energy goals, constraints, and restart persistence.
+- Added deterministic generated sets, replacement alternatives, bounded pin-safe optimization, playlist/draft progression and transition inspection, warnings, and advisory organization suggestions by reusing M3 evidence.
+- Added official numeric-KeyType Rekordbox playlist compatibility and a deterministic self-contained XML writer with current-ID/path resolution, mode-0600 sibling writes, fsync, production-parser semantic reparse, race checks, and atomic finalize.
+- Added six strict set and two confirmed-export desktop operations plus the inline accessible set workspace; Electron main owns the native destination and renderer responses remain path-free.
+- Added the generated official-XML Electron flow covering repeats, edits/history/versions, playlist/draft inspection, cancel/new/overwrite export, exact reparse order, reload persistence, immutable source hashes, and cleanup.
+- Corrected invalid launcher intents and saved-head version identity during integration, then fixed review findings around historical read-only state, identical restores, stale-revision ordering, and repeated-playlist analysis IDs. The post-review `pnpm verify:m4` gate passes 119 core, 116 desktop, strict typecheck/build, and all five Electron flows. Visual/native Rekordbox QA remains deferred under D-045.
+
+### 2026-08-11 — M3 discovery and recommendations slice
+
+- Added bounded path-free library filters, deterministic feature similarity, all eight transition intents, confidence, component evidence, missing-evidence handling, and stable tie behavior without adding embeddings or a vector database.
+- Added strict core/desktop discovery operations and accessible Library search, Similar, Next, intent, and explanation controls.
+- Added a generated eight-track Electron flow for playlist-aware search, exact Similar/genre-shift ranking, explanations, reload persistence, source hashes, and cleanup.
+- Corrected repeated playlist-position collapse during the single bounded review and closed M3 at pushed checkpoint `1e9d347`; the final aggregate passed 81 core, 104 desktop, strict typecheck/build, and four Electron flows.
+
 ### 2026-08-11 — M2 local analysis slice
 
 - Added a transparent `ffmpeg-numpy-basic` local provider with exact provenance, streamed in-memory decode, bounded metadata/basic features, heuristic tempo/key confidence, honest silence unknowns, and stable per-file errors.

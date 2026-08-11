@@ -331,6 +331,35 @@ describe("analysis workstation", () => {
     expect(screen.getByText("Cue One")).toBeVisible();
   });
 
+  it("deduplicates repeated visible track IDs before polling or queueing analysis", async () => {
+    vi.useFakeTimers();
+    const api = createApi({
+      tracks: [
+        track("track-1", "Cue One"),
+        track("track-2", "Cue Two"),
+        track("track-1", "Cue One"),
+      ],
+    });
+    renderLibrary(api);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(screen.getAllByRole("row", { name: /Cue One/ })).toHaveLength(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(api.analysis.getStatus).toHaveBeenNthCalledWith(2, ["track-1", "track-2"]);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all analyzable tracks" }));
+    fireEvent.click(screen.getByRole("button", { name: "Analyze 2 selected" }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(api.analysis.queue).toHaveBeenCalledWith(["track-1", "track-2"]);
+  });
+
   it("polls once per second without overlap and merges out-of-order job updates by track ID", async () => {
     vi.useFakeTimers();
     let resolvePoll: ((value: AnalysisQueueStatus) => void) | undefined;

@@ -2,7 +2,7 @@
 
 Last updated: 2026-08-11
 Current milestone: M4 — Set workflow and Rekordbox export
-Current state: M3 is closed; M4 domain/XML/persistence/desktop/UI slices are implemented and pushed through `82bbf94`, with the generated import-to-export flow, aggregate gate, evidence, and one bounded review remaining; visual QA stays deferred until all features are implemented
+Current state: M3 is closed; M4 review corrections are implemented, the post-review 119-core/116-desktop/5-Electron aggregate is green, and the original reviewer returned READY; only the closure checkpoint/push remains before M5 begins; visual QA stays deferred until all features are implemented
 Authoritative design: `docs/superpowers/specs/2026-08-10-personal-full-feature-mvp-design.md`
 
 Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
@@ -51,12 +51,12 @@ Statuses: `not-started`, `in-progress`, `blocked`, `review`, `stopped`, `done`.
 
 | ID | Owner | Acceptance criteria | Status | Test/evidence | Checkpoint | Known risks |
 | --- | --- | --- | --- | --- | --- | --- |
-| M4-001 | ranking specialist | Pure deterministic set creation, mutation, alternatives, bounded optimization, inspection, warnings, and advisory organization reuse M3 evidence and preserve pins/repeats/missing state | done | Red/green pure-domain implementation; 32/32 discovery/set-workflow tests; integrated in complete 117/117 core suite | `abad8c3`, pushed | Heuristic order and replacement quality require Joe's final subjective test period |
+| M4-001 | ranking specialist | Pure deterministic set creation, mutation, alternatives, bounded optimization, inspection, warnings, and advisory organization reuse M3 evidence and preserve pins/repeats/missing state | done | Red/green pure-domain implementation; 32/32 discovery/set-workflow tests; integrated in complete 119/119 core suite | `abad8c3`, pushed | Heuristic order and replacement quality require Joe's final subjective test period |
 | M4-002 | Rekordbox specialist | Production parser accepts official numeric playlist references and a deterministic one-playlist writer reparses and finalizes atomically without touching source XML/audio | done | Official numeric form reproduced red; 19/19 parser/writer/finalization regressions passed | `3f87261`, pushed | Real Rekordbox 7.2.14 import remains deferred with visual/manual QA |
-| M4-003 | primary + core implementer | Schema-v3 draft snapshots, optimistic revisions, undo/redo, saved versions, stale-ID handling, and eight strict path-free service commands work transactionally | done | 11/11 focused repository/service integration tests and complete core 117/117 passed | `abad8c3`, pushed | Legacy libraries without a remembered selected XML path must be reimported before export |
+| M4-003 | primary + core implementer | Schema-v3 draft snapshots, optimistic revisions, undo/redo, saved versions, stale-ID handling, and eight strict path-free service commands work transactionally | done | Post-review repository/service regressions passed 13/13 and complete core 119/119 passed | `abad8c3`; review corrections pending closure checkpoint | Legacy libraries without a remembered selected XML path must be reimported before export |
 | M4-004 | desktop boundary implementer | Six fixed set methods and native-picker prepare/confirm export cross strict schemas with single-use main-owned confirmation state and no renderer paths | done | 32/32 focused contracts/IPC/preload/client tests; complete desktop 114/114 and strict typecheck passed | `82bbf94`, pushed | Native picker appearance is deferred; cancel/new/overwrite semantics remain automated |
 | M4-005 | macOS UI specialist | One inline Set workspace exposes every structured create/edit/history/version/inspection/organization/export behavior accessibly with no renderer scoring/filesystem access | done | 34/34 focused renderer tests; complete desktop 114/114; strict typecheck and production build passed | `82bbf94`, pushed | All screenshot and subjective visual QA is deferred under D-045 |
-| M4-006 | primary | Generated official-XML import-to-export Electron flow, aggregate gate, one bounded review, current memory/docs, and a green pushed checkpoint close M4 | in-progress | Generated flow and `pnpm verify:m4` implementation underway; milestone evidence/review/payload inspection remain pending | pending | Nonvisual automation must not be mislabeled as real Rekordbox or native-picker visual validation |
+| M4-006 | primary | Generated official-XML import-to-export Electron flow, aggregate gate, one bounded review, current memory/docs, and a green pushed checkpoint close M4 | review | Post-review `pnpm verify:m4`: 119 core + 116 desktop + strict typecheck/build + 5 Electron flows; generated official import, repeated draft, edits/history/versions/inspection, cancel/new/overwrite export, production-parser reparse, reload, hashes, and cleanup passed | `dd741d6`, pushed; correction checkpoint pending reviewer confirmation | Nonvisual automation is not real Rekordbox or native-picker visual validation |
 
 ## Historical Phase 0 ledger (frozen 2026-08-09)
 
@@ -107,7 +107,7 @@ Unchecked boxes remain honest historical failures. The approved personal-use sco
 | M1 | App shell and real library slice | done | Green checkpoint `dec0698`; `docs/evidence/m1-app-shell-library.md` |
 | M2 | Local analysis slice | done | `docs/evidence/m2-local-analysis.md`; green implementation `a66e0d6`; closure records `cb857a2`; independent reviewer READY |
 | M3 | Discovery and recommendation slice | done | `docs/evidence/m3-discovery-recommendations.md`; green implementation `5a5d59d`/`bb85aaa`; reviewed correction/closure `1e9d347`; independent reviewer READY |
-| M4 | Set workflow slice | in-progress | Bounded domain/export/renderer research; separate implementation plan in preparation |
+| M4 | Set workflow slice | in-progress | `docs/evidence/m4-set-workflow-export.md`; post-review aggregate green and reviewer READY; closure push pending |
 | M5 | Personalization slice | not-started | Separate plan after M4 |
 | M6 | Codex-assisted slice | not-started | Separate plan after M5 |
 | M7 | Personal release polish | not-started | Separate plan after M6 |

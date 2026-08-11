@@ -1,6 +1,6 @@
 # Licensing and Distribution Strategy
 
-Status: M2 development inventory current; M7 distribution inventory pending
+Status: M4 development inventory current; M7 distribution inventory pending
 Project license: MIT (`../LICENSE`)
 
 ## Default-build policy
@@ -23,7 +23,7 @@ Project license: MIT (`../LICENSE`)
 | CPython | Bundled DJ-core runtime | Python Software Foundation License; ADR-0001 selects the 3.12 major line, with an exact current security patch/build deferred to Phase 1 | Not applicable | Reproducible arm64 runtime bundle, standard-library/native inventory, notices, integrity, and signing must be verified before distribution; never depend on system Python |
 | NumPy 2.4.4 | M2 transparent DSP calculations | PyPI/versioned source declares `BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0`; exact pin is `core/requirements.txt` | No model, weights, or dataset selected | Allowed in development; M7 must include the complete bundled-component notice inventory and verify the selected CPython 3.12 arm64 wheel/package |
 | External FFmpeg/ffprobe 8.1.2 | M2 local metadata and streamed audio decode | FFmpeg is LGPL-2.1-or-later by default, but the measured Homebrew build enables GPL components and reports GPL terms | Not applicable | Joe's existing executable may be invoked for personal development only; it is not copied or bundled. M7 must select a reproducible distributable configuration and satisfy its exact source/configuration/notices obligations |
-| Rekordbox XML specification | Interchange format | Official developer format document; no source library is copied | User-selected metadata remains user data | Allowed baseline subject to Rekordbox developer terms and strict parser implementation |
+| Rekordbox XML specification | Implemented import/export interchange | Official developer format document; no source library is copied; M4 parser/writer use the Python standard library only | User-selected metadata remains user data; generated test XML contains no personal data/audio | Allowed personal baseline subject to Rekordbox developer terms; M4 adds no third-party XML/runtime dependency and real Rekordbox import remains Joe's deferred manual check |
 | `pyrekordbox` | Later optional snapshot-only reference | MIT at inspected `f695541` | No model assets | Reference only; license is permissive but mutation/version/security behavior is not approved |
 | `all-in-one` | Optional structure provider | MIT at inspected `18e7890` | Checkpoint card says MIT; Harmonix annotations MIT, but downloadable audio/spectrogram terms are separate/incompletely surfaced | Not approved for default distribution; experimental adapter only after complete provenance/safe-loading review |
 | `all-in-one-mlx` | Optional Apple-Silicon structure provider | MIT at inspected `da5f347` | Converted weights lack a separate card/checksum manifest; upstream card says MIT | Reference only until weight provenance/integrity/parity is resolved |

@@ -37,6 +37,8 @@ Electron main owns the native destination picker and a short-lived single-use co
 
 This is the personal-use implementation of the trusted-write boundary. It retains source immutability, schema validation, path hiding, point-of-use checks, explicit overwrite confirmation, and failure integrity without reviving the superseded Phase 0 approval broker or speculative XML/database machinery. Real Rekordbox import behavior and native picker appearance remain deferred under D-045 rather than recorded as passed.
 
+Implementation checkpoints `3f87261` and `dd741d6` provide the focused parser/writer and integrated desktop evidence. The pre-review `pnpm verify:m4` gate passed 117 core tests, 115 desktop tests, strict typecheck/build, and five Electron flows. The M4 flow exercised cancel, new-file, and confirmed-overwrite states; reparsed the finalized output with the production importer; preserved exact repeated order and all generated source hashes; and removed temporary/runtime artifacts. This is engineering compatibility evidence only, not a real Rekordbox 7.2.14 Bridge import or visual/native-dialog pass.
+
 ## Consequences if accepted
 
 XML-only mode is a permanent supported fallback. Export uses temporary write, independent reparse, ID/location validation, and atomic finalize with explicit overwrite confirmation.

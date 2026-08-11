@@ -57,6 +57,10 @@ function mergeQueueStatus(
   return { ...update, items: merged.slice(0, MAX_ANALYSIS_TRACKS) };
 }
 
+function uniqueTrackIds(trackIds: string[]): string[] {
+  return Array.from(new Set(trackIds));
+}
+
 function stableSelectedIds(tracks: TrackListItem[] | null, selectedTrackIds: ReadonlySet<string>): string[] {
   const renderedIds = new Set((tracks ?? []).map((track) => track.id));
   const visibleSelected = (tracks ?? [])
@@ -65,7 +69,7 @@ function stableSelectedIds(tracks: TrackListItem[] | null, selectedTrackIds: Rea
   const selectedOutsideView = Array.from(selectedTrackIds)
     .filter((trackId) => !renderedIds.has(trackId))
     .sort((left, right) => left.localeCompare(right));
-  return [...visibleSelected, ...selectedOutsideView].slice(0, MAX_ANALYSIS_TRACKS);
+  return uniqueTrackIds([...visibleSelected, ...selectedOutsideView]).slice(0, MAX_ANALYSIS_TRACKS);
 }
 
 function stablePollIds(tracks: TrackListItem[] | null, selectedTrackIds: ReadonlySet<string>): string[] {
@@ -76,7 +80,7 @@ function stablePollIds(tracks: TrackListItem[] | null, selectedTrackIds: Readonl
     .filter((trackId) => !visibleIds.has(trackId))
     .sort((left, right) => left.localeCompare(right));
   const remaining = visible.filter((track) => !selectedTrackIds.has(track.id)).map((track) => track.id);
-  return [...selected, ...selectedOutsideView, ...remaining].slice(0, MAX_ANALYSIS_TRACKS);
+  return uniqueTrackIds([...selected, ...selectedOutsideView, ...remaining]).slice(0, MAX_ANALYSIS_TRACKS);
 }
 
 function desktopApi(): DesktopApi | null {
